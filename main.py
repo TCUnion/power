@@ -1,0 +1,199 @@
+import os
+import logging
+from dotenv import load_dotenv
+
+load_dotenv()
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import Optional, List
+from supabase import create_client, Client
+
+# 設定日誌
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("tcu-power-api")
+
+app = FastAPI(title="TCU Power API")
+
+# 設定更寬容的 CORS 以解決目前的攔截問題
+# 注意：如果要使用 allow_credentials=True，則 allow_origins 不能為 ["*"]
+# 暫時先改為最寬鬆模式以驗證通訊是否正常
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+class StravaToken(BaseModel):
+    athlete_id: int
+    access_token: str
+    refresh_token: str
+    expires_at: int
+    name: Optional[str] = None
+    user_id: Optional[str] = None
+
+class BindingRequest(BaseModel):
+    email: str
+    memberName: str
+    stravaId: int
+    input_id: str
+    action: str
+
+class ConfirmBindingRequest(BaseModel):
+    email: str
+    stravaId: int
+    tcu_account: str
+    member_name: str
+    user_id: Optional[str] = None
+
+@app.get("/")
+def read_root():
+    logger.info("Root endpoint called")
+    return {"status": "online", "message": "TCU Power API is running v1.1"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
+from datetime import datetime
+
+@app.get("/check-binding")
+@app.get("/api/auth/binding-status/{athlete_id}")
+async def get_binding_status(athlete_id: int):
+    logger.info(f"Checking binding status for athlete: {athlete_id}")
+    
+    try:
+        # 使用環境變數初始化 Supabase Client
+        url: str = os.environ.get("SUPABASE_URL")
+        key: str = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
+        
+        if not url or not key:
+            logger.error("Missing Supabase credentials")
+            return {
+                "isBound": False,
+                "member_data": None,
+                "strava_name": "",
+                "error": "Configuration error"
+            }
+            
+        supabase: Client = create_client(url, key)
+        
+        # 1. 先查詢 strava_bindings 表格，確認是否有此 athlete 的綁定
+        binding_res = supabase.table("strava_bindings") \
+            .select("*") \
+            .eq("strava_id", str(athlete_id)) \
+            .execute()
+            
+        if not binding_res.data or len(binding_res.data) == 0:
+            logger.info(f"No binding found in strava_bindings for athlete {athlete_id}")
+            return {
+                "isBound": False,
+                "member_data": None,
+                "strava_name": ""
+            }
+        
+        binding = binding_res.data[0]
+        tcu_member_email = binding.get("tcu_member_email")
+        
+        # 2. 根據綁定的 email 查詢 tcu_members 取得完整會員資料
+        if tcu_member_email:
+            member_res = supabase.table("tcu_members") \
+                .select("*") \
+                .eq("email", tcu_member_email) \
+                .execute()
+                
+            if member_res.data and len(member_res.data) > 0:
+                member = member_res.data[0]
+                logger.info(f"Found binding for athlete {athlete_id}: {member.get('tcu_id', 'Unknown')}")
+                return {
+                    "isBound": True,
+                    "member_data": member,
+                    "strava_name": binding.get("member_name", "")
+                }
+        
+        # 有綁定記錄但找不到對應會員（異常情況）
+        logger.warning(f"Binding exists but no member found for email: {tcu_member_email}")
+        return {
+            "isBound": True,
+            "member_data": None,
+            "strava_name": binding.get("member_name", "")
+        }
+            
+    except Exception as e:
+        logger.error(f"Error checking binding status: {str(e)}")
+        return {
+            "isBound": False,
+            "member_data": None,
+            "strava_name": "",
+            "error": str(e)
+        }
+
+@app.post("/api/auth/strava-token")
+async def sync_strava_token(token: StravaToken):
+    logger.info(f"Syncing token for athlete {token.athlete_id}")
+    return {"status": "success", "message": "Token synced"}
+
+@app.post("/api/auth/member-binding")
+async def member_binding(req: BindingRequest):
+    logger.info(f"Member binding request: {req.email} action: {req.action}")
+    if req.action == "generate_otp":
+        return {"success": True, "message": "已發送驗證碼（模擬）"}
+    return {"success": False, "message": "無效的動作"}
+
+@app.post("/api/auth/confirm-binding")
+async def confirm_binding(req: ConfirmBindingRequest):
+    logger.info(f"Confirming binding for athlete {req.stravaId}")
+    
+    try:
+        # 使用環境變數初始化 Supabase Client
+        url: str = os.environ.get("SUPABASE_URL")
+        key: str = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
+        
+        if not url or not key:
+            raise HTTPException(status_code=500, detail="Missing Supabase credentials")
+            
+        supabase: Client = create_client(url, key)
+        
+        # 1. 準備寫入 strava_bindings 的資料
+        # 注意：這裡假設 tcu_members 已經有正確資料
+        # 我們將 strava_id 與 tcu_member_email 關聯起來
+        binding_data = {
+            "strava_id": str(req.stravaId),
+            "member_name": req.member_name,
+            "tcu_member_email": req.email,
+            "tcu_account": req.tcu_account,
+            "updated_at": datetime.now().isoformat(),
+            "bound_at": datetime.now().isoformat(),
+            "user_id": req.user_id
+        }
+        
+        # 2. 執行 Upsert (如果已存在則更新)
+        # 需確保 strava_bindings 有 unique constraint (例如 strava_id 是 PK 或 Unique)
+        res = supabase.table("strava_bindings").upsert(binding_data).execute()
+        
+        if len(res.data) > 0:
+            logger.info(f"Binding successful for athlete {req.stravaId}")
+            return {
+                "success": True, 
+                "message": "綁定成功",
+                "member_data": {
+                    "real_name": req.member_name,
+                    "email": req.email,
+                    "tcu_id": req.tcu_account,
+                    "account": req.tcu_account
+                }
+            }
+        else:
+            logger.error("Failed to insert binding data")
+            return {"success": False, "message": "資料庫寫入失敗"}
+            
+    except Exception as e:
+        logger.error(f"Error in confirm_binding: {str(e)}")
+        return {"success": False, "message": f"綁定過程發生錯誤: {str(e)}"}
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)

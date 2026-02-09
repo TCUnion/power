@@ -1,0 +1,13 @@
+name: n8n 工作流自動備份
+
+on:
+  schedule:
+    - cron: '0 18 * * *' # 每日凌晨 2:00 (台灣時間 UTC+8)
+  workflow_dispatch: # 支援手動觸發
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 說明
+        run: echo "此工作流需搭配 n8n 端的『自動備份工作流』透過 GitHub API 推送更新。此處保留作為觸發與記錄用途。"

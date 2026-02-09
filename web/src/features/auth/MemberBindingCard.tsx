@@ -104,7 +104,7 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
 
     const triggerOtp = async (email: string, name: string, inputId: string) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/auth/member-binding`, {
+            const response = await fetch('https://service.criterium.tw/webhook/member-binding', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

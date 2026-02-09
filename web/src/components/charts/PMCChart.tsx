@@ -16,11 +16,12 @@ interface PMCChartProps {
 }
 
 // 週期選項定義
-type PeriodOption = 7 | 14 | 30 | 90;
+// 週期選項定義
+type PeriodOption = 14 | 28 | 42 | 90;
 const PERIOD_OPTIONS: { value: PeriodOption; label: string }[] = [
-    { value: 7, label: '7天' },
     { value: 14, label: '14天' },
-    { value: 30, label: '30天' },
+    { value: 28, label: '28天' },
+    { value: 42, label: '42天' },
     { value: 90, label: '90天' },
 ];
 

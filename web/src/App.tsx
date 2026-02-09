@@ -61,13 +61,6 @@ const HomePage: React.FC = () => {
   return (
     <div className={`mx-auto space-y-8 ${isBound ? 'max-w-7xl' : 'max-w-4xl'}`}>
       <div className="grid gap-8">
-        {/* Strava 連結狀態 - 當已綁定且顯示 Dashboard 時可以考慮隱藏或縮小，這邊暫時保留但調整布局 */}
-        {!isBound && (
-          <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-800">
-            <StravaConnect />
-          </div>
-        )}
-
         {/* TCU 綁定卡片 */}
         <div className="md:col-span-1">
           <MemberBindingCard onBindingSuccess={() => { }} />
@@ -109,6 +102,13 @@ const HomePage: React.FC = () => {
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* 儀表板標題或分隔線可選 */}
             <PowerDashboard />
+          </div>
+        )}
+
+        {/* Strava 連結狀態 - 移至底部 */}
+        {!isBound && (
+          <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-800">
+            <StravaConnect />
           </div>
         )}
       </div>

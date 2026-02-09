@@ -51,7 +51,7 @@ class ConfirmBindingRequest(BaseModel):
 @app.get("/")
 def read_root():
     logger.info("Root endpoint called")
-    return {"status": "online", "message": "TCU Power API is running v1.1"}
+    return {"status": "online", "message": "TCU Power API is running v1.2"}
 
 @app.get("/health")
 def health_check():
@@ -65,17 +65,21 @@ async def get_binding_status(athlete_id: int):
     logger.info(f"Checking binding status for athlete: {athlete_id}")
     
     try:
-        # 使用環境變數初始化 Supabase Client
         url: str = os.environ.get("SUPABASE_URL")
-        key: str = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
+        key: str = os.environ.get("SUPABASE_SERVICE_KEY") or \
+                   os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or \
+                   os.environ.get("SUPABASE_KEY")
         
         if not url or not key:
-            logger.error("Missing Supabase credentials")
+            missing = []
+            if not url: missing.append("SUPABASE_URL")
+            if not key: missing.append("SUPABASE_KEY/SERVICE_KEY")
+            logger.error(f"Missing Supabase credentials in environment: {', '.join(missing)}")
             return {
                 "isBound": False,
                 "member_data": None,
                 "strava_name": "",
-                "error": "Configuration error"
+                "error": f"Configuration error: Missing {', '.join(missing)}"
             }
             
         supabase: Client = create_client(url, key)

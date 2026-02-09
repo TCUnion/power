@@ -23,6 +23,11 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </span>
           </div>
           <div className="flex items-center gap-4">
+            <div className="px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800">
+              <span className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-500 uppercase tracking-wider">
+                {import.meta.env.VITE_GIT_HASH || 'v1.2-dev'}
+              </span>
+            </div>
             {/* Future: User Menu */}
           </div>
         </div>

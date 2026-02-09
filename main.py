@@ -51,7 +51,7 @@ class ConfirmBindingRequest(BaseModel):
 @app.get("/")
 def read_root():
     logger.info("Root endpoint called")
-    return {"status": "online", "message": "TCU Power API is running v1.1"}
+    return {"status": "online", "message": "TCU Power API is running v1.2"}
 
 @app.get("/health")
 def health_check():
@@ -65,29 +65,37 @@ async def get_binding_status(athlete_id: int):
     logger.info(f"Checking binding status for athlete: {athlete_id}")
     
     try:
-        # 使用環境變數初始化 Supabase Client
         url: str = os.environ.get("SUPABASE_URL")
         key: str = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
         
         if not url or not key:
-            logger.error("Missing Supabase credentials")
+            logger.error("Missing Supabase credentials in environment")
             return {
                 "isBound": False,
                 "member_data": None,
                 "strava_name": "",
-                "error": "Configuration error"
+                "error": "Configuration error: Missing Supabase credentials"
             }
             
         supabase: Client = create_client(url, key)
         
-        # 1. 先查詢 strava_bindings 表格，確認是否有此 athlete 的綁定
+        # 1. 查詢 strava_bindings
+        # 嘗試以字串查詢
         binding_res = supabase.table("strava_bindings") \
             .select("*") \
             .eq("strava_id", str(athlete_id)) \
             .execute()
             
         if not binding_res.data or len(binding_res.data) == 0:
-            logger.info(f"No binding found in strava_bindings for athlete {athlete_id}")
+            # 嘗試以整數查詢 (防止資料庫欄位類型不同)
+            logger.info(f"No string match for {athlete_id}, trying integer match...")
+            binding_res = supabase.table("strava_bindings") \
+                .select("*") \
+                .eq("strava_id", athlete_id) \
+                .execute()
+                
+        if not binding_res.data or len(binding_res.data) == 0:
+            logger.info(f"No binding found for athlete {athlete_id} (both str/int tried)")
             return {
                 "isBound": False,
                 "member_data": None,
@@ -95,9 +103,10 @@ async def get_binding_status(athlete_id: int):
             }
         
         binding = binding_res.data[0]
+        logger.info(f"Found binding record: {binding}")
         tcu_member_email = binding.get("tcu_member_email")
         
-        # 2. 根據綁定的 email 查詢 tcu_members 取得完整會員資料
+        # 2. 查詢 tcu_members
         if tcu_member_email:
             member_res = supabase.table("tcu_members") \
                 .select("*") \
@@ -106,15 +115,14 @@ async def get_binding_status(athlete_id: int):
                 
             if member_res.data and len(member_res.data) > 0:
                 member = member_res.data[0]
-                logger.info(f"Found binding for athlete {athlete_id}: {member.get('tcu_id', 'Unknown')}")
+                logger.info(f"Successfully matched member: {member.get('tcu_id')}")
                 return {
                     "isBound": True,
                     "member_data": member,
                     "strava_name": binding.get("member_name", "")
                 }
         
-        # 有綁定記錄但找不到對應會員（異常情況）
-        logger.warning(f"Binding exists but no member found for email: {tcu_member_email}")
+        logger.warning(f"Binding exists but member linked by email {tcu_member_email} was not found")
         return {
             "isBound": True,
             "member_data": None,
@@ -122,7 +130,9 @@ async def get_binding_status(athlete_id: int):
         }
             
     except Exception as e:
-        logger.error(f"Error checking binding status: {str(e)}")
+        logger.error(f"Critical error in get_binding_status: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         return {
             "isBound": False,
             "member_data": None,

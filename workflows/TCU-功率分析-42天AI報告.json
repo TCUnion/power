@@ -1,0 +1,307 @@
+{
+    "name": "TCU-功率分析-42天AI報告",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "power-analysis",
+                "options": {}
+            },
+            "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "name": "Webhook 觸發",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2.1,
+            "position": [
+                240,
+                300
+            ],
+            "webhookId": "power-analysis-42day"
+        },
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "cronExpression",
+                            "expression": "0 8 * * 1"
+                        }
+                    ]
+                }
+            },
+            "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+            "name": "每週一排程",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1.2,
+            "position": [
+                240,
+                500
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "SELECT \n  ss.activity_id,\n  ss.streams,\n  ss.ftp,\n  ss.max_heartrate,\n  ss.created_at,\n  sa.athlete_id,\n  sa.moving_time,\n  sa.distance,\n  sa.total_elevation_gain,\n  sa.start_date,\n  sa.average_watts,\n  sa.weighted_average_watts,\n  a.firstname,\n  a.lastname,\n  COALESCE(ss.ftp, 200) as athlete_ftp,\n  COALESCE(ss.max_heartrate, 185) as athlete_max_hr\nFROM strava_streams ss\nJOIN strava_activities sa ON ss.activity_id = sa.id\nJOIN athletes a ON sa.athlete_id = a.id\nWHERE sa.athlete_id = {{ $json.athlete_id || $json.body.athlete_id }}\n  AND ss.created_at >= NOW() - INTERVAL '42 days'\nORDER BY ss.created_at DESC",
+                "options": {}
+            },
+            "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+            "name": "查詢 42 天 Strava Streams",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.5,
+            "position": [
+                540,
+                400
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "YOUR_SUPABASE_CREDENTIAL_ID",
+                    "name": "Supabase PostgreSQL"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "jsCode": "// ============================================\n// 進階功率分析模組 (整合 GoldenCheetah + cycling-analytics)\n// ============================================\n\nconst CTL_TIME_CONSTANT = 42;\nconst ATL_TIME_CONSTANT = 7;\nconst NP_WINDOW_SIZE = 30;\nconst MMP_DURATIONS = [1, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 300, 360, 480, 600, 720, 900, 1200, 1800, 2400, 3600, 5400, 7200];\n\nconst POWER_ZONES = [\n  { zone: 1, name: '主動恢復', minPct: 0, maxPct: 0.55 },\n  { zone: 2, name: '耐力', minPct: 0.56, maxPct: 0.75 },\n  { zone: 3, name: '節奏', minPct: 0.76, maxPct: 0.90 },\n  { zone: 4, name: '乳酸閾值', minPct: 0.91, maxPct: 1.05 },\n  { zone: 5, name: 'VO2max', minPct: 1.06, maxPct: 1.20 },\n  { zone: 6, name: '無氧', minPct: 1.21, maxPct: 1.50 },\n  { zone: 7, name: '神經肌肉', minPct: 1.51, maxPct: 999 },\n];\n\n// Normalized Power 計算\nfunction calculateNP(powerData) {\n  if (!powerData || powerData.length < 30) {\n    return powerData?.length > 0 ? Math.round(powerData.reduce((a, b) => a + b, 0) / powerData.length) : 0;\n  }\n  const rollingAvg = [];\n  for (let i = 29; i < powerData.length; i++) {\n    let sum = 0;\n    for (let j = i - 29; j <= i; j++) sum += powerData[j];\n    rollingAvg.push(sum / 30);\n  }\n  const sumFourthPower = rollingAvg.reduce((sum, val) => sum + Math.pow(val, 4), 0);\n  return Math.round(Math.pow(sumFourthPower / rollingAvg.length, 0.25));\n}\n\n// TSS 計算\nfunction calculateTSS(np, ftp, duration) {\n  if (ftp <= 0 || np <= 0) return 0;\n  const intensityFactor = np / ftp;\n  return Math.round((duration * np * intensityFactor) / (ftp * 3600) * 1000) / 10;\n}\n\n// 指數衰減 CTL/ATL\nfunction calcExpCTL(prev, tss) { return (1 - 1 / CTL_TIME_CONSTANT) * prev + (1 / CTL_TIME_CONSTANT) * tss; }\nfunction calcExpATL(prev, tss) { return (1 - 1 / ATL_TIME_CONSTANT) * prev + (1 / ATL_TIME_CONSTANT) * tss; }\n\n// MMP 計算\nfunction calculateMMP(powerData, duration) {\n  if (!powerData || powerData.length < duration) return 0;\n  let maxAvg = 0, windowSum = 0;\n  for (let i = 0; i < duration; i++) windowSum += powerData[i];\n  maxAvg = windowSum / duration;\n  for (let i = duration; i < powerData.length; i++) {\n    windowSum = windowSum - powerData[i - duration] + powerData[i];\n    const avg = windowSum / duration;\n    if (avg > maxAvg) maxAvg = avg;\n  }\n  return Math.round(maxAvg);\n}\n\nfunction calculateFullMMP(powerData) {\n  const mmp = {};\n  for (const d of MMP_DURATIONS) {\n    if (d <= powerData.length) mmp[d] = calculateMMP(powerData, d);\n  }\n  return mmp;\n}\n\n// Morton's 3P CP 模型\nfunction fitMorton3P(pdCurve) {\n  if (!pdCurve || pdCurve.length < 3) return { cp: 0, wPrime: 0, tau: 20, pMax: 0, r2: 0 };\n  const validPoints = pdCurve.filter(p => p.power > 0 && p.duration > 5);\n  if (validPoints.length < 3) return { cp: 0, wPrime: 0, tau: 20, pMax: 0, r2: 0 };\n\n  let cp = validPoints[validPoints.length - 1].power;\n  let wPrime = 20000, tau = 15;\n\n  for (let iter = 0; iter < 200; iter++) {\n    let gradCP = 0, gradWPrime = 0, gradTau = 0;\n    for (const point of validPoints) {\n      const denom = Math.max(point.duration - tau, 0.1);\n      const pPred = cp + wPrime / denom;\n      const err = point.power - pPred;\n      gradCP -= 2 * err;\n      gradWPrime -= 2 * err / denom;\n      gradTau -= 2 * err * wPrime / (denom * denom);\n    }\n    cp -= 0.001 * gradCP;\n    wPrime -= 0.001 * gradWPrime * 1000;\n    tau -= 0.001 * gradTau * 10;\n    cp = Math.max(100, Math.min(600, cp));\n    wPrime = Math.max(5000, Math.min(60000, wPrime));\n    tau = Math.max(5, Math.min(40, tau));\n  }\n\n  const meanP = validPoints.reduce((s, p) => s + p.power, 0) / validPoints.length;\n  let ssTotal = 0, ssRes = 0;\n  for (const point of validPoints) {\n    ssTotal += Math.pow(point.power - meanP, 2);\n    ssRes += Math.pow(point.power - (cp + wPrime / Math.max(point.duration - tau, 0.1)), 2);\n  }\n  const r2 = 1 - ssRes / ssTotal;\n  return { cp: Math.round(cp), wPrime: Math.round(wPrime), wPrimeKJ: Math.round(wPrime / 100) / 10, tau: Math.round(tau * 10) / 10, pMax: Math.round(cp + wPrime / tau), r2: Math.round(r2 * 1000) / 1000 };\n}\n\nfunction extractPowerData(streams) {\n  if (!streams) return [];\n  if (typeof streams === 'string') {\n    try { streams = JSON.parse(streams); } catch { return []; }\n  }\n  if (!Array.isArray(streams)) return [];\n  const wattsStream = streams.find(s => s.type === 'watts');\n  return wattsStream?.data || [];\n}\n\n// === 主邏輯 ===\nconst items = $input.all();\nconst first = items[0]?.json || {};\nconst ftp = first.athlete_ftp || 200;\nconst maxHR = first.athlete_max_hr || 185;\n\nconst activities = [], dailyTSS = {}, allMMP = {};\nlet ctl = 0, atl = 0, totalDuration = 0, totalDistance = 0, totalElevation = 0;\n\nfor (const item of items) {\n  const json = item.json;\n  const powerData = extractPowerData(json.streams);\n  if (powerData.length === 0) continue;\n\n  const np = calculateNP(powerData);\n  const duration = json.moving_time || powerData.length;\n  const tss = calculateTSS(np, ftp, duration);\n  const dateKey = new Date(json.start_date || json.created_at).toISOString().split('T')[0];\n\n  dailyTSS[dateKey] = (dailyTSS[dateKey] || 0) + tss;\n  totalDuration += duration;\n  totalDistance += json.distance || 0;\n  totalElevation += json.total_elevation_gain || 0;\n\n  // MMP\n  const mmp = calculateFullMMP(powerData);\n  for (const [d, p] of Object.entries(mmp)) {\n    if (!allMMP[d] || p > allMMP[d]) allMMP[d] = p;\n  }\n\n  activities.push({ id: json.activity_id, date: dateKey, np, tss, avgPower: Math.round(powerData.reduce((a, b) => a + b, 0) / powerData.length) });\n}\n\n// 計算 CTL/ATL\nconst sortedDates = Object.keys(dailyTSS).sort();\nfor (const date of sortedDates) {\n  ctl = calcExpCTL(ctl, dailyTSS[date]);\n  atl = calcExpATL(atl, dailyTSS[date]);\n}\nconst tsb = Math.round(ctl - atl);\n\n// CP 模型\nconst pdCurve = Object.entries(allMMP).map(([d, p]) => ({ duration: parseInt(d), power: p }));\nconst cpModel = fitMorton3P(pdCurve);\n\n// FTP 預測\nconst ftpEstimates = {};\nif (allMMP[1200]) ftpEstimates.from20min = Math.round(allMMP[1200] * 0.95);\nif (allMMP[3600]) ftpEstimates.from60min = allMMP[3600];\nif (cpModel.cp > 0) ftpEstimates.fromCP = cpModel.cp;\nconst estimates = Object.values(ftpEstimates);\nconst predictedFTP = estimates.length > 0 ? Math.round(estimates.reduce((a, b) => a + b, 0) / estimates.length) : ftp;\n\nreturn [{\n  json: {\n    athlete: { name: `${first.firstname || ''} ${first.lastname || ''}`.trim() || '選手', ftp, maxHR },\n    period: { startDate: new Date(Date.now() - 42 * 86400000).toISOString().split('T')[0], endDate: new Date().toISOString().split('T')[0], totalDays: 42 },\n    summary: { totalActivities: activities.length, totalTSS: Math.round(Object.values(dailyTSS).reduce((a, b) => a + b, 0)), ctl: Math.round(ctl), atl: Math.round(atl), tsb, totalHours: Math.round(totalDuration / 360) / 10, totalDistance: Math.round(totalDistance / 1000), totalElevation: Math.round(totalElevation) },\n    cpModel,\n    ftpPrediction: { currentFTP: ftp, predictedFTP, estimates: ftpEstimates, confidence: cpModel.r2 > 0.95 ? 'high' : cpModel.r2 > 0.85 ? 'medium' : 'low', recommendation: predictedFTP > ftp * 1.05 ? `建議更新 FTP 至 ${predictedFTP}W (+${Math.round((predictedFTP / ftp - 1) * 100)}%)` : predictedFTP < ftp * 0.95 ? 'FTP 可能下降，建議重新測試' : '當前 FTP 設定合理' },\n    mmpCurve: { '5s': allMMP[5] || 0, '30s': allMMP[30] || 0, '1min': allMMP[60] || 0, '5min': allMMP[300] || 0, '20min': allMMP[1200] || 0, '60min': allMMP[3600] || 0 },\n    highlights: activities.sort((a, b) => b.tss - a.tss).slice(0, 3),\n    notificationType: $('Webhook 觸發').item?.json?.notification_type || 'line',\n  }\n}];"
+            },
+            "id": "d4e5f6a7-b8c9-0123-def0-234567890123",
+            "name": "計算功率指標 (CP模型)",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                780,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://api.openai.com/v1/chat/completions",
+                "authentication": "genericCredentialType",
+                "genericAuthType": "httpHeaderAuth",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={\n  \"model\": \"gpt-4o\",\n  \"response_format\": { \"type\": \"json_object\" },\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"你是專業自行車功率教練，精通 Morton's 3-Parameter Critical Power 模型。分析數據並提供訓練建議。回覆必須是 JSON 格式。\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"分析以下 42 天訓練數據，CP 模型參數已計算完成：\\n\\n\" + JSON.stringify($json) + \"\\n\\n請以 JSON 回覆：\\n{\\n  \\\"overallAssessment\\\": \\\"整體評估 (2-3 句)\\\",\\n  \\\"currentFormStatus\\\": \\\"恢復中/良好/疲勞/過度訓練\\\",\\n  \\\"cpModelAnalysis\\\": \\\"CP 模型分析，說明 W' 和 CP 的意義\\\",\\n  \\\"ftpRecommendation\\\": \\\"FTP 設定建議\\\",\\n  \\\"recommendations\\\": [{\\\"type\\\": \\\"string\\\", \\\"priority\\\": \\\"high/medium/low\\\", \\\"content\\\": \\\"建議內容\\\"}],\\n  \\\"weeklyPlan\\\": {\\\"monday\\\": \\\"...\\\", \\\"tuesday\\\": \\\"...\\\", ...}\\n}\"\n    }\n  ],\n  \"temperature\": 0.7\n}",
+                "options": {}
+            },
+            "id": "e5f6a7b8-c9d0-1234-ef01-345678901234",
+            "name": "AI 功率分析",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                1020,
+                400
+            ],
+            "credentials": {
+                "httpHeaderAuth": {
+                    "id": "YOUR_OPENAI_CREDENTIAL_ID",
+                    "name": "OpenAI API"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "jsCode": "const input = $input.first().json;\nconst data = $('計算功率指標 (CP模型)').first().json;\n\nlet ai = {};\ntry {\n  if (input.choices?.[0]?.message?.content) ai = JSON.parse(input.choices[0].message.content);\n} catch { ai = { overallAssessment: '無法解析 AI 回應' }; }\n\nfunction getTSBStatus(tsb) {\n  if (tsb > 25) return '💚 恢復充足';\n  if (tsb > 5) return '💙 狀態良好';\n  if (tsb > -10) return '🟡 適度疲勞';\n  if (tsb > -30) return '🟠 疲勞累積';\n  return '🔴 過度訓練';\n}\n\nconst { athlete, summary, cpModel, ftpPrediction, mmpCurve } = data;\nconst tsbStatus = getTSBStatus(summary.tsb);\n\nlet msg = `🚴 ${athlete.name} 的 42 天訓練報告\\n━━━━━━━━━━━━━━━━\\n\\n`;\nmsg += `📊 訓練概覽\\n• 總騎乘: ${summary.totalActivities} 次\\n• 總時數: ${summary.totalHours} 小時\\n• 總 TSS: ${summary.totalTSS}\\n\\n`;\nmsg += `💪 訓練狀態\\n• CTL: ${summary.ctl} | ATL: ${summary.atl}\\n• TSB: ${summary.tsb} ${tsbStatus}\\n\\n`;\nmsg += `🔬 CP 模型分析\\n• Critical Power: ${cpModel.cp}W\\n• W': ${cpModel.wPrimeKJ} kJ\\n• P_max: ${cpModel.pMax}W\\n• R²: ${cpModel.r2}\\n\\n`;\nmsg += `📈 FTP 預測\\n• 當前設定: ${ftpPrediction.currentFTP}W\\n• 預測值: ${ftpPrediction.predictedFTP}W\\n• ${ftpPrediction.recommendation}\\n\\n`;\nmsg += `🏆 MMP 關鍵點\\n• 5s: ${mmpCurve['5s']}W | 1min: ${mmpCurve['1min']}W\\n• 5min: ${mmpCurve['5min']}W | 20min: ${mmpCurve['20min']}W\\n\\n`;\nmsg += `🤖 AI 分析\\n${ai.overallAssessment || ''}\\n\\n`;\n\nif (ai.recommendations?.length > 0) {\n  msg += `📝 建議:\\n`;\n  ai.recommendations.slice(0, 3).forEach((r, i) => { msg += `${i + 1}. ${r.content}\\n`; });\n}\n\nreturn [{ json: { lineMessage: msg, emailSubject: `🚴 ${athlete.name} - 42天報告 (CP:${cpModel.cp}W TSB:${summary.tsb})`, notificationType: data.notificationType, data, ai } }];"
+            },
+            "id": "f6a7b8c9-d0e1-2345-f012-456789012345",
+            "name": "格式化通知",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1260,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": "",
+                        "typeValidation": "strict"
+                    },
+                    "conditions": [
+                        {
+                            "id": "line-condition",
+                            "leftValue": "={{ $json.notificationType }}",
+                            "rightValue": "line",
+                            "operator": {
+                                "type": "string",
+                                "operation": "equals"
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                },
+                "options": {}
+            },
+            "id": "a7b8c9d0-e1f2-3456-0123-567890123456",
+            "name": "通知方式判斷",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [
+                1500,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://notify-api.line.me/api/notify",
+                "authentication": "genericCredentialType",
+                "genericAuthType": "httpHeaderAuth",
+                "sendBody": true,
+                "specifyBody": "string",
+                "body": "={{ 'message=' + encodeURIComponent($json.lineMessage) }}",
+                "options": {
+                    "headers": {
+                        "values": [
+                            {
+                                "name": "Content-Type",
+                                "value": "application/x-www-form-urlencoded"
+                            }
+                        ]
+                    }
+                }
+            },
+            "id": "b8c9d0e1-f2a3-4567-1234-678901234567",
+            "name": "發送 Line 通知",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                1740,
+                300
+            ],
+            "credentials": {
+                "httpHeaderAuth": {
+                    "id": "YOUR_LINE_NOTIFY_CREDENTIAL_ID",
+                    "name": "Line Notify Token"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "fromEmail": "noreply@tcu.example.com",
+                "toEmail": "={{ $json.athleteEmail }}",
+                "subject": "={{ $json.emailSubject }}",
+                "text": "={{ $json.lineMessage }}",
+                "options": {}
+            },
+            "id": "c9d0e1f2-a3b4-5678-2345-789012345678",
+            "name": "發送 Email",
+            "type": "n8n-nodes-base.emailSend",
+            "typeVersion": 2.1,
+            "position": [
+                1740,
+                500
+            ],
+            "credentials": {
+                "smtp": {
+                    "id": "YOUR_SMTP_CREDENTIAL_ID",
+                    "name": "SMTP"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "Webhook 觸發": {
+            "main": [
+                [
+                    {
+                        "node": "查詢 42 天 Strava Streams",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "每週一排程": {
+            "main": [
+                [
+                    {
+                        "node": "查詢 42 天 Strava Streams",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "查詢 42 天 Strava Streams": {
+            "main": [
+                [
+                    {
+                        "node": "計算功率指標 (CP模型)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "計算功率指標 (CP模型)": {
+            "main": [
+                [
+                    {
+                        "node": "AI 功率分析",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "AI 功率分析": {
+            "main": [
+                [
+                    {
+                        "node": "格式化通知",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "格式化通知": {
+            "main": [
+                [
+                    {
+                        "node": "通知方式判斷",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "通知方式判斷": {
+            "main": [
+                [
+                    {
+                        "node": "發送 Line 通知",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "發送 Email",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "staticData": null,
+    "meta": {
+        "templateCredsSetupCompleted": true
+    },
+    "pinData": {}
+}

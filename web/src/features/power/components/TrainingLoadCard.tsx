@@ -1,0 +1,3 @@
+import React, { useState, useEffect } from 'react';
+import { Zap, Activity, Flame, Shield, TrendingUp, Edit2, Check, X } from 'lucide-react';
+... [CONTENT OF TrainingLoadCard.tsx] ...

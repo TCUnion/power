@@ -92,5 +92,4 @@ async def confirm_binding(req: ConfirmBindingRequest):
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8080))
-    # 使用 proxy_headers=True 以處理 Zeabur 的代理請求
-    uvicorn.run(app, host="0.0.0.0", port=port, proxy_headers=True, forwarded_allow_ips="*")
+    uvicorn.run(app, host="0.0.0.0", port=port)

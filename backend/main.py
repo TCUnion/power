@@ -74,7 +74,11 @@ async def get_binding_status(athlete_id: int):
             missing = []
             if not url: missing.append("SUPABASE_URL")
             if not key: missing.append("SUPABASE_KEY/SERVICE_KEY")
-            logger.error(f"Missing Supabase credentials in environment: {', '.join(missing)}")
+            
+            # Debug: Log available keys (NOT values) to see what Zeabur provides
+            available_keys = list(os.environ.keys())
+            logger.error(f"Missing Supabase credentials (v1.2). Available keys: {available_keys}")
+            
             return {
                 "isBound": False,
                 "member_data": None,

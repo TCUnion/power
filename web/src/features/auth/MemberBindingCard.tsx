@@ -262,86 +262,10 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
                                         <span className="text-base font-bold truncate">{memberData.team || '未填寫'}</span>
                                     </div>
                                 </div>
-                                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">性別 / 生日</p>
-                                    <div className="flex items-center gap-3 text-slate-900 dark:text-white">
-                                        <div className="flex items-center gap-1">
-                                            <UserCheck className="w-4 h-4 text-emerald-500" />
-                                            <span className="text-base font-bold">{memberData.gender || '未設定'}</span>
-                                        </div>
-                                        <span className="text-slate-300">|</span>
-                                        <div className="flex items-center gap-1">
-                                            <Calendar className="w-4 h-4 text-emerald-500" />
-                                            <span className="text-base font-bold font-mono">{memberData.birthday || '未設定'}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">國籍 / 身分證號</p>
-                                    <div className="flex items-center gap-3 text-slate-900 dark:text-white">
-                                        <div className="flex items-center gap-1">
-                                            <Globe className="w-4 h-4 text-emerald-500" />
-                                            <span className="text-base font-bold">{memberData.nationality || 'Taiwan'}</span>
-                                        </div>
-                                        <span className="text-slate-300">|</span>
-                                        <div className="flex items-center gap-1">
-                                            <CreditCard className="w-4 h-4 text-emerald-500" />
-                                            <span className="text-base font-bold font-mono">
-                                                {memberData.account ? memberData.account.replace(/(.{3})(.*)(.{3})/, "$1****$3") : '未設定'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
                         </div>
 
-                        {/* Section 2: Contact Info */}
-                        <div>
-                            <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                <Phone className="w-4 h-4" /> 聯絡資訊
-                            </h4>
-                            <div className="grid grid-cols-1 gap-4">
-                                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">電子郵件</p>
-                                            <div className="flex items-center gap-2 text-slate-900 dark:text-white">
-                                                <Mail className="w-4 h-4 text-emerald-500" />
-                                                <span className="text-base font-bold truncate">{memberData.email}</span>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">通訊地址</p>
-                                            <div className="flex items-center gap-2 text-slate-900 dark:text-white">
-                                                <MapPin className="w-4 h-4 text-emerald-500" />
-                                                <span className="text-base font-bold truncate">{memberData.address || '未填寫'}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
 
-                                {/* Emergency Contact Box */}
-                                {(memberData.emergency_contact || memberData.emergency_contact_phone) && (
-                                    <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-900/10 border border-rose-100 dark:border-rose-900/30">
-                                        <p className="text-[10px] font-bold text-rose-400 uppercase tracking-widest mb-2 flex items-center gap-1">
-                                            <Heart className="w-3 h-3" /> 緊急聯絡人
-                                        </p>
-                                        <div className="flex flex-wrap items-center gap-4 text-slate-900 dark:text-white">
-                                            <span className="text-base font-black">{memberData.emergency_contact}</span>
-                                            {memberData.emergency_contact_relation && (
-                                                <span className="text-xs font-bold bg-white dark:bg-rose-900/40 text-rose-600 px-2 py-1 rounded-lg">
-                                                    {memberData.emergency_contact_relation}
-                                                </span>
-                                            )}
-                                            <div className="flex items-center gap-1 text-rose-600 font-mono font-bold">
-                                                <Phone className="w-3 h-3" />
-                                                {memberData.emergency_contact_phone}
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
 
                         {/* Section 3: Profile & Skills */}
                         {(memberData.self_introduction || memberData.skills) && (
@@ -407,13 +331,7 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
                         </div>
                     </div>
 
-                    <button
-                        onClick={onBindingSuccess}
-                        className="w-full mt-2 py-4 rounded-2xl bg-tcu-blue text-white font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-tcu-blue/20 hover:shadow-tcu-blue/40 active:scale-95 transition-all flex items-center justify-center gap-2 group"
-                    >
-                        <span>完成 / 前往 Dashboard</span>
-                        <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                    </button>
+
                 </div>
             </div>
         );

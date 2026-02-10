@@ -148,7 +148,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     }, []);
 
-    const logout = () => {
+    const logout = useCallback(async () => {
+        if (athlete?.access_token) {
+            try {
+                // 嘗試取消 Strava 授權，讓使用者下次可以重新選擇帳號
+                await fetch('https://www.strava.com/oauth/deauthorize', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ access_token: athlete.access_token })
+                });
+            } catch (err) {
+                console.warn('Failed to deauthorize Strava token', err);
+            }
+        }
+
         localStorage.removeItem(STORAGE_KEY);
         setAthlete(null);
         setIsBound(false);
@@ -157,7 +172,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         lastSyncTime.current = 0;
         lastBindingCheckTime.current = 0;
         window.dispatchEvent(new Event(AUTH_EVENT));
-    };
+
+        // 重新整理頁面以確保狀態清空
+        window.location.href = '/';
+    }, [athlete]);
 
     const refreshBinding = useCallback(() => {
         if (athlete?.id) {

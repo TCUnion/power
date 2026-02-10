@@ -595,8 +595,8 @@ export const GoldenCheetahPage = () => {
                                                 key={act.id}
                                                 onClick={() => selectActivity(act.id)}
                                                 className={`w-full text-left px-3 py-2.5 flex items-center gap-3 transition cursor-pointer border-b border-slate-800/50 last:border-0 ${isSelected
-                                                        ? 'bg-yellow-500/10 border-l-2 border-l-yellow-500'
-                                                        : 'hover:bg-slate-800/60'
+                                                    ? 'bg-yellow-500/10 border-l-2 border-l-yellow-500'
+                                                    : 'hover:bg-slate-800/60'
                                                     } ${!hasStream ? 'opacity-40' : ''}`}
                                                 disabled={!hasStream}
                                                 title={!hasStream ? '尚未同步 stream 資料' : undefined}
@@ -628,13 +628,7 @@ export const GoldenCheetahPage = () => {
                     <Link to="/power" className="p-2 bg-slate-800 rounded-lg hover:bg-slate-700 transition mr-2">
                         <ArrowLeft className="w-4 h-4 text-slate-400" />
                     </Link>
-                    <div className="flex items-center gap-2 text-xs font-mono text-slate-400 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">
-                        <span className="text-yellow-500 font-bold">CP: {Math.round(calculatedCP)}W</span>
-                        <span className="text-slate-600">|</span>
-                        <span className="text-purple-400 font-bold">W': {(calculatedWPrime / 1000).toFixed(1)}kJ</span>
-                        <span className="text-slate-600">|</span>
-                        <span>FTP: {athleteFTP}W</span>
-                    </div>
+                    {/* Header Metrics Removed */}
                 </div>
             </div>
 

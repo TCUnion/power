@@ -47,6 +47,19 @@ export interface Participant {
     strava_activity_id?: string | number;
 }
 
+export interface StravaZoneBucket {
+    min: number;
+    max: number;
+    time?: number;
+}
+
+export interface StravaZoneSummary {
+    score?: number;
+    distribution_buckets?: StravaZoneBucket[];
+    type: 'heartrate' | 'power';
+    resource_state?: number;
+}
+
 export interface StravaActivity {
     id: number;
     athlete_id: number;
@@ -57,7 +70,8 @@ export interface StravaActivity {
     elapsed_time?: number; // 總耗時 (秒)
     start_date: string;
     start_date_local?: string;
-    gear_id: string; // 對應 bikes.id
+    gear_id?: string; // 對應 bikes.id
+    zones?: StravaZoneSummary[]; // 活動區間摘要
     total_elevation_gain: number; // 總爬升 (公尺)
     elev_high?: number;
     elev_low?: number;
@@ -363,6 +377,13 @@ export interface MaintenanceStatistics {
 // Strava Stream 數據類型
 export type StreamType = 'time' | 'watts' | 'heartrate' | 'cadence' | 'velocity_smooth' | 'altitude' | 'grade_smooth' | 'distance' | 'temp' | 'moving' | 'latlng';
 
+// Strava Zone 數據結構
+export interface StravaZone {
+    min: number;
+    max: number;
+    time?: number;
+}
+
 // 單一 Stream 數據
 export interface StreamData {
     type: StreamType;
@@ -379,7 +400,7 @@ export interface StravaStreams {
     streams: StreamData[];
     ftp?: number; // Snapshot FTP at the time of activity
     max_heartrate?: number;
-    strava_zones?: any[]; // Raw Strava Zone Data
+    strava_zones?: StravaZoneBucket[]; // Raw Strava Zone Data
     created_at: string;
     updated_at: string;
 }
@@ -432,7 +453,7 @@ export interface ActivityPowerAnalysis {
     date: string;
     ftp: number;
     max_heartrate?: number;
-    stravaZones?: any[]; // Raw Strava Zone Data
+    stravaZones?: StravaZoneBucket[]; // Raw Strava Zone Data
     trainingLoad: TrainingLoadSummary;
     powerZones: PowerZoneAnalysis[];
     hrZones?: HRZoneAnalysis[];
@@ -449,7 +470,7 @@ export interface ActivityPowerAnalysis {
     };
 }
 
-// 選手訓練總覽
+// 選手功率分析總覽
 export interface AthletePowerProfile {
     athleteId: number;
     athleteName: string;
@@ -457,8 +478,8 @@ export interface AthletePowerProfile {
     maxHR?: number;
     weeklyTSS: number;
     monthlyTSS: number;
-    ctl: number; // Chronic Training Load (42 天 TSS 平均)
-    atl: number; // Acute Training Load (7 天 TSS 平均)
-    tsb: number; // Training Stress Balance (CTL - ATL)
+    ctl: number;
+    atl: number;
+    tsb: number;
     recentActivities: ActivityPowerAnalysis[];
 }

@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import {
     ComposedChart, Line, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    ReferenceLine, Legend
+    ReferenceLine
 } from 'recharts';
 import { format, parseISO, isSameDay } from 'date-fns';
 import { Target, Zap } from 'lucide-react';
@@ -20,12 +20,12 @@ export function FTPTrendChart({ data, activities = [], currentFtp }: FTPTrendCha
 
         return baseData.map(point => {
             const pointDate = parseISO(point.date);
-            
+
             // Find max activity effort on this day
-            const dayActivities = activities.filter(a => 
+            const dayActivities = activities.filter(a =>
                 isSameDay(parseISO(a.start_date), pointDate)
             );
-            
+
             if (dayActivities.length === 0) return point;
 
             // Use Weighted Avg Power (NP) as an intensity metric
@@ -46,12 +46,18 @@ export function FTPTrendChart({ data, activities = [], currentFtp }: FTPTrendCha
         });
     }, [data, activities, currentFtp]);
 
-    const CustomTooltip = ({ active, payload, label }: any) => {
+    interface TooltipEntry {
+        dataKey: string;
+        value: number;
+        payload: { activityName?: string };
+    }
+
+    const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: TooltipEntry[]; label?: string }) => {
         if (active && payload && payload.length) {
             return (
                 <div className="bg-slate-900 border border-slate-700 p-3 rounded-lg shadow-xl text-xs">
-                    <p className="text-slate-400 mb-2">{format(parseISO(label), 'yyyy/MM/dd')}</p>
-                    {payload.map((entry: any, index: number) => {
+                    <p className="text-slate-400 mb-2">{label ? format(parseISO(label), 'yyyy/MM/dd') : ''}</p>
+                    {payload.map((entry, index: number) => {
                         if (entry.dataKey === 'ftp') {
                             return (
                                 <div key={index} className="flex items-center gap-2 text-blue-400 mb-1">
@@ -124,7 +130,7 @@ export function FTPTrendChart({ data, activities = [], currentFtp }: FTPTrendCha
                             unit="W"
                         />
                         <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '4 4' }} />
-                        
+
                         {/* FTP Line */}
                         <Line
                             type="stepAfter"
@@ -136,11 +142,11 @@ export function FTPTrendChart({ data, activities = [], currentFtp }: FTPTrendCha
                             isAnimationActive={false}
                             name="FTP 設定"
                         />
-                        
+
                         {/* Activity Scatter Points */}
-                        <Scatter 
-                            dataKey="activityPower" 
-                            fill="#a855f7" 
+                        <Scatter
+                            dataKey="activityPower"
+                            fill="#a855f7"
                             shape="circle"
                             name="活動強度 (NP)"
                             isAnimationActive={false}

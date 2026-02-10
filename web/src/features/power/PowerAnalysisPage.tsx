@@ -41,7 +41,7 @@ const TABS: { key: TabKey; label: string; icon: React.ReactNode; description: st
 
 const PowerAnalysisPage: React.FC = () => {
     const { athlete } = useAuth();
-    const { getActivityStreams, calculateNPViaDB, calculateTSSViaDB } = usePowerAnalysis();
+    const { calculateNPViaDB, calculateTSSViaDB } = usePowerAnalysis();
 
     // 頁面狀態
     const [activeTab, setActiveTab] = useState<TabKey>('mmp');
@@ -81,6 +81,7 @@ const PowerAnalysisPage: React.FC = () => {
 
         try {
             const cutoffDate = new Date();
+            cutoffDate.setHours(0, 0, 0, 0); // 固定時間部分，避免毫秒漂移引發重複更新
             cutoffDate.setDate(cutoffDate.getDate() - analysisRange);
 
             // 取得選手資訊（FTP 與體重）
@@ -98,7 +99,7 @@ const PowerAnalysisPage: React.FC = () => {
             // 取得活動列表（僅騎乘類型）
             const { data: activityData, error: actError } = await supabase
                 .from('strava_activities')
-                .select('*')
+                .select('id, athlete_id, name, type, sport_type, start_date, elapsed_time, moving_time, average_watts, max_watts, distance, total_elevation_gain')
                 .eq('athlete_id', athlete.id)
                 .gte('start_date', cutoffDate.toISOString())
                 .in('sport_type', ['Ride', 'VirtualRide', 'MountainBikeRide', 'GravelRide'])
@@ -126,7 +127,7 @@ const PowerAnalysisPage: React.FC = () => {
                 const batchActs = acts.slice(batch * batchSize, (batch + 1) * batchSize);
                 const batchIds = batchActs.map(a => a.id);
 
-                // 批量查詢 Streams
+                // 批量查詢 Streams: 僅抓取必要欄位以大幅降低傳輸量 (解決 17MB payload 問題)
                 const { data: streamsData } = await supabase
                     .from('strava_streams')
                     .select('activity_id, streams, ftp')
@@ -135,7 +136,7 @@ const PowerAnalysisPage: React.FC = () => {
                 if (streamsData) {
                     for (const stream of streamsData) {
                         // 提取功率數據
-                        const wattsStream = stream.streams?.find((s: any) => s.type === 'watts');
+                        const wattsStream = stream.streams?.find((s: { type: string; data: number[] }) => s.type === 'watts');
                         if (wattsStream?.data && wattsStream.data.length > 0) {
                             allPowerArrays.push(wattsStream.data);
 
@@ -182,13 +183,13 @@ const PowerAnalysisPage: React.FC = () => {
                     .map(([date, data]) => ({ date, tss: Math.round(data.tss), activityCount: data.count }))
                     .sort((a, b) => a.date.localeCompare(b.date))
             );
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('載入分析數據失敗:', err);
-            setError(err.message || '載入數據時發生錯誤');
+            setError(err instanceof Error ? err.message : '載入數據時發生錯誤');
         } finally {
             setLoading(false);
         }
-    }, [athlete?.id, analysisRange, getActivityStreams, calculateNPViaDB, calculateTSSViaDB]);
+    }, [athlete?.id, analysisRange, calculateNPViaDB, calculateTSSViaDB]);
 
     useEffect(() => {
         loadAnalysisData();
@@ -395,8 +396,8 @@ const PowerAnalysisPage: React.FC = () => {
                             {activeTab === 'ftp' && (
                                 <FTPTrendChart
                                     data={ftpHistory}
-                                    activities={filteredActivities}
-                                    currentFtp={userFtp}
+                                    activities={activities}
+                                    currentFtp={currentFTP}
                                 />
                             )}
 

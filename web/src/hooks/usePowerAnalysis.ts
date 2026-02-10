@@ -96,7 +96,7 @@ export function usePowerAnalysis(): UsePowerAnalysisReturn {
         try {
             const { data, error: fetchError } = await supabase
                 .from('strava_streams')
-                .select('*')
+                .select('activity_id, streams, ftp, max_heartrate, strava_zones')
                 .eq('activity_id', activityId)
                 .maybeSingle();
 
@@ -304,10 +304,19 @@ export function usePowerAnalysis(): UsePowerAnalysisReturn {
 
             if (!data || data.length === 0) return null;
 
-            // 計算百分比（DB 端返回 0.0，需在此補算）
-            const totalTime = data.reduce((sum: number, row: any) => sum + row.time_in_zone, 0);
+            // 定義 DB RPC 返回的資料型別
+            interface DBZoneAnalysis {
+                zone: number;
+                zone_name: string;
+                time_in_zone: number;
+                avg_power: number;
+                color: string;
+            }
 
-            return data.map((row: any) => ({
+            // 計算百分比（DB 端返回 0.0，需在此補算）
+            const totalTime = data.reduce((sum: number, row: DBZoneAnalysis) => sum + row.time_in_zone, 0);
+
+            return data.map((row: DBZoneAnalysis) => ({
                 zone: row.zone,
                 name: row.zone_name,
                 timeInZone: row.time_in_zone,
@@ -530,8 +539,9 @@ export function usePowerAnalysis(): UsePowerAnalysisReturn {
                 tsb,
                 recentActivities: analyzedActivities,
             };
-        } catch (err: any) {
-            setError(err.message);
+        } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            setError(errorMessage);
             throw err;
         } finally {
             setLoading(false);

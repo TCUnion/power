@@ -10,21 +10,30 @@
  * Copyright Notice:
  * The UI design and W' Balance algorithm are inspired by the GoldenCheetah project (https://github.com/GoldenCheetah/GoldenCheetah).
  * GoldenCheetah is licensed under GPL v2.
- * This implementation adapts the core concepts for a web-based React application.
  */
-
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
+import { Link } from 'react-router-dom';
+import type { StravaActivity, StravaStreams, StreamData, StravaZoneBucket } from '../../types';
 import {
-    Line, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-    ResponsiveContainer, ReferenceLine, ComposedChart, BarChart, Bar, Cell, LabelList
+    ResponsiveContainer,
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    Cell,
+    LabelList
 } from 'recharts';
-import { Activity, Dumbbell, Zap, TrendingUp, Scale, Info, Loader2, ArrowLeft, Thermometer, RotateCw, Timer, Heart, Clock, Gauge, FileText, ChevronDown, ChevronLeft, ChevronRight, RefreshCw, CheckCircle, Search } from 'lucide-react';
-import { format } from 'date-fns';
-import { Link, useNavigate } from 'react-router-dom';
+import { Activity, Info, Loader2, ArrowLeft, Thermometer, RotateCw, Heart, Clock, Gauge, FileText, ChevronLeft, RefreshCw, TrendingUp } from 'lucide-react';
 import { fitMorton3P, calculateMMP, calculateNP } from '../../utils/power-models';
 import { GaugeChart } from './GaugeChart';
+import ActivitySelector from './components/ActivitySelector';
+import PerformanceSummary from './components/PerformanceSummary';
+import MainAnalysisChart from './components/MainAnalysisChart';
+import ZoneDistribution from './components/ZoneDistribution';
 
 // ============================================
 // W' Balance Algorithm (Skiba 2012 / GoldenCheetah Style)
@@ -60,67 +69,47 @@ const calculateWPrimeBalance = (powerStream: number[], cp: number, wPrime: numbe
     return balanceStream;
 };
 
-// ============================================
-// Helper Components
-// ============================================
-interface MetricCardProps {
-    title: string;
-    value: number | string;
-    unit?: string;
-    icon?: React.ElementType;
-    color?: string;
-    subValue?: string;
-}
-
-const MetricCard = ({ title, value, unit, icon: Icon, color = "text-slate-200", subValue }: MetricCardProps) => (
-    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col justify-center h-full">
-        <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{title}</span>
-            {Icon && <Icon className={`w-4 h-4 ${color} opacity-80`} />}
-        </div>
-        <div className="flex items-baseline gap-1">
-            <span className={`text-2xl font-black ${color}`}>{value}</span>
-            {unit && <span className="text-xs font-bold text-slate-400">{unit}</span>}
-        </div>
-        {subValue && <div className="text-xs text-slate-500 mt-1">{subValue}</div>}
-    </div>
-);
+// Power Zones Definition (Coggan)
 
 // Power Zones Definition (Coggan)
 const ZONES = [
-    { name: 'Z1 積極恢復', min: 0, max: 0.55, color: '#94a3b8' },      // < 55%
-    { name: 'Z2 耐力', min: 0.55, max: 0.75, color: '#3b82f6' },      // 56 - 75%
-    { name: 'Z3 節奏', min: 0.75, max: 0.90, color: '#10b981' },      // 76 - 90%
-    { name: 'Z4 閾值', min: 0.90, max: 1.05, color: '#f59e0b' },      // 91 - 105%
-    { name: 'Z5 最大攝氧', min: 1.05, max: 1.20, color: '#ef4444' },    // 106 - 120%
-    { name: 'Z6 無氧能力', min: 1.20, max: 1.50, color: '#8b5cf6' },    // 121 - 150%
-    { name: 'Z7 神經肌肉', min: 1.50, max: 10.0, color: '#a855f7' },    // > 150%
+    { name: 'Z1 積極恢復', min: 0, max: 0.55, color: '#94a3b8', label: 'Recovery' },      // < 55%
+    { name: 'Z2 耐力', min: 0.55, max: 0.75, color: '#3b82f6', label: 'Endurance' },     // 56 - 75%
+    { name: 'Z3 節奏', min: 0.75, max: 0.90, color: '#10b981', label: 'Tempo' },         // 76 - 90%
+    { name: 'Z4 閾值', min: 0.90, max: 1.05, color: '#f59e0b', label: 'Threshold' },     // 91 - 105%
+    { name: 'Z5 最大攝氧', min: 1.05, max: 1.20, color: '#ef4444', label: 'VO2 Max' },    // 106 - 120%
+    { name: 'Z6 無氧能力', min: 1.20, max: 1.50, color: '#8b5cf6', label: 'Anaerobic' },  // 121 - 150%
+    { name: 'Z7 神經肌肉', min: 1.50, max: 10.0, color: '#a855f7', label: 'Neuromuscular' }, // > 150%
 ];
 
 export const GoldenCheetahPage = () => {
     const { athlete } = useAuth();
-    const navigate = useNavigate();
-    const [stravaZonesFromStream, setStravaZonesFromStream] = useState<any[] | null>(null);
+
+    const [stravaZonesFromStream, setStravaZonesFromStream] = useState<StravaZoneBucket[] | null>(null);
 
     // State
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [statusMessage, setStatusMessage] = useState("Initializing...");
-    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const dropdownRef = useRef<HTMLDivElement>(null);
 
     // Data
-    const [latestActivity, setLatestActivity] = useState<any>(null);
-    const [allActivities, setAllActivities] = useState<any[]>([]);
-    const [allStreamsData, setAllStreamsData] = useState<any[]>([]);
+    const [latestActivity, setLatestActivity] = useState<StravaActivity | null>(null);
+    const [allActivities, setAllActivities] = useState<StravaActivity[]>([]);
+    const [allStreamsData, setAllStreamsData] = useState<Partial<StravaStreams>[]>([]);
     const [selectedActivityId, setSelectedActivityId] = useState<number | null>(null);
     const [activityStream, setActivityStream] = useState<number[]>([]);
     const [cadenceStream, setCadenceStream] = useState<number[]>([]);
     const [tempStream, setTempStream] = useState<number[]>([]);
     const [hrStream, setHrStream] = useState<number[]>([]);
     const [altitudeStream, setAltitudeStream] = useState<number[]>([]);
+
+    const [athleteWeight, setAthleteWeight] = useState(70);
     const [athleteFTP, setAthleteFTP] = useState(250);
+    const [athleteMaxHR] = useState(190);
+
+    const [calculatedCP, setCalculatedCP] = useState(250);
+    const [calculatedWPrime, setCalculatedWPrime] = useState(20000);
 
     // 圖表資料系列可見性切換
     const [chartVisibility, setChartVisibility] = useState({
@@ -133,16 +122,12 @@ export const GoldenCheetahPage = () => {
     const toggleSeries = useCallback((key: keyof typeof chartVisibility) => {
         setChartVisibility(prev => ({ ...prev, [key]: !prev[key] }));
     }, []);
-    const [athleteMaxHR, setAthleteMaxHR] = useState(190);
-    const [athleteWeight, setAthleteWeight] = useState(70);
-    const [calculatedCP, setCalculatedCP] = useState(250);
-    const [calculatedWPrime, setCalculatedWPrime] = useState(20000);
 
     // Sync Logic
     const [syncStatus, setSyncStatus] = useState<Record<number, 'idle' | 'syncing' | 'success' | 'error'>>({});
     const [lastSyncTime, setLastSyncTime] = useState<Record<number, number>>({});
 
-    const handleSyncActivity = async (activityId: number) => {
+    const handleSyncActivity = useCallback(async (activityId: number) => {
         const now = Date.now();
         const lastTime = lastSyncTime[activityId] || 0;
         if (syncStatus[activityId] === 'syncing' || (now - lastTime < 5000)) return;
@@ -198,22 +183,19 @@ export const GoldenCheetahPage = () => {
 
                         // If this is the currently selected activity, update it
                         if (selectedActivityId === activityId) {
-                            // Trigger a re-select to refresh streams
-                            // We need to access the LATEST allStreamsData, so we use the functional update result logic implicitly
-                            // effectively manually setting the streams here for immediate feedback
                             if (streamData.streams) {
-                                const watts = streamData.streams.find((s: any) => s.type === 'watts')?.data || [];
-                                const cadence = streamData.streams.find((s: any) => s.type === 'cadence')?.data || [];
-                                const temp = streamData.streams.find((s: any) => s.type === 'temp')?.data || [];
-                                const heartrate = streamData.streams.find((s: any) => s.type === 'heartrate')?.data || [];
-                                const altitude = streamData.streams.find((s: any) => s.type === 'altitude')?.data || [];
+                                const streams = streamData.streams as StreamData[];
+                                const watts = streams.find((s) => s.type === 'watts')?.data || [];
+                                const cadence = streams.find((s) => s.type === 'cadence')?.data || [];
+                                const temp = streams.find((s) => s.type === 'temp')?.data || [];
+                                const heartrate = streams.find((s) => s.type === 'heartrate')?.data || [];
+                                const altitude = streams.find((s) => s.type === 'altitude')?.data || [];
 
                                 setActivityStream(watts);
                                 setCadenceStream(cadence);
                                 setTempStream(temp);
                                 setHrStream(heartrate);
                                 setAltitudeStream(altitude);
-                                if (streamData.max_heartrate) setAthleteMaxHR(streamData.max_heartrate);
                                 if (streamData.strava_zones) setStravaZonesFromStream(streamData.strava_zones);
                             }
                         }
@@ -250,7 +232,7 @@ export const GoldenCheetahPage = () => {
             setSyncStatus(prev => ({ ...prev, [activityId]: 'error' }));
             setTimeout(() => setSyncStatus(prev => ({ ...prev, [activityId]: 'idle' })), 3000);
         }
-    };
+    }, [athlete?.id, lastSyncTime, syncStatus, selectedActivityId]);
 
     /**
      * 切換活動：從快取的 streamsData 中載入指定活動的 stream 資料
@@ -258,17 +240,17 @@ export const GoldenCheetahPage = () => {
      * @param activities 活動列表（可選，預設用 allActivities）
      * @param streamsCache streams 快取（可選，預設用 allStreamsData）
      */
-    const selectActivity = useCallback((activityId: number, activities?: any[], streamsCache?: any[]) => {
-        const acts = activities || allActivities;
-        const streams = streamsCache || allStreamsData;
-        const meta = acts.find((a: any) => a.id === activityId);
+    /**
+     * 切換活動：從快取的 streamsData 中載入指定活動的 stream 資料
+     */
+    const updateLocalActivityStreams = useCallback((activityId: number, activities: StravaActivity[], streamsCache: Partial<StravaStreams>[]) => {
+        const meta = activities.find(a => a.id === activityId);
         if (!meta) return;
 
         setLatestActivity(meta);
         setSelectedActivityId(activityId);
-        setIsDropdownOpen(false);
 
-        const row = streams.find((r: any) => r.activity_id === activityId);
+        const row = streamsCache.find((r: Partial<StravaStreams>) => r.activity_id === activityId);
         if (!row) {
             setActivityStream([]);
             setCadenceStream([]);
@@ -279,49 +261,61 @@ export const GoldenCheetahPage = () => {
         }
 
         // 設定 Max HR
-        if (row.max_heartrate) setAthleteMaxHR(row.max_heartrate);
         if (row.strava_zones) setStravaZonesFromStream(row.strava_zones);
 
-        const watts = row.streams?.find((s: any) => s.type === 'watts')?.data || [];
-        const cadence = row.streams?.find((s: any) => s.type === 'cadence')?.data || [];
-        const temp = row.streams?.find((s: any) => s.type === 'temp')?.data || [];
-        const heartrate = row.streams?.find((s: any) => s.type === 'heartrate')?.data || [];
-        const altitude = row.streams?.find((s: any) => s.type === 'altitude')?.data || [];
+        const activityStreams = row.streams as StreamData[] || [];
+        const watts = activityStreams.find((s) => s.type === 'watts')?.data || [];
+        const cadence = activityStreams.find((s) => s.type === 'cadence')?.data || [];
+        const temp = activityStreams.find((s) => s.type === 'temp')?.data || [];
+        const heartrate = activityStreams.find((s) => s.type === 'heartrate')?.data || [];
+        const altitude = activityStreams.find((s) => s.type === 'altitude')?.data || [];
 
         setActivityStream(watts);
         setCadenceStream(cadence);
         setTempStream(temp);
         setHrStream(heartrate);
         setAltitudeStream(altitude);
-    }, [allActivities, allStreamsData]);
+    }, []);
+
+    /**
+     * 公共切換活動介面，依賴 allActivities 與 allStreamsData
+     */
+    const selectActivity = useCallback((activityId: number) => {
+        updateLocalActivityStreams(activityId, allActivities, allStreamsData);
+    }, [allActivities, allStreamsData, updateLocalActivityStreams]);
 
     // Fetch Data Logic
     const loadData = useCallback(async () => {
         if (!athlete?.id) return;
         setLoading(true);
-        setStatusMessage("Loading athlete profile...");
+        setStatusMessage("正在取得運動員資料...");
 
         try {
             // 1. Get Athlete Profile
-            const { data: athleteData } = await supabase
+            const { data: athleteData, error: profileError } = await supabase
                 .from('athletes')
                 .select('ftp, weight')
                 .eq('id', athlete.id)
                 .maybeSingle();
 
-            const ftp = athleteData?.ftp || 250;
-            const weight = athleteData?.weight || 70;
-            setAthleteFTP(ftp);
-            setAthleteWeight(weight);
+            if (profileError) {
+                console.warn('[GoldenCheetah] 取得運動員基本資料失敗:', profileError);
+                // 繼續執行，使用預設值
+            }
+
+            if (athleteData) {
+                if (athleteData.ftp) setAthleteFTP(athleteData.ftp);
+                if (athleteData.weight) setAthleteWeight(athleteData.weight);
+            }
 
             // 2. Get Activities (Last 90 days for CP Model, Last 1 for Display)
-            setStatusMessage("Fetching activity history...");
             const cutoffDate = new Date();
+            cutoffDate.setHours(0, 0, 0, 0); // 固定時間部分，避免毫秒漂移引發重複更新
             cutoffDate.setDate(cutoffDate.getDate() - 90);
 
             const { data: activityData, error: actError } = await supabase
                 .from('strava_activities')
-                .select('*')
+                .select('id, athlete_id, name, distance, moving_time, elapsed_time, total_elevation_gain, type, sport_type, start_date, average_watts, max_watts, average_heartrate, max_heartrate')
                 .eq('athlete_id', athlete.id)
                 .gte('start_date', cutoffDate.toISOString())
                 .in('sport_type', ['Ride', 'VirtualRide', 'MountainBikeRide', 'GravelRide'])
@@ -330,8 +324,11 @@ export const GoldenCheetahPage = () => {
             if (actError) throw actError;
             if (!activityData || activityData.length === 0) {
                 setLoading(false);
+                setStatusMessage("No Activities Found");
                 return;
             }
+
+            setStatusMessage("正在分析活動數據...");
 
             // 儲存所有活動清單
             setAllActivities(activityData);
@@ -339,7 +336,6 @@ export const GoldenCheetahPage = () => {
             setSelectedActivityId(latest.id);
 
             // 3. 取得活動 Streams（前 20 筆用於 CP 模型計算）
-            setStatusMessage("Analyzing power data...");
 
             const activitiesToFetch = activityData.slice(0, 20);
             const activityIds = activitiesToFetch.map(a => a.id);
@@ -352,6 +348,7 @@ export const GoldenCheetahPage = () => {
             if (streamsError) throw streamsError;
             if (!streamsData) {
                 setLoading(false);
+                setStatusMessage("No Stream Data Found");
                 return;
             }
 
@@ -360,13 +357,14 @@ export const GoldenCheetahPage = () => {
 
             // 提取 Power Streams 計算 CP 模型
             const powerArrays: number[][] = [];
-            streamsData.forEach((row: { activity_id: number; streams: any[] }) => {
-                const watts = row.streams?.find((s: any) => s.type === 'watts')?.data;
+            streamsData.forEach((row: Partial<StravaStreams>) => {
+                const streams = row.streams as StreamData[] || [];
+                const watts = streams.find((s) => s.type === 'watts')?.data;
                 if (watts && watts.length > 0) powerArrays.push(watts);
             });
 
-            // 使用 selectActivity 載入最新活動的 streams
-            selectActivity(latest.id, activityData, streamsData);
+            // 使用 updateLocalActivityStreams 載入最新活動的 streams（傳入剛抓取的區域數據，避免參考循環）
+            updateLocalActivityStreams(latest.id, activityData, streamsData);
 
             // 4. Calculate CP / W'
             if (powerArrays.length >= 3) {
@@ -378,28 +376,23 @@ export const GoldenCheetahPage = () => {
                 }
             }
 
-        } catch (err: any) {
-            console.error(err);
-            setError(err.message);
+        } catch (err: unknown) {
+            console.error('[GoldenCheetah] loadData 失敗:', err);
+            if (err instanceof Error) {
+                setError(err.message);
+                setStatusMessage(`Error: ${err.message}`);
+            }
         } finally {
             setLoading(false);
         }
-    }, [athlete?.id]);
+    }, [athlete?.id, updateLocalActivityStreams]);
 
     useEffect(() => {
         loadData();
     }, [loadData]);
 
     useEffect(() => {
-        function handleClickOutside(event: MouseEvent) {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setIsDropdownOpen(false);
-            }
-        }
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => {
-            document.removeEventListener("mousedown", handleClickOutside);
-        };
+        // 頁面初始化完成後，不再需要點擊外部監聽（已移至 ActivitySelector）
     }, []);
 
 
@@ -434,21 +427,74 @@ export const GoldenCheetahPage = () => {
         return data;
     }, [activityStream, wPrimeBalance, hrStream, altitudeStream, cadenceStream]);
 
+    interface ZoneBucket {
+        name: string;
+        min: number;
+        max: number;
+        color: string;
+        label: string;
+        value: number;
+        pct: number;
+        range: string;
+        seconds: number;
+    }
+
+    interface FatigueZone {
+        name: string;
+        label: string;
+        description: string;
+        minPct: number;
+        maxPct: number;
+        color: string;
+        count: number;
+        minJ: number;
+        maxJ: number;
+        pct: number;
+        timeStr: string;
+    }
+
+    interface ActivitySummaryMetrics {
+        tss: number;
+        if: number;
+        work: number;
+        duration: number;
+        np: number;
+        avgPower: number;
+        maxPower: number;
+        timeAboveCP: number;
+        timeAboveCPPct: number;
+        zones: ZoneBucket[];
+        mmp20m: number;
+        cadence: { avg: number; max: number; total: number };
+        temp: { avg: number; min: number; max: number };
+        hrZones: ZoneBucket[];
+        isOfficialHrZones: boolean;
+        vi: number;
+        avgHR: number;
+        maxHR: number;
+        wPrimeWork: number;
+        durationStr?: string;
+    }
+
     // Metrics
-    const summary = useMemo(() => {
+    const summary = useMemo<ActivitySummaryMetrics>(() => {
         const hasPower = activityStream.length > 0;
         const hasHr = hrStream.length > 0;
 
         if (!hasPower && !hasHr) return {
-            tss: 0, if: 0, work: 0, duration: 0, normPower: 0,
-            avgPower: 0, maxPower: 0, timeAboveCP: 0, timeAboveCPPct: 0, timeAboveCPFraction: 0,
-            zones: ZONES.map(z => ({ ...z, value: 0, pct: 0 })),
+            tss: 0, if: 0, work: 0, duration: 0, np: 0,
+            avgPower: 0, maxPower: 0, timeAboveCP: 0, timeAboveCPPct: 0,
+            zones: ZONES.map(z => ({ ...z, value: 0, count: 0, pct: 0, range: '', seconds: 0 })),
             mmp20m: 0,
             cadence: { avg: 0, max: 0, total: 0 },
             temp: { avg: 0, min: 0, max: 0 },
-            hrZones: [] as any[],
+            hrZones: [],
             isOfficialHrZones: false,
-            vi: 0
+            vi: 0,
+            avgHR: 0,
+            maxHR: 0,
+            wPrimeWork: 0,
+            durationStr: '00:00:00'
         };
 
         const duration = hasPower ? activityStream.length : hrStream.length;
@@ -489,7 +535,7 @@ export const GoldenCheetahPage = () => {
         const vi = avgPower > 0 ? normPower / avgPower : 0;
 
         // Power Zones
-        const zonesHistogram = ZONES.map(z => ({ name: z.name, count: 0, color: z.color }));
+        const zonesHistogram = ZONES.map(z => ({ ...z, count: 0 }));
         activityStream.forEach(p => {
             const pct = athleteFTP > 0 ? p / athleteFTP : 0;
             const zoneIdx = ZONES.findIndex(z => pct >= z.min && pct < z.max);
@@ -499,15 +545,15 @@ export const GoldenCheetahPage = () => {
         // Heart Rate Zones
         // Priority: Strava Official Zones (from Activity Response OR Stream Buckets) > Calculation by Max HR
 
-        let hrZonesWithPct: any[] = [];
+        let hrZonesWithPct: (StravaZoneBucket & { name: string; label: string; value: number; pct: number; color: string })[] = [];
         let isOfficialHrZones = false;
 
-        let targetBuckets: any[] | null = null;
-        const stravaActivityZones = (latestActivity as any)?.zones;
+        let targetBuckets: StravaZoneBucket[] | null = null;
+        const stravaActivityZones = latestActivity?.zones;
 
         // 1. Check for Standard Strava Zones Object (Activity Level)
         const officialHrZone = Array.isArray(stravaActivityZones)
-            ? stravaActivityZones.find((z: any) => z.type === 'heartrate')
+            ? stravaActivityZones.find(z => z.type === 'heartrate')
             : null;
 
         if (officialHrZone && officialHrZone.distribution_buckets) {
@@ -518,7 +564,7 @@ export const GoldenCheetahPage = () => {
         else if (stravaZonesFromStream && Array.isArray(stravaZonesFromStream)) {
             // Heuristic: Check if likely HR (Max bucket value < 260)
             // Strava Power zones can go up into hundreds/thousands. HR usually < 200.
-            const maxVal = Math.max(...stravaZonesFromStream.map((b: any) => b.max));
+            const maxVal = Math.max(...stravaZonesFromStream.map(b => b.max));
             // Also valid HR zone usually has min > 0 for at least some buckets
             if (maxVal > 0 && maxVal < 260) {
                 targetBuckets = stravaZonesFromStream;
@@ -530,17 +576,18 @@ export const GoldenCheetahPage = () => {
 
         if (targetBuckets) {
             // Use Official Buckets
-            const totalHrTime = targetBuckets.reduce((acc: number, b: any) => acc + b.time, 0);
+            const totalHrTime = targetBuckets.reduce((acc, b) => acc + (b.time || 0), 0);
 
-            hrZonesWithPct = targetBuckets.map((b: any, i: number) => {
-                // Determine Label (Z1, Z2, or Custom Name if available?)
-                // Strava buckets don't always have names.
+            hrZonesWithPct = targetBuckets.map((b, i) => {
+                const timeValue = b.time || 0;
                 return {
                     name: `Z${i + 1}`,
                     min: b.min,
                     max: b.max,
-                    count: b.time,
-                    pct: totalHrTime > 0 ? Math.round((b.time / totalHrTime) * 1000) / 10 : 0,
+                    label: `Zone ${i + 1}`,
+                    count: timeValue,
+                    value: timeValue,
+                    pct: totalHrTime > 0 ? Math.round((timeValue / totalHrTime) * 1000) / 10 : 0,
                     color: HR_COLORS[i] || '#cbd5e1'
                 };
             });
@@ -562,37 +609,53 @@ export const GoldenCheetahPage = () => {
                     if (zoneIdx !== -1) hrHistogram[zoneIdx].count += 1;
                 });
             }
-            hrZonesWithPct = hrHistogram.map(z => ({ ...z, pct: Math.round((z.count / duration) * 1000) / 10 }));
+            hrZonesWithPct = hrHistogram.map((z, i) => ({
+                ...z,
+                min: HR_ZONES_DEF[i].min,
+                max: HR_ZONES_DEF[i].max,
+                label: HR_ZONES_DEF[i].name,
+                value: z.count,
+                pct: Math.round((z.count / duration) * 1000) / 10
+            }));
         }
 
         const timeAboveCPCount = activityStream.filter(p => p > calculatedCP).length;
         const timeAboveCPPct = Math.round((timeAboveCPCount / duration) * 100);
-        const timeAboveCPFraction = timeAboveCPCount > 0 ? Math.round(timeAboveCPCount / 60) : 0; // Convert to minutes for display
 
         // W' Work = 超過 CP 的總作功量 (kJ)
         const wPrimeWork = hasPower ? Math.round(activityStream.reduce((sum, p) => sum + Math.max(0, p - calculatedCP), 0) / 1000) : 0;
 
-        const zonesWithPct = zonesHistogram.map(z => ({ ...z, pct: Math.round((z.count / duration) * 1000) / 10 }));
+        const zonesWithPct = zonesHistogram.map(z => ({
+            ...z,
+            value: z.count,
+            pct: Math.round((z.count / duration) * 1000) / 10,
+            range: `${Math.round(z.min * athleteFTP)}-${Math.round(z.max * athleteFTP)} W`,
+            seconds: z.count,
+        }));
+
+        const avgHR = Math.round(hrStream.length > 0 ? hrStream.reduce((a, b) => a + b, 0) / hrStream.length : 0);
+        const maxHR = hrStream.length > 0 ? Math.max(...hrStream) : 0;
 
         return {
             duration,
             durationStr: new Date(duration * 1000).toISOString().substr(11, 8),
             avgPower,
             maxPower,
-            normPower: Math.round(normPower),
+            np: Math.round(normPower),
             work,
             tss,
             if: intensityFactor,
             vi,
+            avgHR,
+            maxHR,
             timeAboveCP: timeAboveCPCount,
             timeAboveCPPct,
-            timeAboveCPFraction,
 
             zones: zonesWithPct,
             mmp20m,
             cadence: { avg: cadAvg, max: cadMax, total: cadTotal },
             temp: { avg: tempAvg, min: tempMin, max: tempMax },
-            hrZones: hrZonesWithPct,
+            hrZones: hrZonesWithPct as ZoneBucket[],
             isOfficialHrZones,
             wPrimeWork,
         };
@@ -601,7 +664,7 @@ export const GoldenCheetahPage = () => {
     // ============================================
     // Fatigue Zones (W' Balance 疲勞分區 - GoldenCheetah 核心功能)
     // ============================================
-    const fatigueZones = useMemo(() => {
+    const fatigueZones = useMemo<FatigueZone[]>(() => {
         if (wPrimeBalance.length === 0 || calculatedWPrime <= 0) return [];
         const zones = [
             { name: 'W1', label: '恢復', description: 'Recovered', minPct: 0.75, maxPct: 1.0, color: '#34D399', count: 0, minJ: 0, maxJ: 0 },
@@ -635,36 +698,52 @@ export const GoldenCheetahPage = () => {
         return Math.round((1 - minWBal / calculatedWPrime) * 100);
     }, [wPrimeBalance, calculatedWPrime]);
 
-    const filteredActivities = useMemo(() => {
-        if (!searchQuery) return allActivities;
-        const lower = searchQuery.toLowerCase();
-        return allActivities.filter((a: any) =>
-            a.name.toLowerCase().includes(lower)
-        );
-    }, [allActivities, searchQuery]);
 
-    const handleNavigateActivity = useCallback((direction: 'prev' | 'next') => {
-        if (!selectedActivityId || filteredActivities.length === 0) return;
-        const idx = filteredActivities.findIndex((a: any) => a.id === selectedActivityId);
-        if (idx === -1) return;
 
-        // "prev" means older activity (next in list), "next" means newer activity (prev in list)
-        const newIdx = direction === 'prev' ? idx + 1 : idx - 1;
+    const selectAdjacentActivity = useCallback((direction: 'prev' | 'next') => {
+        if (!selectedActivityId) return;
+        const index = allActivities.findIndex(a => a.id === selectedActivityId);
+        if (index === -1) return;
 
-        if (newIdx >= 0 && newIdx < filteredActivities.length) {
-            selectActivity(filteredActivities[newIdx].id);
+        const nextIndex = direction === 'next' ? index - 1 : index + 1;
+        if (nextIndex < 0 || nextIndex >= allActivities.length) return;
+
+        const nextActivity = allActivities[nextIndex];
+        const row = allStreamsData.find(a => a.activity_id === nextActivity.id);
+
+        if (row && row.streams) {
+            selectActivity(nextActivity.id);
+        } else {
+            handleSyncActivity(nextActivity.id);
         }
-    }, [filteredActivities, selectedActivityId, selectActivity]);
+    }, [selectedActivityId, allActivities, allStreamsData, selectActivity, handleSyncActivity]);
 
     // ============================================
     // Rendering
     // ============================================
 
+
+
     if (loading) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-slate-400">
-                <Loader2 className="w-10 h-10 animate-spin text-yellow-500 mb-4" />
-                <p className="font-mono text-sm animate-pulse">{statusMessage}</p>
+            <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white">
+                <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-4" />
+                <p className="text-slate-400 font-mono tracking-widest uppercase text-sm">{statusMessage}</p>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white p-6">
+                <div className="bg-red-500/10 border border-red-500/50 rounded-2xl p-8 max-w-md text-center">
+                    <Info className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                    <h2 className="text-2xl font-bold mb-2">Oops! Something went wrong</h2>
+                    <p className="text-slate-400 mb-6">{error}</p>
+                    <button onClick={() => window.location.reload()} className="px-6 py-2 bg-red-500 hover:bg-red-600 rounded-lg font-bold transition-colors">
+                        Try Again
+                    </button>
+                </div>
             </div>
         );
     }
@@ -684,7 +763,7 @@ export const GoldenCheetahPage = () => {
 
     // Check if data is empty (Unsynced Activity)
     const hasData = activityStream.length > 0 || hrStream.length > 0;
-    const currentSyncStatus = selectedActivityId ? syncStatus[selectedActivityId] : 'idle';
+    const currentSyncStatus = selectedActivityId ? (syncStatus[selectedActivityId] || 'idle') : 'idle';
 
     // ============================================
     // Main Render
@@ -692,153 +771,50 @@ export const GoldenCheetahPage = () => {
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-[#0f111a] text-slate-900 dark:text-slate-100 p-4 md:p-6 pb-20">
-            {/* Header */}
+            {/* Header Area */}
             <header className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6">
-                <div className="flex items-center gap-4 bg-slate-900/50 p-2 pr-4 rounded-xl border border-slate-800/50">
+                <div className="flex items-center gap-2">
                     <button
-                        onClick={() => navigate('/power')}
-                        className="p-2 hover:bg-slate-800 rounded-lg transition-colors group"
-                        title="返回"
+                        onClick={() => selectAdjacentActivity('prev')}
+                        className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-800"
+                        title="Previous Activity"
                     >
-                        <ChevronLeft className="w-5 h-5 text-slate-400 group-hover:text-white" />
+                        <ChevronLeft className="w-5 h-5" />
                     </button>
-
-                    {/* Activity Selector (The "Table" user refers to) */}
-                    <div className="relative" ref={dropdownRef}>
-                        <button
-                            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                            className="flex items-center gap-3 px-4 py-2 bg-slate-800 hover:bg-slate-700/80 rounded-lg transition-all border border-slate-700/50 min-w-[280px] sm:min-w-[320px] max-w-[500px]"
-                        >
-                            <div className="flex flex-col items-start truncate flex-1">
-                                <span className={`text-sm font-bold truncate w-full ${!hasData ? 'text-slate-400' : 'text-white'}`}>
-                                    {latestActivity.name}
-                                </span>
-                                <div className="flex items-center gap-2 text-xs text-slate-400 font-mono mt-0.5">
-                                    <span>{format(new Date(latestActivity.start_date), 'yyyy-MM-dd HH:mm')}</span>
-                                    <span>•</span>
-                                    <span>{(latestActivity.distance / 1000).toFixed(1)}km</span>
-                                    {!hasData && (
-                                        <span className="flex items-center gap-1 text-orange-400 ml-2 bg-orange-500/10 px-1.5 py-0.5 rounded">
-                                            <Info className="w-3 h-3" /> 未同步
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-                            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
-                        </button>
-
-                        {/* Dropdown Menu */}
-                        {isDropdownOpen && (
-                            <div className="absolute top-full left-0 mt-2 w-full sm:w-[500px] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 max-h-[600px] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
-                                <div className="p-3 border-b border-slate-800 bg-slate-900/95 backdrop-blur sticky top-0 z-10">
-                                    <div className="relative">
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                                        <input
-                                            type="text"
-                                            placeholder="搜尋活動名稱..."
-                                            value={searchQuery}
-                                            onChange={(e) => setSearchQuery(e.target.value)}
-                                            className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500 transition-colors placeholder:text-slate-600"
-                                            autoFocus
-                                            onClick={(e) => e.stopPropagation()}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="overflow-y-auto flex-1 custom-scrollbar">
-                                    {filteredActivities.length === 0 ? (
-                                        <div className="p-8 text-center text-slate-500 text-xs">
-                                            無法找到符合的活動
-                                        </div>
-                                    ) : (
-                                        filteredActivities.map((act: any) => {
-                                            const hasStream = allStreamsData.some((s: any) => s.activity_id === act.id);
-                                            const isSelected = act.id === selectedActivityId;
-                                            return (
-                                                <button
-                                                    key={act.id}
-                                                    onClick={() => selectActivity(act.id)}
-                                                    className={`w-full text-left px-3 py-2.5 flex items-center gap-3 transition cursor-pointer border-b border-slate-800/50 last:border-0 ${isSelected
-                                                        ? 'bg-yellow-500/10 border-l-2 border-l-yellow-500'
-                                                        : 'hover:bg-slate-800/60'
-                                                        }`}
-                                                >
-                                                    <div className="text-xs text-slate-500 font-mono w-[80px] flex-shrink-0">
-                                                        {format(new Date(act.start_date), 'MM/dd HH:mm')}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className={`text-sm truncate ${isSelected ? 'text-yellow-400 font-bold' : 'text-slate-200'}`}>
-                                                            {act.name}
-                                                        </div>
-                                                        <div className="text-[10px] text-slate-500 flex gap-3 mt-0.5 items-center">
-                                                            <span>{(act.distance / 1000).toFixed(1)} km</span>
-                                                            <span>{new Date(act.moving_time * 1000).toISOString().substr(11, 8)}</span>
-                                                            {!hasStream && (
-                                                                <span className="text-orange-400 flex items-center gap-1 ml-auto">
-                                                                    {syncStatus[act.id] === 'syncing' ? (
-                                                                        <RefreshCw className="w-3 h-3 animate-spin" />
-                                                                    ) : (
-                                                                        <Info className="w-3 h-3" />
-                                                                    )}
-                                                                    {syncStatus[act.id] === 'syncing' ? '同步中' : '無數據'}
-                                                                </span>
-                                                            )}
-                                                            {hasStream && act.average_watts && <span>{act.average_watts}W avg</span>}
-                                                        </div>
-                                                    </div>
-                                                    {isSelected && !hasStream && syncStatus[act.id] !== 'syncing' && (
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleSyncActivity(act.id);
-                                                            }}
-                                                            className="p-1 rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/40"
-                                                            title="立即同步"
-                                                        >
-                                                            <RefreshCw className="w-3.5 h-3.5" />
-                                                        </button>
-                                                    )}
-                                                </button>
-                                            );
-                                        })
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-
-                    {/* 快速切換按鈕 */}
-                    <div className="flex items-center gap-1 bg-slate-800 rounded-lg p-1 border border-slate-700/50 hidden sm:flex">
-                        <button
-                            onClick={() => handleNavigateActivity('prev')}
-                            disabled={filteredActivities.findIndex((a: any) => a.id === selectedActivityId) >= filteredActivities.length - 1}
-                            className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                        >
-                            <ChevronLeft className="w-4 h-4" />
-                        </button>
-                        <button
-                            onClick={() => handleNavigateActivity('next')}
-                            disabled={filteredActivities.findIndex((a: any) => a.id === selectedActivityId) <= 0}
-                            className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                        >
-                            <ChevronRight className="w-4 h-4" />
-                        </button>
-                    </div>
+                    <ActivitySelector
+                        latestActivity={latestActivity}
+                        allActivities={allActivities}
+                        allStreamsData={allStreamsData}
+                        selectedActivityId={selectedActivityId}
+                        searchQuery={searchQuery}
+                        setSearchQuery={setSearchQuery}
+                        selectActivity={selectActivity}
+                        handleNavigateActivity={selectAdjacentActivity}
+                        handleSyncActivity={handleSyncActivity}
+                        syncStatus={syncStatus}
+                        hasData={hasData}
+                    />
+                    <button
+                        onClick={() => selectAdjacentActivity('next')}
+                        className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-800"
+                        title="Next Activity"
+                    >
+                        <RefreshCw className="w-5 h-5" />
+                    </button>
                 </div>
 
-                {/* Right Side Actions */}
+                {/* Header Actions */}
                 <div className="flex items-center gap-3">
-                    {/* Sync Button (Visible if unsynced) */}
                     {!hasData && (
                         <button
                             onClick={() => selectedActivityId && handleSyncActivity(selectedActivityId)}
                             disabled={currentSyncStatus === 'syncing'}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all
-                                ${currentSyncStatus === 'syncing'
-                                    ? 'bg-slate-800 text-slate-400 cursor-not-allowed'
-                                    : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20 active:scale-95'}`}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${currentSyncStatus === 'syncing'
+                                ? "bg-slate-800 text-slate-400 cursor-not-allowed"
+                                : "bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20 active:scale-95"
+                                }`}
                         >
-                            <RefreshCw className={`w-4 h-4 ${currentSyncStatus === 'syncing' ? 'animate-spin' : ''}`} />
+                            <RefreshCw className={`w-4 h-4 ${currentSyncStatus === 'syncing' ? "animate-spin" : ""}`} />
                             {currentSyncStatus === 'syncing' ? '同步中...' : '同步數據'}
                         </button>
                     )}
@@ -859,63 +835,14 @@ export const GoldenCheetahPage = () => {
                 </div>
             </header>
 
-            {/* Main Grid Layout */}
+            {/* Content Grid */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4 auto-rows-min">
+                {/* 1. Summary Metrics */}
+                <PerformanceSummary summary={summary} athleteWeight={athleteWeight} />
 
-                {/* Summary Cards */}
-                <div className="md:col-span-12 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
-                    <MetricCard
-                        title="TSS"
-                        value={summary.tss}
-                        icon={Activity}
-                        color="text-yellow-400"
-                        subValue={`IF: ${(Math.round(summary.if * 100) / 100).toFixed(2)}`}
-                    />
-                    <MetricCard
-                        title="WORK"
-                        value={summary.work}
-                        unit="kJ"
-                        icon={Dumbbell}
-                        color="text-purple-400"
-                        subValue={format(new Date(0, 0, 0, 0, 0, summary.duration), 'HH:mm:ss')}
-                    />
-                    <MetricCard
-                        title="MMP 20min"
-                        value={summary.mmp20m}
-                        unit="W"
-                        icon={Timer}
-                        color="text-orange-400"
-                        subValue={athleteWeight > 0 ? `${(summary.mmp20m / athleteWeight).toFixed(1)} W/kg` : undefined}
-                    />
-
-                    <MetricCard
-                        title="NORMALIZED POWER"
-                        value={summary.normPower}
-                        unit="W"
-                        icon={Zap}
-                        color="text-emerald-400"
-                        subValue={`Avg: ${summary.avgPower}W`}
-                    />
-                    <MetricCard
-                        title="TIME > CP"
-                        value={summary.timeAboveCPPct}
-                        unit="%"
-                        icon={TrendingUp}
-                        color="text-red-400"
-                        subValue={summary.timeAboveCP > 0 ? `${(summary.timeAboveCPFraction ?? 0).toFixed(0)} CP Efforts` : "No Anaerobic Work"}
-                    />
-                    <MetricCard
-                        title="VI"
-                        value={summary.vi.toFixed(2)}
-                        icon={Scale}
-                        color="text-pink-400"
-                        subValue="Variability Index"
-                    />
-                </div>
-
-                {/* Totals / Averages / Maximum (GoldenCheetah Style) */}
+                {/* 2. Stat Overview Row */}
                 <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {/* Totals */}
+                    {/* Totals Card */}
                     <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
                         <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
                             <Clock className="w-3.5 h-3.5" /> Totals
@@ -929,7 +856,8 @@ export const GoldenCheetahPage = () => {
                             <div className="flex justify-between"><span className="text-slate-400">Elevation (m)</span><span className="font-mono font-bold">{latestActivity.total_elevation_gain ? Math.round(latestActivity.total_elevation_gain) : '–'}</span></div>
                         </div>
                     </div>
-                    {/* Averages */}
+
+                    {/* Averages Card */}
                     <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
                         <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
                             <Activity className="w-3.5 h-3.5" /> Averages
@@ -942,7 +870,8 @@ export const GoldenCheetahPage = () => {
                             <div className="flex justify-between"><span className="text-slate-400">Avg Cadence (rpm)</span><span className="font-mono font-bold">{latestActivity.average_cadence ? Math.round(latestActivity.average_cadence) : '–'}</span></div>
                         </div>
                     </div>
-                    {/* Maximum */}
+
+                    {/* Maxima Card */}
                     <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
                         <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
                             <TrendingUp className="w-3.5 h-3.5" /> Maximum
@@ -957,7 +886,7 @@ export const GoldenCheetahPage = () => {
                     </div>
                 </div>
 
-                {/* CP / W' / Weight / Suffer Score Gauges */}
+                {/* 3. Gauges Row */}
                 <div className="md:col-span-12 grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="bg-white dark:bg-slate-800 rounded-xl p-3 shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center">
                         <GaugeChart value={calculatedCP} min={100} max={400} label="CP Estimate" unit="watts" color="#EAB308" subLabel={`${(calculatedCP / athleteWeight).toFixed(1)} W/kg`} />
@@ -969,240 +898,30 @@ export const GoldenCheetahPage = () => {
                         <GaugeChart value={athleteWeight} min={50} max={120} label="Weight" unit="kg" color="#3B82F6" decimals={1} />
                     </div>
                     <div className="bg-white dark:bg-slate-800 rounded-xl p-3 shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center">
-                        <GaugeChart value={latestActivity.suffer_score || 0} min={0} max={300} label="Suffer Score" unit="points" color="#EF4444" subLabel={latestActivity.suffer_score ? (latestActivity.suffer_score > 150 ? 'Hard' : latestActivity.suffer_score > 50 ? 'Moderate' : 'Easy') : 'N/A'} />
+                        <GaugeChart value={latestActivity.suffer_score || 0} min={0} max={300} label="Suffer Score" unit="points" color="#EF4444" subLabel={latestActivity.suffer_score ? (latestActivity.suffer_score > 150 ? "Hard" : latestActivity.suffer_score > 50 ? "Moderate" : "Easy") : "N/A"} />
                     </div>
                 </div>
 
-                {/* 2. Main Chart: Power & W' Balance */}
-                <div className="md:col-span-12 bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 min-h-[400px] flex flex-col relative overflow-hidden">
+                {/* 4. Main Evolution Chart */}
+                <MainAnalysisChart
+                    hasData={hasData}
+                    currentSyncStatus={currentSyncStatus}
+                    handleSyncActivity={handleSyncActivity}
+                    selectedActivityId={selectedActivityId}
+                    chartVisibility={chartVisibility}
+                    toggleSeries={toggleSeries}
+                    chartData={chartData}
+                    calculatedCP={calculatedCP}
+                    calculatedWPrime={calculatedWPrime}
+                    hrStream={hrStream}
+                    altitudeStream={altitudeStream}
+                    cadenceStream={cadenceStream}
+                />
 
-                    {/* Sync Overlay */}
-                    {!hasData && (
-                        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-900/60 backdrop-blur-sm p-6 text-center animate-in fade-in duration-500">
-                            <div className="bg-slate-800 p-5 rounded-full mb-4 shadow-xl border border-slate-700 relative">
-                                <RefreshCw className={`w-10 h-10 text-blue-500 ${currentSyncStatus === 'syncing' ? 'animate-spin' : ''}`} />
-                                {currentSyncStatus === 'success' && <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-0.5 rounded-full"><CheckCircle className="w-4 h-4" /></div>}
-                            </div>
-                            <h3 className="text-xl font-bold text-white mb-2">
-                                {currentSyncStatus === 'syncing' ? '正在同步數據...' : '需要同步資料'}
-                            </h3>
-                            <p className="text-slate-200 mb-6 text-sm max-w-sm">
-                                {currentSyncStatus === 'syncing'
-                                    ? '正在抓取功率與心率數據，請稍候...'
-                                    : '此活動尚未有詳細串流數據，無法進行功率分析。'
-                                }
-                            </p>
-
-                            {currentSyncStatus === 'idle' || currentSyncStatus === 'error' ? (
-                                <button
-                                    onClick={() => selectedActivityId && handleSyncActivity(selectedActivityId)}
-                                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-all shadow-lg shadow-blue-500/20 active:scale-95 flex items-center gap-2 text-sm"
-                                >
-                                    <RefreshCw className="w-4 h-4" />
-                                    立即同步
-                                </button>
-                            ) : (
-                                <div className="px-6 py-2.5 bg-slate-800 text-slate-400 font-bold rounded-lg cursor-not-allowed flex items-center gap-2 text-sm border border-slate-700">
-                                    <RefreshCw className="w-4 h-4 animate-spin" />
-                                    同步中...
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Existing Chart Header */}
-                    <div className={`flex justify-between items-center mb-4 transition-all duration-500 ${!hasData ? 'opacity-10 blur-[2px]' : ''}`}>
-                        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                            <Zap className="w-4 h-4 text-yellow-500" />
-                            Power & W' Balance
-                        </h3>
-                        <div className="flex items-center gap-2 text-xs flex-wrap">
-                            <button onClick={() => toggleSeries('power')} className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all cursor-pointer ${chartVisibility.power ? 'bg-yellow-500/10 hover:bg-yellow-500/20' : 'opacity-30 hover:opacity-50'}`}>
-                                <span className="w-3 h-3 bg-yellow-500/50 rounded-sm"></span>
-                                Power (W)
-                            </button>
-                            <button onClick={() => toggleSeries('wBal')} className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all cursor-pointer ${chartVisibility.wBal ? 'bg-purple-500/10 hover:bg-purple-500/20' : 'opacity-30 hover:opacity-50'}`}>
-                                <span className="w-3 h-0.5 bg-purple-500"></span>
-                                W' Bal (kJ)
-                            </button>
-                            {hrStream.length > 0 && (
-                                <button onClick={() => toggleSeries('hr')} className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all cursor-pointer ${chartVisibility.hr ? 'bg-red-400/10 hover:bg-red-400/20' : 'opacity-30 hover:opacity-50'}`}>
-                                    <span className="w-3 h-0.5 bg-red-400"></span>
-                                    HR (bpm)
-                                </button>
-                            )}
-                            {altitudeStream.length > 0 && (
-                                <button onClick={() => toggleSeries('altitude')} className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all cursor-pointer ${chartVisibility.altitude ? 'bg-emerald-500/10 hover:bg-emerald-500/20' : 'opacity-30 hover:opacity-50'}`}>
-                                    <span className="w-3 h-3 bg-emerald-500/30 rounded-sm"></span>
-                                    Altitude (m)
-                                </button>
-                            )}
-                            {cadenceStream.length > 0 && (
-                                <button onClick={() => toggleSeries('cadence')} className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all cursor-pointer ${chartVisibility.cadence ? 'bg-cyan-400/10 hover:bg-cyan-400/20' : 'opacity-30 hover:opacity-50'}`}>
-                                    <span className="w-3 h-0.5 bg-cyan-400"></span>
-                                    Cadence (rpm)
-                                </button>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className={`flex-1 w-full min-h-[350px] transition-all duration-500 ${!hasData ? 'opacity-10 blur-[2px] pointer-events-none' : ''}`}>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <ComposedChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                                <defs>
-                                    <linearGradient id="powerGradient" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#EAB308" stopOpacity={0.8} />
-                                        <stop offset="95%" stopColor="#EAB308" stopOpacity={0.1} />
-                                    </linearGradient>
-                                    <linearGradient id="altitudeGradient" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.4} />
-                                        <stop offset="95%" stopColor="#10B981" stopOpacity={0.05} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} vertical={false} />
-                                <XAxis
-                                    dataKey="timeLabel"
-                                    stroke="#64748b"
-                                    tick={{ fontSize: 10 }}
-                                    minTickGap={50}
-                                />
-                                <YAxis
-                                    yAxisId="left"
-                                    stroke="#94a3b8"
-                                    tick={{ fontSize: 10 }}
-                                    domain={[0, 'auto']}
-                                    label={{ value: 'Watts', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 10 }}
-                                />
-                                <YAxis
-                                    yAxisId="right"
-                                    orientation="right"
-                                    stroke="#a855f7"
-                                    tick={{ fontSize: 10 }}
-                                    domain={[0, Math.ceil(calculatedWPrime / 1000)]}
-                                    label={{ value: "W' (kJ)", angle: 90, position: 'insideRight', fill: '#a855f7', fontSize: 10 }}
-                                />
-                                {/* 隱藏軸：心率 / 海拔 / 踏頻 */}
-                                <YAxis yAxisId="hr" orientation="right" hide domain={[60, 220]} />
-                                <YAxis yAxisId="altitude" orientation="right" hide domain={['dataMin - 50', 'dataMax + 50']} />
-                                <YAxis yAxisId="cadence" orientation="right" hide domain={[0, 150]} />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '12px' }}
-                                    formatter={(value: any, name: string) => {
-                                        if (name === 'power' && chartVisibility.power) return [`${value} W`, 'Power'];
-                                        if (name === 'wBal' && chartVisibility.wBal) return [`${value} kJ`, "W' Bal"];
-                                        if (name === 'hr' && chartVisibility.hr) return [`${value} bpm`, 'Heart Rate'];
-                                        if (name === 'altitude' && chartVisibility.altitude) return [`${value} m`, 'Altitude'];
-                                        if (name === 'cadence' && chartVisibility.cadence) return [`${value} rpm`, 'Cadence'];
-                                        return [null, null];
-                                    }}
-                                    labelStyle={{ color: '#94a3b8' }}
-                                />
-                                {/* CP Reference */}
-                                <ReferenceLine yAxisId="left" y={calculatedCP} stroke="#EF4444" strokeDasharray="3 3" opacity={0.5} label={{ value: 'CP', fill: '#EF4444', fontSize: 10, position: 'insideLeft' }} />
-
-                                {/* 海拔填充區域（綠色，置於底層） */}
-                                {chartVisibility.altitude && altitudeStream.length > 0 && (
-                                    <Area
-                                        yAxisId="altitude"
-                                        type="monotone"
-                                        dataKey="altitude"
-                                        stroke="#10B981"
-                                        fill="url(#altitudeGradient)"
-                                        strokeWidth={1}
-                                        isAnimationActive={false}
-                                        opacity={0.6}
-                                    />
-                                )}
-
-                                {/* Power 功率區域 */}
-                                {chartVisibility.power && (
-                                    <Area
-                                        yAxisId="left"
-                                        type="monotone"
-                                        dataKey="power"
-                                        stroke="#EAB308"
-                                        fill="url(#powerGradient)"
-                                        strokeWidth={1}
-                                        isAnimationActive={false}
-                                    />
-                                )}
-
-                                {/* W' Balance 曲線 */}
-                                {chartVisibility.wBal && (
-                                    <Line
-                                        yAxisId="right"
-                                        type="monotone"
-                                        dataKey="wBal"
-                                        stroke="#A855F7"
-                                        strokeWidth={2}
-                                        dot={false}
-                                        isAnimationActive={false}
-                                    />
-                                )}
-
-                                {/* 心率曲線 */}
-                                {chartVisibility.hr && hrStream.length > 0 && (
-                                    <Line
-                                        yAxisId="hr"
-                                        type="monotone"
-                                        dataKey="hr"
-                                        stroke="#F87171"
-                                        strokeWidth={1}
-                                        dot={false}
-                                        isAnimationActive={false}
-                                        opacity={0.4}
-                                    />
-                                )}
-
-                                {/* 踏頻曲線 */}
-                                {chartVisibility.cadence && cadenceStream.length > 0 && (
-                                    <Line
-                                        yAxisId="cadence"
-                                        type="monotone"
-                                        dataKey="cadence"
-                                        stroke="#22D3EE"
-                                        strokeWidth={1}
-                                        dot={false}
-                                        isAnimationActive={false}
-                                        opacity={0.5}
-                                    />
-                                )}
-                            </ComposedChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-
-                {/* 3. Bottom Row: Zones & Details */}
+                {/* 5. Distribution Row */}
                 <div className="md:col-span-6 bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col">
+                    <ZoneDistribution zones={summary.zones} mmp20m={summary.mmp20m} />
 
-                    {/* Power Zones */}
-                    <div className="flex-1 flex flex-col min-h-[220px]">
-                        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-2">
-                            <Scale className="w-4 h-4 text-emerald-500" />
-                            Power Zones Distribution
-                        </h3>
-                        <p className="text-xs text-slate-400 mb-2">
-                            基於 FTP 設定 ({athleteFTP}W) 計算，顯示各功率區間的時間分佈。
-                        </p>
-                        <div className="flex-1 w-full min-h-0">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={summary.zones}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} vertical={false} />
-                                    <XAxis dataKey="name" stroke="#64748b" tick={{ fontSize: 10 }} />
-                                    <YAxis stroke="#64748b" tick={{ fontSize: 10 }} unit="%" />
-                                    <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '12px' }} />
-                                    <Bar dataKey="pct" radius={[4, 4, 0, 0]}>
-                                        <LabelList dataKey="pct" position="top" formatter={(val: number) => val > 0 ? `${val}%` : ''} fill="#94a3b8" fontSize={10} />
-                                        {summary.zones.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-
-                    {/* Heart Rate Zones */}
                     <div className="flex-1 flex flex-col border-t border-slate-800 pt-6 mt-4 min-h-[220px]">
                         <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-2">
                             <Heart className="w-4 h-4 text-red-500" />
@@ -1211,10 +930,10 @@ export const GoldenCheetahPage = () => {
                         <p className="text-xs text-slate-400 mb-2">
                             {summary.isOfficialHrZones
                                 ? "使用 Strava 官方分析的心率區間數據。"
-                                : `基於最大心率 (${athleteMaxHR} bpm) 計算，監控心血管強度與訓練負荷。`}
+                                : `基於最大心率 (${athleteMaxHR} bpm) 計算。`}
                         </p>
                         <div className="flex-1 w-full min-h-0">
-                            {summary.hrZones.reduce((a: number, b: any) => a + b.count, 0) > 0 ? (
+                            {summary.hrZones.reduce((a: number, b: ZoneBucket) => a + (b.value || 0), 0) > 0 ? (
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={summary.hrZones}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} vertical={false} />
@@ -1222,8 +941,8 @@ export const GoldenCheetahPage = () => {
                                         <YAxis stroke="#64748b" tick={{ fontSize: 10 }} unit="%" />
                                         <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '12px' }} />
                                         <Bar dataKey="pct" radius={[4, 4, 0, 0]}>
-                                            <LabelList dataKey="pct" position="top" formatter={(val: number) => val > 0 ? `${val}%` : ''} fill="#94a3b8" fontSize={10} />
-                                            {summary.hrZones.map((entry: any, index: number) => (
+                                            <LabelList dataKey="pct" position="top" formatter={(val: number) => val > 0 ? `${val}%` : ""} fill="#94a3b8" fontSize={10} />
+                                            {summary.hrZones.map((entry: ZoneBucket, index: number) => (
                                                 <Cell key={`cell-hr-${index}`} fill={entry.color} />
                                             ))}
                                         </Bar>
@@ -1247,7 +966,7 @@ export const GoldenCheetahPage = () => {
                         <div className="space-y-3">
                             <div className="grid grid-cols-2 text-sm py-2 border-b border-slate-800 items-center">
                                 <span className="text-slate-400">Activity Name</span>
-                                <span className="font-bold text-white truncate text-center">{latestActivity.name}</span>
+                                <span className="font-bold text-white truncate text-center pl-2">{latestActivity.name}</span>
                             </div>
                             <div className="grid grid-cols-2 text-sm py-2 border-b border-slate-800 items-center">
                                 <span className="text-slate-400">Max Power</span>
@@ -1262,12 +981,11 @@ export const GoldenCheetahPage = () => {
                                 <span className="font-bold text-white text-center">{athleteWeight} kg</span>
                             </div>
                         </div>
-                        <div className="flex items-center justify-between p-3 bg-white/5 dark:bg-black/20 rounded-lg">
+                        <div className="mt-4 flex items-center justify-between p-3 bg-white/5 dark:bg-black/20 rounded-lg">
                             <span className="text-slate-500">Watts/kg</span>
-                            <span className="font-mono font-bold text-white">{(summary.maxPower / athleteWeight).toFixed(2)} W/kg</span>
+                            <span className="font-mono font-bold text-white">{(summary.maxPower / (athleteWeight || 70)).toFixed(2)} W/kg</span>
                         </div>
 
-                        {/* Cadence Section */}
                         {summary.cadence.total > 0 && (
                             <div className="mt-6">
                                 <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
@@ -1284,32 +1002,29 @@ export const GoldenCheetahPage = () => {
                                     </div>
                                 </div>
                                 <div className="p-3 bg-white/5 dark:bg-black/20 rounded-lg">
-                                    <div className="text-[10px] text-slate-500 uppercase">Total Strokes (總圈數)</div>
+                                    <div className="text-[10px] text-slate-500 uppercase">Total Strokes</div>
                                     <div className="text-xl font-bold text-white">{summary.cadence.total.toLocaleString()}</div>
                                 </div>
                             </div>
                         )}
 
-                        {/* Temperature Section */}
                         {summary.temp.avg !== 0 && (
                             <div className="mt-6">
                                 <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
-                                    <Thermometer className="w-3 h-3" /> 溫度 (Temperature)
+                                    <Thermometer className="w-3 h-3" /> 溫度 (Temp)
                                 </h4>
-                                <div className="p-3 bg-white/5 dark:bg-black/20 rounded-lg mb-3">
-                                    <div className="flex justify-between items-baseline">
-                                        <div className="text-[10px] text-slate-500 uppercase">Avg Temp</div>
-                                        <div className="text-xl font-bold text-white">{summary.temp.avg} <span className="text-xs text-slate-600">°C</span></div>
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div className="p-2 bg-white/5 dark:bg-black/20 rounded-lg text-center">
+                                        <div className="text-[9px] text-slate-500 uppercase">Avg</div>
+                                        <div className="text-sm font-bold text-white">{summary.temp.avg}°</div>
                                     </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="p-3 bg-white/5 dark:bg-black/20 rounded-lg">
-                                        <div className="text-[10px] text-slate-500 uppercase">Min Temp</div>
-                                        <div className="text-xl font-bold text-blue-400">{summary.temp.min} <span className="text-xs text-slate-600">°C</span></div>
+                                    <div className="p-2 bg-white/5 dark:bg-black/20 rounded-lg text-center">
+                                        <div className="text-[9px] text-slate-500 uppercase">Min</div>
+                                        <div className="text-sm font-bold text-blue-400">{summary.temp.min}°</div>
                                     </div>
-                                    <div className="p-3 bg-white/5 dark:bg-black/20 rounded-lg">
-                                        <div className="text-[10px] text-slate-500 uppercase">Max Temp</div>
-                                        <div className="text-xl font-bold text-red-400">{summary.temp.max} <span className="text-xs text-slate-600">°C</span></div>
+                                    <div className="p-2 bg-white/5 dark:bg-black/20 rounded-lg text-center">
+                                        <div className="text-[9px] text-slate-500 uppercase">Max</div>
+                                        <div className="text-sm font-bold text-red-400">{summary.temp.max}°</div>
                                     </div>
                                 </div>
                             </div>
@@ -1317,92 +1032,92 @@ export const GoldenCheetahPage = () => {
                     </div>
                 </div>
 
-                {/* 4. Fatigue Zones (W' Balance Distribution) - GoldenCheetah 核心功能 */}
-                {
-                    fatigueZones.length > 0 && (
-                        <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Fatigue Zones Bar Chart */}
-                            <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
-                                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-2">
-                                    <Gauge className="w-4 h-4 text-orange-500" />
-                                    W' Fatigue Zones
-                                </h3>
-                                <p className="text-xs text-slate-400 mb-3">
-                                    根據 W' Balance 剩餘量分析疲勞分佈，數值越低代表疲勞程度越高。
-                                </p>
-                                <div className="h-[200px]">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <BarChart data={fatigueZones} layout="vertical">
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} horizontal={false} />
-                                            <XAxis type="number" stroke="#64748b" tick={{ fontSize: 10 }} unit="%" />
-                                            <YAxis type="category" dataKey="name" stroke="#64748b" tick={{ fontSize: 11 }} width={30} />
-                                            <Tooltip
-                                                cursor={{ fill: 'transparent' }}
-                                                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '12px' }}
-                                                formatter={(val: number, _: string, props: any) => [`${val}% (${props.payload.timeStr})`, props.payload.label]}
-                                            />
-                                            <Bar dataKey="pct" radius={[0, 4, 4, 0]}>
-                                                <LabelList dataKey="pct" position="right" formatter={(val: number) => val > 0 ? `${val}%` : ''} fill="#94a3b8" fontSize={10} />
-                                                {fatigueZones.map((entry, index) => (
-                                                    <Cell key={`fatigue-${index}`} fill={entry.color} />
-                                                ))}
-                                            </Bar>
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
-
-                            {/* Fatigue Zones Table + Notes */}
-                            <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
-                                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-2">
-                                    <Info className="w-4 h-4 text-blue-500" />
-                                    Fatigue Zone Details
-                                </h3>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-sm">
-                                        <thead>
-                                            <tr className="text-slate-400 text-xs uppercase border-b border-slate-700">
-                                                <th className="py-2 text-left">Zone</th>
-                                                <th className="py-2 text-left">Description</th>
-                                                <th className="py-2 text-right">Low (J)</th>
-                                                <th className="py-2 text-right">High (J)</th>
-                                                <th className="py-2 text-right">Time</th>
-                                                <th className="py-2 text-right">%</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {fatigueZones.map((z) => (
-                                                <tr key={z.name} className="border-b border-slate-800/50 hover:bg-slate-700/20 transition-colors">
-                                                    <td className="py-2 font-bold" style={{ color: z.color }}>{z.name}</td>
-                                                    <td className="py-2 text-slate-300">{z.label}</td>
-                                                    <td className="py-2 text-right font-mono text-slate-400">{z.minJ}</td>
-                                                    <td className="py-2 text-right font-mono text-slate-400">{z.maxJ}</td>
-                                                    <td className="py-2 text-right font-mono">{z.timeStr}</td>
-                                                    <td className="py-2 text-right font-mono font-bold">{z.pct}</td>
-                                                </tr>
+                {/* 6. Advanced Metrics Row */}
+                {fatigueZones.length > 0 && (
+                    <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
+                            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-2">
+                                <Gauge className="w-4 h-4 text-orange-500" />
+                                W' Fatigue Zones
+                            </h3>
+                            <div className="h-[200px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={fatigueZones} layout="vertical">
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} horizontal={false} />
+                                        <XAxis type="number" stroke="#64748b" tick={{ fontSize: 10 }} unit="%" />
+                                        <YAxis type="category" dataKey="name" stroke="#64748b" tick={{ fontSize: 11 }} width={30} />
+                                        <Tooltip
+                                            cursor={{ fill: 'transparent' }}
+                                            contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '12px' }}
+                                            formatter={(value: number, name: string, item: { payload?: { timeStr?: string; label?: string } }) => {
+                                                const payload = item.payload;
+                                                if (name === 'power' && chartVisibility.power) return [`${value} W`, 'Power'];
+                                                if (name === 'wBal' && chartVisibility.wBal) return [`${value} kJ`, "W' Bal"];
+                                                if (name === 'hr' && chartVisibility.hr) return [`${value} bpm`, 'Heart Rate'];
+                                                if (name === 'altitude' && chartVisibility.altitude) return [`${value} m`, 'Altitude'];
+                                                if (name === 'cadence' && chartVisibility.cadence) return [`${value} rpm`, 'Cadence'];
+                                                return [
+                                                    `${value}% (${payload?.timeStr || ''})`,
+                                                    payload?.label || ''
+                                                ];
+                                            }}
+                                        />
+                                        <Bar dataKey="pct" radius={[0, 4, 4, 0]}>
+                                            <LabelList dataKey="pct" position="right" formatter={(val: number) => val > 0 ? `${val}%` : ""} fill="#94a3b8" fontSize={10} />
+                                            {fatigueZones.map((entry, index) => (
+                                                <Cell key={`fatigue-${index}`} fill={entry.color} />
                                             ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-
-                                {/* Notes / 活動描述 */}
-                                {latestActivity.description && (
-                                    <div className="mt-4 pt-4 border-t border-slate-700">
-                                        <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2 flex items-center gap-2">
-                                            <FileText className="w-3 h-3" /> Notes
-                                        </h4>
-                                        <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{latestActivity.description}</p>
-                                    </div>
-                                )}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
                             </div>
                         </div>
-                    )
-                }
 
-            </div >
+                        <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
+                            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-2">
+                                <Info className="w-4 h-4 text-blue-500" />
+                                Fatigue Details
+                            </h3>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="text-slate-400 text-xs uppercase border-b border-slate-700">
+                                            <th className="py-2 text-left">Zone</th>
+                                            <th className="py-2 text-right">Low</th>
+                                            <th className="py-2 text-right">High</th>
+                                            <th className="py-2 text-right">Time</th>
+                                            <th className="py-2 text-right">%</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {fatigueZones.map((z) => (
+                                            <tr key={z.name} className="border-b border-slate-800/50 hover:bg-slate-700/20 transition-colors">
+                                                <td className="py-2 font-bold" style={{ color: z.color }}>{z.name}</td>
+                                                <td className="py-2 text-right font-mono text-slate-400">{z.minJ}</td>
+                                                <td className="py-2 text-right font-mono text-slate-400">{z.maxJ}</td>
+                                                <td className="py-2 text-right font-mono">{z.timeStr}</td>
+                                                <td className="py-2 text-right font-mono font-bold">{z.pct}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
 
-            {/* Footer / Copyright */}
-            < footer className="mt-8 border-t border-slate-800 pt-6 text-center" >
+                            {latestActivity.description && (
+                                <div className="mt-4 pt-4 border-t border-slate-700">
+                                    <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2 flex items-center gap-2">
+                                        <FileText className="w-3 h-3" /> Notes
+                                    </h4>
+                                    <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{latestActivity.description}</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Footer Area */}
+            <footer className="mt-8 border-t border-slate-800 pt-6 text-center">
                 <p className="text-xs text-slate-500 font-mono">
                     Based on <a href="https://github.com/GoldenCheetah/GoldenCheetah" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-white underline">GoldenCheetah</a> (GPL v2).
                     Algorithms adapted for web visualization.
@@ -1410,8 +1125,8 @@ export const GoldenCheetahPage = () => {
                 <p className="text-[10px] text-slate-600 mt-1">
                     Power & W' Balance model uses Skiba (2012) / Froncioni integral method (Tau=570s).
                 </p>
-            </footer >
-        </div >
+            </footer>
+        </div>
     );
 };
 

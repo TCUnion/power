@@ -26,7 +26,7 @@ const PowerDashboard: React.FC = () => {
     const [chartActivities, setChartActivities] = useState<StravaActivity[]>([]); // For charts (non-paginated)
     const [loadingActivities, setLoadingActivities] = useState(true);
     const [currentFTP, setCurrentFTP] = useState(0);
-    const [currentMaxHR, setCurrentMaxHR] = useState(190);
+    const [currentMaxHR] = useState(190);
 
     // 分頁狀態
     const [currentPage, setCurrentPage] = useState(1);
@@ -60,7 +60,7 @@ const PowerDashboard: React.FC = () => {
 
                 const { data: activities, error, count } = await supabase
                     .from('strava_activities')
-                    .select('*', { count: 'exact' })
+                    .select('id, athlete_id, name, distance, moving_time, elapsed_time, total_elevation_gain, type, sport_type, start_date, average_watts, max_watts, average_heartrate, max_heartrate', { count: 'exact' })
                     .eq('athlete_id', athlete.id)
                     .order('start_date', { ascending: false })
                     .range(from, to);
@@ -78,18 +78,22 @@ const PowerDashboard: React.FC = () => {
                     setAvailableStreams(new Set(availableIds));
 
                     // 嘗試從最近的 Streams 中找出 FTP (若有)
-                    const { data: latestStream } = await supabase
-                        .from('strava_streams')
-                        .select('ftp, max_heartrate')
-                        .in('activity_id', availableIds)
-                        .gt('ftp', 0) // 找有設定 FTP 的
-                        .order('activity_id', { ascending: false }) // 大概是最近的 ID
-                        .limit(1)
-                        .maybeSingle();
+                    try {
+                        const { data: latestStream, error: streamErr } = await supabase
+                            .from('strava_streams')
+                            .select('ftp')
+                            .in('activity_id', availableIds)
+                            .gt('ftp', 0)
+                            .order('activity_id', { ascending: false })
+                            .limit(1)
+                            .maybeSingle();
 
-                    if (latestStream) {
-                        setCurrentFTP(latestStream.ftp || 0);
-                        if (latestStream.max_heartrate) setCurrentMaxHR(latestStream.max_heartrate);
+                        if (streamErr) throw streamErr;
+                        if (latestStream) {
+                            setCurrentFTP(latestStream.ftp || 0);
+                        }
+                    } catch (sErr) {
+                        console.warn('[PowerDashboard] 取得最近數據流 FTP 失敗:', sErr);
                     }
                 }
             } catch (err) {
@@ -107,15 +111,19 @@ const PowerDashboard: React.FC = () => {
         if (!athlete?.id) return;
         const fetchChartData = async () => {
             const sixMonthsAgo = new Date();
+            sixMonthsAgo.setHours(0, 0, 0, 0); // 固定時間部分，避免毫秒漂移引發重複更新
             sixMonthsAgo.setDate(sixMonthsAgo.getDate() - 180);
 
-            const { data } = await supabase
+            const { data, error: chartError } = await supabase
                 .from('strava_activities')
-                // 撈取需要的額外欄位以符合 StravaActivity 型別，避免 TS Error
-                .select('id, start_date, moving_time, average_watts, suffer_score, sport_type, name, distance, average_heartrate, has_heartrate, device_watts, kilojoules, weighted_average_watts, total_elevation_gain, athlete_id, gear_id')
+                .select('id, athlete_id, name, distance, moving_time, elapsed_time, total_elevation_gain, type, sport_type, start_date, average_watts, max_watts, average_heartrate, max_heartrate')
                 .eq('athlete_id', athlete.id)
                 .gte('start_date', sixMonthsAgo.toISOString())
                 .order('start_date', { ascending: true });
+
+            if (chartError) {
+                console.warn('[PowerDashboard] 取得圖表數據失敗:', chartError);
+            }
 
             if (data) {
                 // @ts-ignore - 忽略部分非必要欄位的型別檢查 (如 map, commute 等)

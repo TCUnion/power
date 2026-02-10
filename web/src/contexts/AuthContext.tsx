@@ -119,11 +119,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                         ...currentAthlete,
                         firstname: serverName,
                         lastname: '',
-                        ts: Date.now()
+                        // 移除 ts: Date.now() 避免引發無窮迴圈
                     };
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(newAthleteData));
-                    setAthlete(newAthleteData as StravaAthlete);
-                    syncToken(newAthleteData as StravaAthlete);
+
+                    // 僅在資料真正變更時更新，避免無窮 loop
+                    if (JSON.stringify(currentAthlete) !== JSON.stringify(newAthleteData)) {
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(newAthleteData));
+                        setAthlete(newAthleteData as StravaAthlete);
+                        syncToken(newAthleteData as StravaAthlete);
+                    }
                 }
             }
         } catch (err) {
@@ -188,14 +192,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const handleAuthChange = async () => {
             const current = loadAthleteFromStorage();
             if (current) {
+                // 如果已經載入且有資料，且並非初次載入，可考慮不重複顯示全域 Loading
+                // 這裡暫時維持原邏輯，但加上超時保護
                 setIsLoading(true);
                 const aid = Number(current.id);
                 try {
-                    // 同步執行 binding 和 admin 檢查
-                    await Promise.all([
+                    // 同步執行 binding 和 admin 檢查，增加超時保護
+                    const checkPromise = Promise.all([
                         checkBindingStatus(aid),
                         checkAdminStatus(aid)
                     ]);
+
+                    const timeoutPromise = new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('Auth Initialization Timeout')), 10000)
+                    );
+
+                    await Promise.race([checkPromise, timeoutPromise]);
+                } catch (err) {
+                    console.warn('[AuthContext] 初始化檢查超時或失敗:', err);
                 } finally {
                     setIsLoading(false);
                 }

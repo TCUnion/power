@@ -112,7 +112,20 @@ export const GoldenCheetahPage = () => {
     const [cadenceStream, setCadenceStream] = useState<number[]>([]);
     const [tempStream, setTempStream] = useState<number[]>([]);
     const [hrStream, setHrStream] = useState<number[]>([]);
+    const [altitudeStream, setAltitudeStream] = useState<number[]>([]);
     const [athleteFTP, setAthleteFTP] = useState(250);
+
+    // 圖表資料系列可見性切換
+    const [chartVisibility, setChartVisibility] = useState({
+        power: true,
+        wBal: true,
+        hr: true,
+        altitude: true,
+        cadence: false,
+    });
+    const toggleSeries = useCallback((key: keyof typeof chartVisibility) => {
+        setChartVisibility(prev => ({ ...prev, [key]: !prev[key] }));
+    }, []);
     const [athleteMaxHR, setAthleteMaxHR] = useState(190); // Default Max HR
     const [athleteWeight, setAthleteWeight] = useState(70);
     const [calculatedCP, setCalculatedCP] = useState(250);
@@ -220,9 +233,12 @@ export const GoldenCheetahPage = () => {
                         const temp = row.streams?.find((s: any) => s.type === 'temp')?.data;
                         const heartrate = row.streams?.find((s: any) => s.type === 'heartrate')?.data;
 
+                        const altitude = row.streams?.find((s: any) => s.type === 'altitude')?.data;
+
                         if (cadence) setCadenceStream(cadence); else setCadenceStream([]);
                         if (temp) setTempStream(temp); else setTempStream([]);
                         if (heartrate) setHrStream(heartrate); else setHrStream([]);
+                        if (altitude) setAltitudeStream(altitude); else setAltitudeStream([]);
                     }
                 }
             });
@@ -291,10 +307,12 @@ export const GoldenCheetahPage = () => {
                 power: activityStream[i],
                 wBal: wPrimeBalance[i] ? Math.round(wPrimeBalance[i] / 1000 * 10) / 10 : 0,
                 hr: hrStream[i] || null,
+                altitude: altitudeStream[i] ?? null,
+                cadence: cadenceStream[i] || null,
             });
         }
         return data;
-    }, [activityStream, wPrimeBalance, hrStream]);
+    }, [activityStream, wPrimeBalance, hrStream, altitudeStream, cadenceStream]);
 
     // Metrics
     const summary = useMemo(() => {
@@ -672,20 +690,32 @@ export const GoldenCheetahPage = () => {
                             <Zap className="w-4 h-4 text-yellow-500" />
                             Power & W' Balance
                         </h3>
-                        <div className="flex items-center gap-4 text-xs">
-                            <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-2 text-xs flex-wrap">
+                            <button onClick={() => toggleSeries('power')} className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all cursor-pointer ${chartVisibility.power ? 'bg-yellow-500/10 hover:bg-yellow-500/20' : 'opacity-30 hover:opacity-50'}`}>
                                 <span className="w-3 h-3 bg-yellow-500/50 rounded-sm"></span>
                                 Power (W)
-                            </div>
-                            <div className="flex items-center gap-1">
+                            </button>
+                            <button onClick={() => toggleSeries('wBal')} className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all cursor-pointer ${chartVisibility.wBal ? 'bg-purple-500/10 hover:bg-purple-500/20' : 'opacity-30 hover:opacity-50'}`}>
                                 <span className="w-3 h-0.5 bg-purple-500"></span>
                                 W' Bal (kJ)
-                            </div>
+                            </button>
                             {hrStream.length > 0 && (
-                                <div className="flex items-center gap-1">
+                                <button onClick={() => toggleSeries('hr')} className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all cursor-pointer ${chartVisibility.hr ? 'bg-red-400/10 hover:bg-red-400/20' : 'opacity-30 hover:opacity-50'}`}>
                                     <span className="w-3 h-0.5 bg-red-400"></span>
                                     HR (bpm)
-                                </div>
+                                </button>
+                            )}
+                            {altitudeStream.length > 0 && (
+                                <button onClick={() => toggleSeries('altitude')} className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all cursor-pointer ${chartVisibility.altitude ? 'bg-emerald-500/10 hover:bg-emerald-500/20' : 'opacity-30 hover:opacity-50'}`}>
+                                    <span className="w-3 h-3 bg-emerald-500/30 rounded-sm"></span>
+                                    Altitude (m)
+                                </button>
+                            )}
+                            {cadenceStream.length > 0 && (
+                                <button onClick={() => toggleSeries('cadence')} className={`flex items-center gap-1 px-2 py-1 rounded-md transition-all cursor-pointer ${chartVisibility.cadence ? 'bg-cyan-400/10 hover:bg-cyan-400/20' : 'opacity-30 hover:opacity-50'}`}>
+                                    <span className="w-3 h-0.5 bg-cyan-400"></span>
+                                    Cadence (rpm)
+                                </button>
                             )}
                         </div>
                     </div>
@@ -697,6 +727,10 @@ export const GoldenCheetahPage = () => {
                                     <linearGradient id="powerGradient" x1="0" y1="0" x2="0" y2="1">
                                         <stop offset="5%" stopColor="#EAB308" stopOpacity={0.8} />
                                         <stop offset="95%" stopColor="#EAB308" stopOpacity={0.1} />
+                                    </linearGradient>
+                                    <linearGradient id="altitudeGradient" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.4} />
+                                        <stop offset="95%" stopColor="#10B981" stopOpacity={0.05} />
                                     </linearGradient>
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} vertical={false} />
@@ -721,41 +755,67 @@ export const GoldenCheetahPage = () => {
                                     domain={[0, Math.ceil(calculatedWPrime / 1000)]}
                                     label={{ value: "W' (kJ)", angle: 90, position: 'insideRight', fill: '#a855f7', fontSize: 10 }}
                                 />
-                                {/* 心率軸（隱藏刻度） */}
+                                {/* 隱藏軸：心率 / 海拔 / 踏頻 */}
                                 <YAxis yAxisId="hr" orientation="right" hide domain={[60, 220]} />
+                                <YAxis yAxisId="altitude" orientation="right" hide domain={['dataMin - 50', 'dataMax + 50']} />
+                                <YAxis yAxisId="cadence" orientation="right" hide domain={[0, 150]} />
                                 <Tooltip
                                     contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '12px' }}
                                     formatter={(value: any, name: string) => {
-                                        if (name === 'power') return [`${value} W`, 'Power'];
-                                        if (name === 'wBal') return [`${value} kJ`, "W' Bal"];
-                                        if (name === 'hr') return [`${value} bpm`, 'Heart Rate'];
-                                        return [value, name];
+                                        if (name === 'power' && chartVisibility.power) return [`${value} W`, 'Power'];
+                                        if (name === 'wBal' && chartVisibility.wBal) return [`${value} kJ`, "W' Bal"];
+                                        if (name === 'hr' && chartVisibility.hr) return [`${value} bpm`, 'Heart Rate'];
+                                        if (name === 'altitude' && chartVisibility.altitude) return [`${value} m`, 'Altitude'];
+                                        if (name === 'cadence' && chartVisibility.cadence) return [`${value} rpm`, 'Cadence'];
+                                        return [null, null];
                                     }}
                                     labelStyle={{ color: '#94a3b8' }}
                                 />
                                 {/* CP Reference */}
                                 <ReferenceLine yAxisId="left" y={calculatedCP} stroke="#EF4444" strokeDasharray="3 3" opacity={0.5} label={{ value: 'CP', fill: '#EF4444', fontSize: 10, position: 'insideLeft' }} />
 
-                                <Area
-                                    yAxisId="left"
-                                    type="monotone"
-                                    dataKey="power"
-                                    stroke="#EAB308"
-                                    fill="url(#powerGradient)"
-                                    strokeWidth={1}
-                                    isAnimationActive={false}
-                                />
-                                <Line
-                                    yAxisId="right"
-                                    type="monotone"
-                                    dataKey="wBal"
-                                    stroke="#A855F7"
-                                    strokeWidth={2}
-                                    dot={false}
-                                    isAnimationActive={false}
-                                />
-                                {/* 心率曲線疊加 */}
-                                {hrStream.length > 0 && (
+                                {/* 海拔填充區域（綠色，置於底層） */}
+                                {chartVisibility.altitude && altitudeStream.length > 0 && (
+                                    <Area
+                                        yAxisId="altitude"
+                                        type="monotone"
+                                        dataKey="altitude"
+                                        stroke="#10B981"
+                                        fill="url(#altitudeGradient)"
+                                        strokeWidth={1}
+                                        isAnimationActive={false}
+                                        opacity={0.6}
+                                    />
+                                )}
+
+                                {/* Power 功率區域 */}
+                                {chartVisibility.power && (
+                                    <Area
+                                        yAxisId="left"
+                                        type="monotone"
+                                        dataKey="power"
+                                        stroke="#EAB308"
+                                        fill="url(#powerGradient)"
+                                        strokeWidth={1}
+                                        isAnimationActive={false}
+                                    />
+                                )}
+
+                                {/* W' Balance 曲線 */}
+                                {chartVisibility.wBal && (
+                                    <Line
+                                        yAxisId="right"
+                                        type="monotone"
+                                        dataKey="wBal"
+                                        stroke="#A855F7"
+                                        strokeWidth={2}
+                                        dot={false}
+                                        isAnimationActive={false}
+                                    />
+                                )}
+
+                                {/* 心率曲線 */}
+                                {chartVisibility.hr && hrStream.length > 0 && (
                                     <Line
                                         yAxisId="hr"
                                         type="monotone"
@@ -765,6 +825,20 @@ export const GoldenCheetahPage = () => {
                                         dot={false}
                                         isAnimationActive={false}
                                         opacity={0.4}
+                                    />
+                                )}
+
+                                {/* 踏頻曲線 */}
+                                {chartVisibility.cadence && cadenceStream.length > 0 && (
+                                    <Line
+                                        yAxisId="cadence"
+                                        type="monotone"
+                                        dataKey="cadence"
+                                        stroke="#22D3EE"
+                                        strokeWidth={1}
+                                        dot={false}
+                                        isAnimationActive={false}
+                                        opacity={0.5}
                                     />
                                 )}
                             </ComposedChart>

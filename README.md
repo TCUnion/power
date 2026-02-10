@@ -41,5 +41,20 @@
 
 ## 🔗 相關資源
 
+
 - [Velozs Cycling Analytics](https://github.com/velozs/cycling-analytics)
 - [GoldenCheetah](https://github.com/GoldenCheetah/GoldenCheetah)
+
+## ⚖️ 致敬與版權聲明 (Acknowledgements)
+
+本專案部分核心演算法與 UI 設計致敬以下開源專案：
+
+- **GoldenCheetah** (GPL v2):
+  - Dashboard UI 設計靈感 (Power & W' Balance Chart)
+  - Critical Power 模型演算法概念 (Morton 3P, GoldenCheetah 2P)
+  - W' Balance 計算邏輯 (Skiba 2012 / Integral Method)
+
+- **Cycling Analytics**:
+  - CP 模型演算法概念 (Monod & Scherrer 2P)
+
+我們感謝開源社群對運動科學軟體的貢獻。本專案旨在網頁端提供類似的分析體驗，協助台灣自行車騎士科學化訓練。

@@ -5,8 +5,8 @@ import { useAuth } from './hooks/useAuth';
 import StravaConnect from './features/auth/StravaConnect';
 
 import PowerAnalysisPage from './features/power/PowerAnalysisPage';
-import { Link as RouterLink } from 'react-router-dom';
-import { Zap, LogOut } from 'lucide-react';
+import { Link as RouterLink, NavLink } from 'react-router-dom';
+import { Zap, LogOut, LayoutDashboard, Activity } from 'lucide-react';
 import MemberBindingCard from './features/auth/MemberBindingCard';
 import PowerDashboard from './features/power/PowerDashboard';
 import GoldenCheetahPage from './features/golden-cheetah/GoldenCheetahPage';
@@ -17,17 +17,68 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-tcu-blue/20">
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
-        <div className="container mx-auto px-4 h-16 flex items-center">
+        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           {/* 左側：Logo */}
-          <div className="flex items-center w-12 shrink-0">
-            <img src={tcuLogo} alt="TCU Logo" className="h-10 w-auto object-contain" />
-          </div>
-          {/* 中間：標語置中 */}
-          <div className="flex-1 flex justify-center">
-            <span className="text-xl font-black italic tracking-tighter uppercase">
-              UNLOCK YOUR <span className="text-tcu-orange text-2xl">TCU POWER</span>
+          <RouterLink to="/" className="flex items-center gap-2 group shrink-0">
+            <img src={tcuLogo} alt="TCU Logo" className="h-10 w-auto object-contain transition-transform group-hover:scale-105" />
+            <span className="text-xl font-black italic tracking-tighter uppercase hidden md:block">
+              TCU <span className="text-tcu-orange">POWER</span>
             </span>
-          </div>
+          </RouterLink>
+
+          {/* 中間：導航選單 (登入後顯示) */}
+          {athlete && (
+            <nav className="flex items-center p-1 bg-slate-100/80 dark:bg-slate-800/50 backdrop-blur-sm rounded-full border border-slate-200 dark:border-slate-700/50 absolute left-1/2 -translate-x-1/2 max-w-[60%] overflow-x-auto no-scrollbar">
+              <NavLink
+                to="/"
+                end
+                className={({ isActive }) =>
+                  `px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${isActive
+                    ? 'bg-white dark:bg-slate-700 text-tcu-orange shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/30'
+                  }`
+                }
+              >
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">會員主頁</span>
+              </NavLink>
+
+              <NavLink
+                to="/analysis"
+                className={({ isActive }) =>
+                  `px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${isActive
+                    ? 'bg-white dark:bg-slate-700 text-blue-500 shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/30'
+                  }`
+                }
+              >
+                <Zap className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">功率分析</span>
+              </NavLink>
+
+              <NavLink
+                to="/goldencheetah"
+                className={({ isActive }) =>
+                  `px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${isActive
+                    ? 'bg-white dark:bg-slate-700 text-yellow-500 shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/30'
+                  }`
+                }
+              >
+                <Activity className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">GoldenCheetah</span>
+              </NavLink>
+            </nav>
+          )}
+
+          {!athlete && (
+            <div className="flex-1 flex justify-center">
+              <span className="text-xl font-black italic tracking-tighter uppercase">
+                UNLOCK YOUR <span className="text-tcu-orange text-2xl">TCU POWER</span>
+              </span>
+            </div>
+          )}
+
           {/* 右側：登出 */}
           <div className="flex items-center shrink-0 w-12 justify-end">
             {athlete && (

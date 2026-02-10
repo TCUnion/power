@@ -63,7 +63,7 @@ const PowerAnalysisPage: React.FC = () => {
 
     // 設定面板
     const [showSettings, setShowSettings] = useState(false);
-    const [analysisRange, setAnalysisRange] = useState<42 | 90 | 180 | 365>(90);
+    const [analysisRange] = useState<number>(42);
 
     /**
      * 載入活動數據與 Streams
@@ -269,20 +269,7 @@ const PowerAnalysisPage: React.FC = () => {
                         <div className="flex items-center gap-6">
                             <div>
                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">分析區間</label>
-                                <div className="flex gap-1">
-                                    {([42, 90, 180, 365] as const).map(range => (
-                                        <button
-                                            key={range}
-                                            onClick={() => setAnalysisRange(range)}
-                                            className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-all ${analysisRange === range
-                                                ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
-                                                : 'bg-slate-800 border-slate-700 text-slate-500 hover:text-slate-300'
-                                                }`}
-                                        >
-                                            {range === 365 ? '1年' : `${range}天`}
-                                        </button>
-                                    ))}
-                                </div>
+                                <div className="text-lg font-black text-white">42天 (固定)</div>
                             </div>
                             <div>
                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">目前 FTP</label>

@@ -11,8 +11,9 @@ env_paths = [
     os.path.join(os.path.dirname(__file__), ".env")
 ]
 for p in env_paths:
-    if os.path.exists(p):
+        if os.path.exists(p):
         load_dotenv(p)
+        logger.info(f"Loaded environment variables from {p}")
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -169,10 +170,12 @@ async def confirm_binding(req: ConfirmBindingRequest):
                    os.environ.get("SUPABASE_KEY")
         
         if not url or not key:
+            # 嘗試讀取 VITE_ 開頭的變數（前端環境變數）
             url = url or os.environ.get("VITE_SUPABASE_URL")
             key = key or os.environ.get("VITE_SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("VITE_SUPABASE_ANON_KEY")
             
-        if not url or not key:
+            available_keys = [k for k in os.environ.keys() if "SUPABASE" in k]
+            logger.error(f"Missing Supabase credentials in confirm_binding. Available: {available_keys}")
             raise HTTPException(status_code=500, detail="Missing Supabase credentials")
             
         supabase: Client = create_client(url, key)

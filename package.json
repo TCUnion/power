@@ -1,0 +1,10 @@
+{
+    "name": "stravapower-root",
+    "private": true,
+    "version": "1.2.0",
+    "scripts": {
+        "install:web": "cd web && npm install",
+        "build": "cd web && npm install && npm run build",
+        "preview": "cd web && npm run preview"
+    }
+}

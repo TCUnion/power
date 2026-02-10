@@ -20,7 +20,7 @@ import {
     Line, Area, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, ReferenceLine, ComposedChart, BarChart, Bar, Cell
 } from 'recharts';
-import { Activity, Dumbbell, Zap, TrendingUp, Scale, Info, Loader2, ArrowLeft } from 'lucide-react';
+import { Activity, Dumbbell, Zap, TrendingUp, Scale, Info, Loader2, ArrowLeft, Thermometer, RotateCw, Timer } from 'lucide-react';
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { fitMorton3P, calculateMMP, calculateNP } from '../../utils/power-models';
@@ -106,6 +106,8 @@ export const GoldenCheetahPage = () => {
     // Data
     const [latestActivity, setLatestActivity] = useState<any>(null); // TODO: Type this properly with StravaActivity
     const [activityStream, setActivityStream] = useState<number[]>([]);
+    const [cadenceStream, setCadenceStream] = useState<number[]>([]);
+    const [tempStream, setTempStream] = useState<number[]>([]);
     const [athleteFTP, setAthleteFTP] = useState(250);
     const [athleteWeight, setAthleteWeight] = useState(70);
     const [calculatedCP, setCalculatedCP] = useState(250);
@@ -183,6 +185,11 @@ export const GoldenCheetahPage = () => {
                     powerArrays.push(watts);
                     if (row.activity_id === latest.id) {
                         latestStream = watts;
+                        // Extract other streams for the latest activity
+                        const cadence = row.streams?.find((s: any) => s.type === 'cadence')?.data;
+                        const temp = row.streams?.find((s: any) => s.type === 'temp')?.data;
+                        if (cadence) setCadenceStream(cadence); else setCadenceStream([]);
+                        if (temp) setTempStream(temp); else setTempStream([]);
                     }
                 }
             });
@@ -261,7 +268,9 @@ export const GoldenCheetahPage = () => {
             tss: 0, if: 0, work: 0, duration: 0, normPower: 0,
             avgPower: 0, maxPower: 0, timeAboveCP: 0, timeAboveCPPct: 0, timeAboveCPFraction: 0,
             zones: ZONES.map(z => ({ ...z, value: 0, pct: 0 })),
-            mmp20m: 0
+            mmp20m: 0,
+            cadence: { avg: 0, max: 0, total: 0 },
+            temp: { avg: 0, min: 0, max: 0 }
         };
 
         const duration = activityStream.length;
@@ -273,6 +282,29 @@ export const GoldenCheetahPage = () => {
         // Calculate MMP 20m
         const mmpCurve = calculateMMP([activityStream]);
         const mmp20m = mmpCurve.find(p => p.duration === 1200)?.power || 0;
+
+        // Calculate Cadence Metrics
+        let cadAvg = 0, cadMax = 0, cadTotal = 0;
+        if (cadenceStream.length > 0) {
+            // Filter out zeros for average cadence? Usually yes for "Average Cadence" (cycling dynamics)
+            // But strict average includes zeros. Garmin "Avg Cadence" usually excludes zeros.
+            // Let's exclude zeros for Average calculation to match typical cycling head units.
+            const nonZeroCadence = cadenceStream.filter(c => c > 0);
+            if (nonZeroCadence.length > 0) {
+                cadAvg = Math.round(nonZeroCadence.reduce((a, b) => a + b, 0) / nonZeroCadence.length);
+            }
+            cadMax = Math.max(...cadenceStream);
+            // Total Strokes (Revolutions) = Sum(rpm / 60) assuming 1s interval
+            cadTotal = Math.round(cadenceStream.reduce((a, b) => a + b, 0) / 60);
+        }
+
+        // Calculate Temperature Metrics
+        let tempAvg = 0, tempMin = 0, tempMax = 0;
+        if (tempStream.length > 0) {
+            tempAvg = Math.round(tempStream.reduce((a, b) => a + b, 0) / tempStream.length * 10) / 10;
+            tempMin = Math.min(...tempStream);
+            tempMax = Math.max(...tempStream);
+        }
 
         const intensityFactor = athleteFTP > 0 ? normPower / athleteFTP : 0;
         const tss = athleteFTP > 0 ? Math.round((duration * normPower * intensityFactor) / (athleteFTP * 3600) * 100) : 0;
@@ -303,10 +335,13 @@ export const GoldenCheetahPage = () => {
             timeAboveCP: timeAboveCPCount,
             timeAboveCPPct,
             timeAboveCPFraction,
+
             zones: zonesWithPct,
-            mmp20m
+            mmp20m,
+            cadence: { avg: cadAvg, max: cadMax, total: cadTotal },
+            temp: { avg: tempAvg, min: tempMin, max: tempMax }
         };
-    }, [activityStream, athleteFTP, calculatedCP]);
+    }, [activityStream, cadenceStream, tempStream, athleteFTP, calculatedCP]);
 
     // ============================================
     // Rendering
@@ -502,13 +537,13 @@ export const GoldenCheetahPage = () => {
                     </h3>
                     <div className="h-[200px]">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={summary.zonesHistogram}>
+                            <BarChart data={summary.zones}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} vertical={false} />
                                 <XAxis dataKey="name" stroke="#64748b" tick={{ fontSize: 10 }} />
                                 <YAxis stroke="#64748b" tick={{ fontSize: 10 }} unit="%" />
                                 <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '12px' }} />
                                 <Bar dataKey="pct" radius={[4, 4, 0, 0]}>
-                                    {summary.zonesHistogram.map((entry, index) => (
+                                    {summary.zones.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={entry.color} />
                                     ))}
                                 </Bar>
@@ -540,11 +575,59 @@ export const GoldenCheetahPage = () => {
                                 <span className="text-slate-400">Weight Setting</span>
                                 <span className="font-bold text-white">{athleteWeight} kg</span>
                             </div>
-                            <div className="flex justify-between text-sm py-2 border-b border-slate-800">
-                                <span className="text-slate-400">Watts/kg</span>
-                                <span className="font-bold text-white">{(summary.avgPower / athleteWeight).toFixed(2)} W/kg</span>
-                            </div>
                         </div>
+                        <div className="flex items-center justify-between p-3 bg-white/5 dark:bg-black/20 rounded-lg">
+                            <span className="text-slate-500">Watts/kg</span>
+                            <span className="font-mono font-bold text-white">{(summary.maxPower / athleteWeight).toFixed(2)} W/kg</span>
+                        </div>
+
+                        {/* Cadence Section */}
+                        {summary.cadence.total > 0 && (
+                            <div className="mt-6">
+                                <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
+                                    <RotateCw className="w-3 h-3" /> 踏頻 (Cadence)
+                                </h4>
+                                <div className="grid grid-cols-2 gap-3 mb-3">
+                                    <div className="p-3 bg-white/5 dark:bg-black/20 rounded-lg">
+                                        <div className="text-[10px] text-slate-500 uppercase">Avg RPM</div>
+                                        <div className="text-xl font-bold text-white">{summary.cadence.avg} <span className="text-xs text-slate-600">rpm</span></div>
+                                    </div>
+                                    <div className="p-3 bg-white/5 dark:bg-black/20 rounded-lg">
+                                        <div className="text-[10px] text-slate-500 uppercase">Max RPM</div>
+                                        <div className="text-xl font-bold text-white">{summary.cadence.max} <span className="text-xs text-slate-600">rpm</span></div>
+                                    </div>
+                                </div>
+                                <div className="p-3 bg-white/5 dark:bg-black/20 rounded-lg">
+                                    <div className="text-[10px] text-slate-500 uppercase">Total Strokes (總圈數)</div>
+                                    <div className="text-xl font-bold text-white">{summary.cadence.total.toLocaleString()}</div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Temperature Section */}
+                        {summary.temp.avg !== 0 && (
+                            <div className="mt-6">
+                                <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
+                                    <Thermometer className="w-3 h-3" /> 溫度 (Temperature)
+                                </h4>
+                                <div className="p-3 bg-white/5 dark:bg-black/20 rounded-lg mb-3">
+                                    <div className="flex justify-between items-baseline">
+                                        <div className="text-[10px] text-slate-500 uppercase">Avg Temp</div>
+                                        <div className="text-xl font-bold text-white">{summary.temp.avg} <span className="text-xs text-slate-600">°C</span></div>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="p-3 bg-white/5 dark:bg-black/20 rounded-lg">
+                                        <div className="text-[10px] text-slate-500 uppercase">Min Temp</div>
+                                        <div className="text-xl font-bold text-blue-400">{summary.temp.min} <span className="text-xs text-slate-600">°C</span></div>
+                                    </div>
+                                    <div className="p-3 bg-white/5 dark:bg-black/20 rounded-lg">
+                                        <div className="text-[10px] text-slate-500 uppercase">Max Temp</div>
+                                        <div className="text-xl font-bold text-red-400">{summary.temp.max} <span className="text-xs text-slate-600">°C</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 

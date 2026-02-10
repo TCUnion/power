@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* 強制使用 class-based dark mode，避免依賴 prefers-color-scheme */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));

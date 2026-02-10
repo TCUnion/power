@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
-    AlertCircle, User, RefreshCw, CheckCircle, Activity, ChevronDown, ChevronUp, Zap, Heart, Target
+    AlertCircle, User, RefreshCw, CheckCircle, Activity, ChevronDown, ChevronUp, Zap, Heart, Target, TrendingUp
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
@@ -487,9 +488,13 @@ const PowerDashboard: React.FC = () => {
                         <div className="flex-1 min-w-0">
                             <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2 flex-wrap">
                                 <span className="truncate">{athlete.firstname} {athlete.lastname}</span>
-                                <span className="px-2 py-0.5 rounded text-[10px] sm:text-xs font-medium bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-blue-300 border border-blue-500/30 shrink-0">
-                                    AI 功率教室
-                                </span>
+                                <Link
+                                    to="/analysis"
+                                    className="px-2 py-0.5 rounded text-[10px] sm:text-xs font-medium bg-gradient-to-r from-orange-500/20 to-yellow-500/20 text-orange-300 border border-orange-500/30 shrink-0 hover:from-orange-500/30 hover:to-yellow-500/30 transition-all flex items-center gap-1"
+                                >
+                                    <TrendingUp className="w-3 h-3" />
+                                    進階分析
+                                </Link>
                             </h2>
                             <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
                                 目前設定 FTP: <span className="text-white font-mono font-bold">{currentFTP > 0 ? `${currentFTP}W` : '未設定'}</span>

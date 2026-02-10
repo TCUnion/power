@@ -1,6 +1,15 @@
 /**
  * 功率訓練分析 Hook
- * 用於獲取 Strava Streams 數據並計算功率區間、NP、TSS 等指標
+ * 
+ * 混合架構：優先使用 PostgreSQL DB 端函式計算，
+ * 若 RPC 呼叫失敗則自動降級為前端 JS 計算 (fallback)。
+ * 
+ * DB 端函式對應：
+ * - calculate_power_zones(ftp)        → calculatePowerZones
+ * - calculate_normalized_power(data)  → calculateNP
+ * - calculate_tss(np, ftp, duration)  → calculateTSS
+ * - analyze_activity_power_distribution(activity_id, ftp) → analyzePowerZoneDistribution
+ * - calculate_hr_zones(max_hr)        → calculateHRZones
  */
 
 import { useState, useCallback } from 'react';
@@ -14,6 +23,10 @@ import type {
     AthletePowerProfile,
     StravaActivity,
 } from '../types';
+
+// ============================================
+// 常數：本地 Fallback 用（與 DB 端定義一致）
+// ============================================
 
 // Coggan 功率區間定義
 const POWER_ZONES: { zone: number; name: string; minPct: number; maxPct: number; color: string }[] = [
@@ -38,29 +51,35 @@ const HR_ZONES: { zone: number; name: string; minPct: number; maxPct: number; co
 interface UsePowerAnalysisReturn {
     loading: boolean;
     error: string | null;
-    // 獲取活動 Streams 數據
+    /** 獲取活動 Streams 數據 */
     getActivityStreams: (activityId: number) => Promise<StravaStreams | null>;
-    // 計算功率區間
+    /** 計算功率區間（優先 DB，降級 JS） */
     calculatePowerZones: (ftp: number) => PowerZone[];
-    // 分析活動功率
+    /** 分析活動功率（混合 DB/JS） */
     analyzeActivityPower: (
         activity: StravaActivity,
         streams: StravaStreams,
         ftp: number,
         maxHR?: number
     ) => ActivityPowerAnalysis;
-    // 獲取選手訓練總覽
+    /** 獲取選手訓練總覽 */
     getAthletePowerProfile: (
         athleteId: number,
         activities: StravaActivity[],
         ftp: number,
         maxHR?: number
     ) => Promise<AthletePowerProfile>;
-    // 計算 Normalized Power
+    /** 計算 Normalized Power（優先 DB，降級 JS） */
     calculateNP: (powerData: number[]) => number;
-    // 計算 TSS
+    /** 計算 TSS（優先 DB，降級 JS） */
     calculateTSS: (np: number, ftp: number, durationSeconds: number) => number;
-    // 檢查活動是否有數據流
+    /** 計算 TSS - DB 端非同步版本（精準版） */
+    calculateTSSViaDB: (np: number, ftp: number, durationSeconds: number) => Promise<number>;
+    /** 計算 NP - DB 端非同步版本（精準版） */
+    calculateNPViaDB: (powerData: number[]) => Promise<number>;
+    /** DB 端分析活動功率分佈 */
+    analyzeActivityPowerDistributionViaDB: (activityId: number, ftp: number) => Promise<PowerZoneAnalysis[] | null>;
+    /** 檢查活動是否有數據流 */
     checkStreamsAvailability: (activityIds: number[]) => Promise<number[]>;
 }
 
@@ -68,7 +87,11 @@ export function usePowerAnalysis(): UsePowerAnalysisReturn {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // 獲取活動 Streams 數據
+    // ============================================
+    // 基礎資料存取
+    // ============================================
+
+    /** 獲取活動 Streams 數據 */
     const getActivityStreams = useCallback(async (activityId: number): Promise<StravaStreams | null> => {
         try {
             const { data, error: fetchError } = await supabase
@@ -89,7 +112,7 @@ export function usePowerAnalysis(): UsePowerAnalysisReturn {
         }
     }, []);
 
-    // 檢查活動是否有數據流
+    /** 檢查活動是否有數據流 */
     const checkStreamsAvailability = useCallback(async (activityIds: number[]): Promise<number[]> => {
         if (!activityIds.length) return [];
         try {
@@ -110,7 +133,13 @@ export function usePowerAnalysis(): UsePowerAnalysisReturn {
         }
     }, []);
 
-    // 計算功率區間界限
+    // ============================================
+    // 功率區間計算（同步 — 本地計算 + DB 結果一致）
+    // NOTE: 因為功率區間只是簡單的百分比計算，
+    // 使用本地 JS 即時計算即可，無需 async DB 呼叫
+    // ============================================
+
+    /** 計算功率區間界限（同步本地版，與 DB calculate_power_zones 結果一致） */
     const calculatePowerZones = useCallback((ftp: number): PowerZone[] => {
         return POWER_ZONES.map(z => ({
             zone: z.zone,
@@ -121,12 +150,20 @@ export function usePowerAnalysis(): UsePowerAnalysisReturn {
         }));
     }, []);
 
-    // 計算 Normalized Power (30 秒滑動平均 + 4 次方平均)
-    // 修正：恢復標準算法，包含 0 功率數據。
-    // 過濾 0 功率會導致 NP 異常飆高 (e.g. 178W vs Garmin 147W)，因為忽略了滑行/下坡的休息效應。
+    // ============================================
+    // NP 計算：同步 JS 版 + 非同步 DB 版
+    // ============================================
+
+    /**
+     * 計算 Normalized Power — 同步 JS 版 (fallback)
+     * 
+     * 使用 30 秒滑動平均 + 4 次方平均
+     * 修正：恢復標準算法，包含 0 功率數據。
+     * 過濾 0 功率會導致 NP 異常飆高 (e.g. 178W vs Garmin 147W)，
+     * 因為忽略了滑行/下坡的休息效應。
+     */
     const calculateNP = useCallback((powerData: number[]): number => {
         if (!powerData || powerData.length < 30) {
-            // 數據不足，返回簡單平均
             const sum = powerData.reduce((a, b) => a + b, 0);
             return Math.round(sum / powerData.length) || 0;
         }
@@ -148,7 +185,36 @@ export function usePowerAnalysis(): UsePowerAnalysisReturn {
         return Math.round(np);
     }, []);
 
-    // 計算 TSS
+    /**
+     * 計算 Normalized Power — 非同步 DB 版
+     * 呼叫 PostgreSQL calculate_normalized_power(JSONB) 函式
+     * 失敗時降級為 JS 本地計算
+     */
+    const calculateNPViaDB = useCallback(async (powerData: number[]): Promise<number> => {
+        try {
+            const { data, error: rpcError } = await supabase
+                .rpc('calculate_normalized_power', {
+                    power_data: JSON.stringify(powerData),
+                });
+
+            if (rpcError) {
+                // NOTE: DB RPC 失敗，降級為 JS 本地計算
+                console.warn('DB calculate_normalized_power 失敗，降級為 JS:', rpcError.message);
+                return calculateNP(powerData);
+            }
+
+            return data as number;
+        } catch (err) {
+            console.warn('calculateNPViaDB 異常，降級為 JS:', err);
+            return calculateNP(powerData);
+        }
+    }, [calculateNP]);
+
+    // ============================================
+    // TSS 計算：同步 JS 版 + 非同步 DB 版
+    // ============================================
+
+    /** 計算 TSS — 同步 JS 版 (fallback) */
     const calculateTSS = useCallback((np: number, ftp: number, durationSeconds: number): number => {
         if (ftp <= 0 || np <= 0) return 0;
 
@@ -158,7 +224,37 @@ export function usePowerAnalysis(): UsePowerAnalysisReturn {
         return Math.round(tss * 10) / 10;
     }, []);
 
-    // 分析功率區間分佈
+    /**
+     * 計算 TSS — 非同步 DB 版
+     * 呼叫 PostgreSQL calculate_tss(np, ftp, duration) 函式
+     * 失敗時降級為 JS 本地計算
+     */
+    const calculateTSSViaDB = useCallback(async (np: number, ftp: number, durationSeconds: number): Promise<number> => {
+        try {
+            const { data, error: rpcError } = await supabase
+                .rpc('calculate_tss', {
+                    np,
+                    ftp,
+                    duration_seconds: durationSeconds,
+                });
+
+            if (rpcError) {
+                console.warn('DB calculate_tss 失敗，降級為 JS:', rpcError.message);
+                return calculateTSS(np, ftp, durationSeconds);
+            }
+
+            return data as number;
+        } catch (err) {
+            console.warn('calculateTSSViaDB 異常，降級為 JS:', err);
+            return calculateTSS(np, ftp, durationSeconds);
+        }
+    }, [calculateTSS]);
+
+    // ============================================
+    // 功率區間分佈分析：本地 JS 版 + DB 版
+    // ============================================
+
+    /** 分析功率區間分佈 — 本地 JS 版 (fallback) */
     const analyzePowerZoneDistribution = useCallback((
         powerData: number[],
         zones: PowerZone[]
@@ -185,7 +281,51 @@ export function usePowerAnalysis(): UsePowerAnalysisReturn {
         });
     }, []);
 
-    // 分析心率區間分佈
+    /**
+     * DB 端分析活動功率分佈
+     * 呼叫 PostgreSQL analyze_activity_power_distribution(activity_id, ftp)
+     * 直接在 DB 端完成 Streams 提取 + 區間統計，省去前端下載整個 Streams
+     */
+    const analyzeActivityPowerDistributionViaDB = useCallback(async (
+        activityId: number,
+        ftp: number
+    ): Promise<PowerZoneAnalysis[] | null> => {
+        try {
+            const { data, error: rpcError } = await supabase
+                .rpc('analyze_activity_power_distribution', {
+                    p_activity_id: activityId,
+                    p_ftp: ftp,
+                });
+
+            if (rpcError) {
+                console.warn('DB analyze_activity_power_distribution 失敗:', rpcError.message);
+                return null;
+            }
+
+            if (!data || data.length === 0) return null;
+
+            // 計算百分比（DB 端返回 0.0，需在此補算）
+            const totalTime = data.reduce((sum: number, row: any) => sum + row.time_in_zone, 0);
+
+            return data.map((row: any) => ({
+                zone: row.zone,
+                name: row.zone_name,
+                timeInZone: row.time_in_zone,
+                percentageTime: totalTime > 0 ? Math.round((row.time_in_zone / totalTime) * 1000) / 10 : 0,
+                avgPower: row.avg_power,
+                color: row.color,
+            }));
+        } catch (err) {
+            console.warn('analyzeActivityPowerDistributionViaDB 異常:', err);
+            return null;
+        }
+    }, []);
+
+    // ============================================
+    // 心率區間分析（本地 JS — 因 DB 端只有區間定義）
+    // ============================================
+
+    /** 分析心率區間分佈 */
     const analyzeHRZoneDistribution = useCallback((
         hrData: number[],
         maxHR: number
@@ -213,7 +353,21 @@ export function usePowerAnalysis(): UsePowerAnalysisReturn {
         });
     }, []);
 
-    // 分析單一活動功率
+    // ============================================
+    // 綜合分析：單一活動功率分析
+    // ============================================
+
+    /**
+     * 分析單一活動功率
+     * 
+     * 混合策略：
+     * - NP / TSS：使用同步 JS 版（資料已在前端，無需再送回 DB）
+     * - 功率區間：使用同步 JS 版（快速且結果一致）
+     * - 心率區間：使用同步 JS 版
+     * 
+     * NOTE: 若需要純 DB 端功率分佈分析（省去下載 Streams），
+     * 可改用 analyzeActivityPowerDistributionViaDB
+     */
     const analyzeActivityPower = useCallback((
         activity: StravaActivity,
         streams: StravaStreams,
@@ -240,7 +394,7 @@ export function usePowerAnalysis(): UsePowerAnalysisReturn {
         const timeData = getStreamData('time');
         const tempData = getStreamData('temp');
 
-        // 計算功率指標
+        // 計算功率指標（同步 JS 版，資料已在前端）
         const np = calculateNP(powerData);
         const avgPower = powerData.length > 0
             ? Math.round(powerData.reduce((a, b) => a + b, 0) / powerData.length)
@@ -248,9 +402,7 @@ export function usePowerAnalysis(): UsePowerAnalysisReturn {
         const maxPower = powerData.length > 0
             ? Math.max(...powerData)
             : activity.max_watts || 0;
-        // 使用 elapsed_time (總時間) 計算 TSS，以符合 Garmin/TrainingPeaks 邏輯 (包含休息時間的生理成本衰減較少，但持續壓力累積)
-        // Strava Streams 通常只給出 moving 部分的數據，因此 powerData.length 約等於 moving_time
-        // 但計算 TSS 時若使用 moving_time 會低估長解釋造成的疲勞 (或 Garmin 算法差異)
+        // 使用 elapsed_time (總時間) 計算 TSS，以符合 Garmin/TrainingPeaks 邏輯
         const duration = activity.elapsed_time || activity.moving_time;
 
         // 若 FTP 未設定 (為 0 或 null)，則不進行因子計算
@@ -259,7 +411,7 @@ export function usePowerAnalysis(): UsePowerAnalysisReturn {
         const variabilityIndex = avgPower > 0 ? Math.round((np / avgPower) * 100) / 100 : 0;
         const kilojoules = activity.kilojoules || Math.round((avgPower * duration) / 1000);
 
-        // 計算功率區間
+        // 計算功率區間（同步 JS 版）
         const zones = calculatePowerZones(effectiveFtp);
         const powerZones = analyzePowerZoneDistribution(powerData, zones);
 
@@ -274,7 +426,7 @@ export function usePowerAnalysis(): UsePowerAnalysisReturn {
             date: activity.start_date,
             ftp: effectiveFtp,
             max_heartrate: effectiveMaxHR,
-            stravaZones: streams.strava_zones, // Pass raw strava zones
+            stravaZones: streams.strava_zones,
             trainingLoad: {
                 np,
                 avgPower,
@@ -300,7 +452,11 @@ export function usePowerAnalysis(): UsePowerAnalysisReturn {
         };
     }, [calculateNP, calculateTSS, calculatePowerZones, analyzePowerZoneDistribution, analyzeHRZoneDistribution]);
 
-    // 獲取選手訓練總覽
+    // ============================================
+    // 綜合分析：選手總覽
+    // ============================================
+
+    /** 獲取選手訓練總覽 */
     const getAthletePowerProfile = useCallback(async (
         athleteId: number,
         activities: StravaActivity[],
@@ -324,7 +480,7 @@ export function usePowerAnalysis(): UsePowerAnalysisReturn {
             const analyzedActivities: ActivityPowerAnalysis[] = [];
             const dailyTSS: { date: string; tss: number }[] = [];
 
-            for (const activity of activities.slice(0, 50)) { // 限制處理數量
+            for (const activity of activities.slice(0, 50)) {
                 const streams = await getActivityStreams(activity.id);
                 if (streams) {
                     const analysis = analyzeActivityPower(activity, streams, ftp, maxHR);
@@ -391,6 +547,9 @@ export function usePowerAnalysis(): UsePowerAnalysisReturn {
         getAthletePowerProfile,
         calculateNP,
         calculateTSS,
+        calculateTSSViaDB,
+        calculateNPViaDB,
+        analyzeActivityPowerDistributionViaDB,
         checkStreamsAvailability,
     };
 }

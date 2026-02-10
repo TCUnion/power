@@ -16,19 +16,19 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-tcu-blue/20">
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="container mx-auto px-4 h-16 flex items-center">
+          {/* 左側：Logo */}
+          <div className="flex items-center w-12 shrink-0">
             <img src={tcuLogo} alt="TCU Logo" className="h-10 w-auto object-contain" />
-            <span className="text-xl font-black italic tracking-tighter uppercase hidden sm:block">
-              RELEASE YOUR <span className="text-tcu-orange text-2xl">TCU POWER</span>
+          </div>
+          {/* 中間：標語置中 */}
+          <div className="flex-1 flex justify-center">
+            <span className="text-xl font-black italic tracking-tighter uppercase">
+              UNLOCK YOUR <span className="text-tcu-orange text-2xl">TCU POWER</span>
             </span>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800">
-              <span className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-500 uppercase tracking-wider">
-                {import.meta.env.VITE_GIT_HASH || 'v1.2-dev'}
-              </span>
-            </div>
+          {/* 右側：登出 */}
+          <div className="flex items-center shrink-0 w-12 justify-end">
             {athlete && (
               <button
                 onClick={logout}
@@ -41,9 +41,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           </div>
         </div>
       </header>
-      <main className="container mx-auto px-4 pt-24 pb-12">
+      <main className="container mx-auto px-4 pt-24 pb-12 flex-1">
         {children}
       </main>
+      <footer className="py-4 text-center">
+        <span className="text-[10px] font-mono font-bold text-slate-600 dark:text-slate-600 uppercase tracking-wider">
+          {import.meta.env.VITE_GIT_HASH || 'v1.2-dev'}
+        </span>
+      </footer>
     </div>
   );
 };
@@ -54,18 +59,50 @@ const HomePage: React.FC = () => {
   // 未登入狀態
   if (!athlete) {
     return (
-      <div className="max-w-md mx-auto space-y-8">
-        <div className="text-center space-y-4">
-          <h1 className="text-4xl font-black italic uppercase tracking-tighter bg-gradient-to-br from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 bg-clip-text text-transparent">
-            Unlock Your Potential
-          </h1>
-          <p className="text-slate-500 dark:text-slate-400 font-medium">
-            Connect Strava to analyze your power data with AI-driven insights.
-          </p>
+      <div className="max-w-3xl mx-auto space-y-8">
+        {/* Hero 圖片區塊 */}
+        <div className="relative rounded-3xl overflow-hidden shadow-2xl shadow-blue-500/10 border border-slate-700/50">
+          <img
+            src="/hero-cycling.png"
+            alt="Cyclist riding with power data visualization"
+            className="w-full h-[340px] sm:h-[420px] object-cover object-center"
+          />
+          {/* 漸層疊加 */}
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-900/20 to-purple-900/20" />
+          {/* 文字內容 */}
+          <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-10">
+            <h1 className="text-3xl sm:text-5xl font-black italic uppercase tracking-tight text-white leading-tight">
+              Unlock Your{' '}
+              <span className="bg-gradient-to-r from-orange-400 to-yellow-400 bg-clip-text text-transparent">
+                TCU Power
+              </span>
+            </h1>
+            <p className="text-slate-300 font-medium mt-3 text-sm sm:text-base max-w-lg">
+              連接 Strava，透過 AI 驅動的功率分析洞察你的騎乘潛力。
+            </p>
+          </div>
         </div>
 
-        <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-800">
+        {/* Strava 連接按鈕 */}
+        <div className="p-6 bg-white dark:bg-slate-900/80 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800">
           <StravaConnect />
+        </div>
+
+        {/* 功能亮點 */}
+        <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800/50">
+            <div className="text-2xl mb-1">⚡</div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Power Zones</div>
+          </div>
+          <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800/50">
+            <div className="text-2xl mb-1">📊</div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">MMP / CP Model</div>
+          </div>
+          <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800/50">
+            <div className="text-2xl mb-1">🏋️</div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">TSS Tracking</div>
+          </div>
         </div>
       </div>
     );

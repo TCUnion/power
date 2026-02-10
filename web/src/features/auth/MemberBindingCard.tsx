@@ -393,7 +393,7 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
                             <ExternalLink className="w-3.5 h-3.5" />
                             <span>若需修改個人資料，請前往</span>
                             <a
-                                href="https://www.tcu.com.tw/member-data/profile"
+                                href="https://www.tsu.com.tw/member-data/profile"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-tcu-blue hover:text-tcu-blue-light hover:underline transition-colors uppercase tracking-wider"

@@ -9,7 +9,7 @@
 
 import React, { useMemo, useState } from 'react';
 import {
-    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+    Line, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, ReferenceLine, Area, ComposedChart
 } from 'recharts';
 import { Zap, TrendingUp, Target } from 'lucide-react';
@@ -282,8 +282,8 @@ export const MMPChart: React.FC<MMPChartProps> = ({ powerArrays, ftp, weight = 7
                         <button
                             onClick={() => setShowFitted(!showFitted)}
                             className={`text-[10px] font-bold px-3 py-1 rounded-full border transition-all ${showFitted
-                                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                                    : 'bg-slate-800 border-slate-700 text-slate-500'
+                                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                : 'bg-slate-800 border-slate-700 text-slate-500'
                                 }`}
                         >
                             {showFitted ? 'CP 模型 ON' : 'CP 模型 OFF'}

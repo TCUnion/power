@@ -14,7 +14,7 @@ const getGitHash = () => {
   // 2. 備案：執行 git 指令
   try {
     return execSync('git rev-parse --short HEAD').toString().trim().toUpperCase();
-  } catch (_e) {
+  } catch {
     return 'V1.2-DEV';
   }
 };

@@ -4,9 +4,10 @@ import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceArea
 } from 'recharts';
 import { formatDuration } from '../../../utils/formatters';
+import type { ActivityPowerAnalysis } from '../../../types';
 
 // 活動趨勢圖表組件
-export const ActivityCharts: React.FC<{ data: any }> = ({ data }) => {
+export const ActivityCharts: React.FC<{ data: ActivityPowerAnalysis }> = ({ data }) => {
     // 預設顯示指標
     const [selectedMetrics, setSelectedMetrics] = useState<string[]>(['watts', 'heartrate', 'speed', 'altitude']);
 
@@ -193,7 +194,7 @@ export const ActivityCharts: React.FC<{ data: any }> = ({ data }) => {
                             itemStyle={{ padding: 0 }}
                             labelStyle={{ color: '#94a3b8', marginBottom: '0.5rem' }}
                             labelFormatter={(label) => formatDuration(Number(label))}
-                            formatter={(value: any, name: any) => {
+                            formatter={(value: number | string, name: string) => {
                                 const activeName = name || '';
                                 if (value === undefined || value === null) return [0, activeName];
                                 if (activeName === 'watts') return [`${value}W`, '功率'];
@@ -302,7 +303,7 @@ export const ActivityCharts: React.FC<{ data: any }> = ({ data }) => {
                         )}
 
                         {refAreaLeft !== null && refAreaRight !== null && (
-                            // @ts-ignore
+                            // @ts-expect-error - ReferenceArea 型別定義與實際使用不完全匹配
                             <ReferenceArea
                                 x1={refAreaLeft}
                                 x2={refAreaRight}

@@ -247,7 +247,7 @@ export const MMPChart: React.FC<MMPChartProps> = ({ powerArrays, ftp, weight = 7
                                     color: '#f8fafc',
                                     fontSize: '12px',
                                 }}
-                                formatter={(value: any, name: string) => {
+                                formatter={(value: number | string, name: string) => {
                                     if (name === 'power') return [`${value} W`, '實際最大功率'];
                                     if (name === 'fitted') return [`${value} W`, `CP 模型 (${cpModel?.modelName})`];
                                     return [value, name];

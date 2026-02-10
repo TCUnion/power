@@ -42,8 +42,8 @@ export const DailyTrainingChart: React.FC<DailyTrainingChartProps> = ({ activiti
                 // 使用標準 TSS 計算公式: (duration × NP × IF) / (FTP × 3600) × 100
                 // 注意：suffer_score 是 Strava 的「相對努力度」，基於心率，不等於 TSS
                 let tss = 0;
-                if (ftp > 0 && (activity.average_watts || (activity as any).weighted_average_watts)) {
-                    const np = Number((activity as any).weighted_average_watts || (activity.average_watts ? activity.average_watts * 1.05 : 0));
+                if (ftp > 0 && (activity.average_watts || activity.weighted_average_watts)) {
+                    const np = Number(activity.weighted_average_watts || (activity.average_watts ? activity.average_watts * 1.05 : 0));
                     if (np > 0) {
                         const intensity = np / ftp;
                         tss = (activity.moving_time * np * intensity) / (ftp * 3600) * 100;

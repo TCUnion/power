@@ -126,7 +126,7 @@ const PowerDashboard: React.FC = () => {
             }
 
             if (data) {
-                // @ts-ignore - 忽略部分非必要欄位的型別檢查 (如 map, commute 等)
+                // @ts-expect-error - 忽略部分非必要欄位的型別檢查 (如 map, commute 等)
                 setChartActivities(data as StravaActivity[]);
             }
         };
@@ -274,7 +274,7 @@ const PowerDashboard: React.FC = () => {
     const [syncAllMessage, setSyncAllMessage] = useState<string | null>(null);
 
     // 輔助函數：帶重試機制的 Fetch
-    const fetchWithRetry = async (url: string, options: any, retries = 3) => {
+    const fetchWithRetry = async (url: string, options: RequestInit, retries = 3) => {
         for (let i = 0; i < retries; i++) {
             try {
                 const res = await fetch(url, options);
@@ -441,7 +441,7 @@ const PowerDashboard: React.FC = () => {
             } else {
                 throw new Error('Webhook call failed');
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             clearTimeout(timeoutId);
             console.error('同步失敗:', error);
             setSyncStatus(prev => ({ ...prev, [activity.id]: 'error' }));
@@ -743,8 +743,8 @@ const PowerDashboard: React.FC = () => {
                                                                                         : [{ type: 'heartrate', distribution_buckets: activityAnalysis.stravaZones }];
 
                                                                                     return zones
-                                                                                        .filter((z: any) => z.type === 'power' || z.type === 'heartrate')
-                                                                                        .map((z: any, idx: number) => (
+                                                                                        .filter((z: StravaZoneSummary) => z.type === 'power' || z.type === 'heartrate')
+                                                                                        .map((z: StravaZoneSummary, idx: number) => (
                                                                                             <StravaZoneChart key={idx} data={z.distribution_buckets} type={z.type} />
                                                                                         ));
                                                                                 })()}

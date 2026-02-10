@@ -30,7 +30,7 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
     const [tcuId, setTcuId] = useState('');
     const [isSyncing, setIsSyncing] = useState(false);
     const [step, setStep] = useState<'input' | 'otp' | 'success'>('input');
-    const [localMemberData, setLocalMemberData] = useState<any>(null);
+    const [localMemberData, setLocalMemberData] = useState<Record<string, unknown> | null>(null);
     const [otp, setOtp] = useState('');
     const [isVerifying, setIsVerifying] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -199,9 +199,9 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
                 window.dispatchEvent(new Event('tcu-binding-success'));
                 // onBindingSuccess(); // 移除自動跳轉，改由按鈕觸發
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('驗證錯誤:', err);
-            setError(err.message || '驗證失敗，請重新嘗試。');
+            setError(err instanceof Error ? err.message : '驗證失敗，請重新嘗試。');
         } finally {
             setIsVerifying(false);
         }

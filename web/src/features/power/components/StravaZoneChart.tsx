@@ -1,10 +1,11 @@
-import React from 'react';
+import type { StravaZoneBucket } from '../../../types';
+
 
 // Strava 原始區間圖表
-export const StravaZoneChart: React.FC<{ data: any[], type: 'power' | 'heartrate' }> = ({ data, type }) => {
+export const StravaZoneChart: React.FC<{ data: StravaZoneBucket[], type: 'power' | 'heartrate' }> = ({ data, type }) => {
     if (!data || data.length === 0) return null;
 
-    const totalTime = data.reduce((acc, curr) => acc + curr.time, 0);
+    const totalTime = data.reduce((acc, curr) => acc + (curr.time || 0), 0);
 
     // Helper to get color
     const getZoneColor = (index: number, isHr: boolean) => {
@@ -24,8 +25,9 @@ export const StravaZoneChart: React.FC<{ data: any[], type: 'power' | 'heartrate
 
     return (
         <div className="space-y-2">
-            {data.map((bucket: any, index: number) => {
-                const percentage = totalTime > 0 ? (bucket.time / totalTime) * 100 : 0;
+            {data.map((bucket: StravaZoneBucket, index: number) => {
+                const time = bucket.time || 0;
+                const percentage = totalTime > 0 ? (time / totalTime) * 100 : 0;
                 const color = getZoneColor(index, type === 'heartrate');
                 const label = bucket.max === -1 ? `> ${bucket.min}` : `${bucket.min} - ${bucket.max}`;
 
@@ -42,9 +44,8 @@ export const StravaZoneChart: React.FC<{ data: any[], type: 'power' | 'heartrate
                                     backgroundColor: color
                                 }}
                             />
-                            {/* Hover Tooltip */}
                             <div className="absolute inset-0 flex items-center justify-between px-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <span className="text-white drop-shadow-md font-medium">{formatDuration(bucket.time)}</span>
+                                <span className="text-white drop-shadow-md font-medium">{formatDuration(bucket.time || 0)}</span>
                                 <span className="text-white drop-shadow-md font-medium">{percentage.toFixed(1)}%</span>
                             </div>
                         </div>

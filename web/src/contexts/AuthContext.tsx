@@ -17,7 +17,7 @@ export interface StravaAthlete {
 interface AuthContextType {
     athlete: StravaAthlete | null;
     isBound: boolean;
-    memberData: any;
+    memberData: Record<string, unknown> | null;
     isAdmin: boolean;
     isLoading: boolean;
     logout: () => void;
@@ -32,7 +32,7 @@ const AUTH_EVENT = 'strava-auth-changed';
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [athlete, setAthlete] = useState<StravaAthlete | null>(null);
     const [isBound, setIsBound] = useState(false);
-    const [memberData, setMemberData] = useState<any>(null);
+    const [memberData, setMemberData] = useState<Record<string, unknown> | null>(null);
     const [isAdmin, setIsAdmin] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 

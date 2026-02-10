@@ -63,7 +63,7 @@ export interface StravaZoneSummary {
 export interface StravaActivity {
     id: number;
     athlete_id: number;
-    athlete?: any; // 原始 Athlete 物件
+    athlete?: Record<string, unknown>; // 原始 Athlete 物件
     name: string;
     distance: number;
     moving_time: number; // 使用秒

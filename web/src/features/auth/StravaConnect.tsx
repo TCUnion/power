@@ -97,7 +97,7 @@ const StravaConnect: React.FC = () => {
                     stopPolling();
                     return;
                 }
-            } catch (e) { }
+            } catch { /* 忽略跨域窗口存取錯誤 */ }
             checkStoredData();
         }, CONFIG.pollingInterval);
     };
@@ -149,7 +149,7 @@ const StravaConnect: React.FC = () => {
     useEffect(() => {
         const savedData = localStorage.getItem(CONFIG.storageKey);
         if (savedData) {
-            try { setAthlete(JSON.parse(savedData)); } catch (e) { }
+            try { setAthlete(JSON.parse(savedData)); } catch { /* 忽略 JSON 解析錯誤 */ }
         }
 
         const handleMessage = (event: MessageEvent) => {

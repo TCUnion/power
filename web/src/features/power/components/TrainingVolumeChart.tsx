@@ -165,7 +165,7 @@ export const TrainingVolumeChart: React.FC<TrainingVolChartProps> = ({ dailyTSSD
                                 color: '#f8fafc',
                                 fontSize: '12px',
                             }}
-                            formatter={(value: any, _name: string) => [`${value} TSS`, '週訓練負荷']}
+                            formatter={(value: number) => [`${value} TSS`, '週訓練負荷']}
                             labelFormatter={(label) => `第 ${label} 週起`}
                         />
                         <Bar dataKey="tss" radius={[4, 4, 0, 0]} maxBarSize={40}>

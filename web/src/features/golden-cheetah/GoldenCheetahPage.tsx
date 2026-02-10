@@ -98,6 +98,7 @@ export const GoldenCheetahPage = () => {
     const [allActivities, setAllActivities] = useState<StravaActivity[]>([]);
     const [allStreamsData, setAllStreamsData] = useState<Partial<StravaStreams>[]>([]);
     const [selectedActivityId, setSelectedActivityId] = useState<number | null>(null);
+    const [activeView, setActiveView] = useState<'dashboard' | 'aerolab' | 'compare'>('dashboard');
     const [activityStream, setActivityStream] = useState<number[]>([]);
     const [cadenceStream, setCadenceStream] = useState<number[]>([]);
     const [tempStream, setTempStream] = useState<number[]>([]);
@@ -315,7 +316,7 @@ export const GoldenCheetahPage = () => {
 
             const { data: activityData, error: actError } = await supabase
                 .from('strava_activities')
-                .select('id, athlete_id, name, distance, moving_time, elapsed_time, total_elevation_gain, type, sport_type, start_date, average_watts, max_watts, average_heartrate, max_heartrate')
+                .select('id, athlete_id, name, distance, moving_time, elapsed_time, total_elevation_gain, type, sport_type, start_date, average_watts, max_watts, average_heartrate, max_heartrate, suffer_score')
                 .eq('athlete_id', athlete.id)
                 .gte('start_date', cutoffDate.toISOString())
                 .in('sport_type', ['Ride', 'VirtualRide', 'MountainBikeRide', 'GravelRide'])
@@ -821,13 +822,31 @@ export const GoldenCheetahPage = () => {
 
                     {hasData && (
                         <div className="flex items-center bg-slate-900/50 rounded-xl p-1 border border-slate-800/50">
-                            <button className="px-3 py-1.5 rounded-lg bg-yellow-500 text-slate-900 text-xs font-bold shadow-lg shadow-yellow-500/20">
+                            <button
+                                onClick={() => setActiveView('dashboard')}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeView === 'dashboard'
+                                    ? "bg-yellow-500 text-slate-900 shadow-lg shadow-yellow-500/20"
+                                    : "text-slate-400 hover:text-slate-200"
+                                    }`}
+                            >
                                 Dashboard
                             </button>
-                            <button className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 text-xs font-medium transition-colors">
+                            <button
+                                onClick={() => setActiveView('aerolab')}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeView === 'aerolab'
+                                    ? "bg-yellow-500 text-slate-900 shadow-lg shadow-yellow-500/20"
+                                    : "text-slate-400 hover:text-slate-200"
+                                    }`}
+                            >
                                 Aerolab
                             </button>
-                            <button className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 text-xs font-medium transition-colors">
+                            <button
+                                onClick={() => setActiveView('compare')}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeView === 'compare'
+                                    ? "bg-yellow-500 text-slate-900 shadow-lg shadow-yellow-500/20"
+                                    : "text-slate-400 hover:text-slate-200"
+                                    }`}
+                            >
                                 Compare
                             </button>
                         </div>
@@ -836,285 +855,306 @@ export const GoldenCheetahPage = () => {
             </header>
 
             {/* Content Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 auto-rows-min">
-                {/* 1. Summary Metrics */}
-                <PerformanceSummary summary={summary} athleteWeight={athleteWeight} />
+            {activeView === 'dashboard' && (
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 auto-rows-min">
+                    {/* 1. Summary Metrics */}
+                    <PerformanceSummary summary={summary} athleteWeight={athleteWeight} />
 
-                {/* 2. Stat Overview Row */}
-                <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {/* Totals Card */}
-                    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
-                        <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
-                            <Clock className="w-3.5 h-3.5" /> Totals
-                        </h4>
-                        <div className="space-y-1.5 text-sm">
-                            <div className="flex justify-between"><span className="text-slate-400">Duration</span><span className="font-mono font-bold">{summary.durationStr}</span></div>
-                            <div className="flex justify-between"><span className="text-slate-400">Time Moving</span><span className="font-mono font-bold">{latestActivity.moving_time ? new Date(latestActivity.moving_time * 1000).toISOString().substr(11, 8) : '–'}</span></div>
-                            <div className="flex justify-between"><span className="text-slate-400">Distance (km)</span><span className="font-mono font-bold">{latestActivity.distance ? (latestActivity.distance / 1000).toFixed(1) : '–'}</span></div>
-                            <div className="flex justify-between"><span className="text-slate-400">Work (kJ)</span><span className="font-mono font-bold">{summary.work}</span></div>
-                            <div className="flex justify-between"><span className="text-slate-400">W' Work (kJ)</span><span className="font-mono font-bold text-purple-400">{summary.wPrimeWork}</span></div>
-                            <div className="flex justify-between"><span className="text-slate-400">Elevation (m)</span><span className="font-mono font-bold">{latestActivity.total_elevation_gain ? Math.round(latestActivity.total_elevation_gain) : '–'}</span></div>
-                        </div>
-                    </div>
-
-                    {/* Averages Card */}
-                    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
-                        <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
-                            <Activity className="w-3.5 h-3.5" /> Averages
-                        </h4>
-                        <div className="space-y-1.5 text-sm">
-                            <div className="flex justify-between"><span className="text-slate-400">Athlete Weight (kg)</span><span className="font-mono font-bold">{athleteWeight}</span></div>
-                            <div className="flex justify-between"><span className="text-slate-400">Avg Speed (kph)</span><span className="font-mono font-bold">{latestActivity.average_speed ? (latestActivity.average_speed * 3.6).toFixed(1) : '–'}</span></div>
-                            <div className="flex justify-between"><span className="text-slate-400">Avg Power (W)</span><span className="font-mono font-bold">{summary.avgPower}</span></div>
-                            <div className="flex justify-between"><span className="text-slate-400">Avg Heart Rate (bpm)</span><span className="font-mono font-bold">{latestActivity.average_heartrate ? Math.round(latestActivity.average_heartrate) : '–'}</span></div>
-                            <div className="flex justify-between"><span className="text-slate-400">Avg Cadence (rpm)</span><span className="font-mono font-bold">{latestActivity.average_cadence ? Math.round(latestActivity.average_cadence) : '–'}</span></div>
-                        </div>
-                    </div>
-
-                    {/* Maxima Card */}
-                    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
-                        <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
-                            <TrendingUp className="w-3.5 h-3.5" /> Maximum
-                        </h4>
-                        <div className="space-y-1.5 text-sm">
-                            <div className="flex justify-between"><span className="text-slate-400">Max Speed (kph)</span><span className="font-mono font-bold">{latestActivity.max_speed ? (latestActivity.max_speed * 3.6).toFixed(1) : '–'}</span></div>
-                            <div className="flex justify-between"><span className="text-slate-400">Max Power (W)</span><span className="font-mono font-bold">{summary.maxPower}</span></div>
-                            <div className="flex justify-between"><span className="text-slate-400">Max Heart Rate (bpm)</span><span className="font-mono font-bold">{latestActivity.max_heartrate ? Math.round(latestActivity.max_heartrate) : '–'}</span></div>
-                            <div className="flex justify-between"><span className="text-slate-400">Max Cadence (rpm)</span><span className="font-mono font-bold">{summary.cadence.max}</span></div>
-                            <div className="flex justify-between"><span className="text-slate-400">Max W' Expended (%)</span><span className="font-mono font-bold text-red-400">{maxWExpendedPct}%</span></div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* 3. Gauges Row */}
-                <div className="md:col-span-12 grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-xl p-3 shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center">
-                        <GaugeChart value={calculatedCP} min={100} max={400} label="CP Estimate" unit="watts" color="#EAB308" subLabel={`${(calculatedCP / athleteWeight).toFixed(1)} W/kg`} />
-                    </div>
-                    <div className="bg-white dark:bg-slate-800 rounded-xl p-3 shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center">
-                        <GaugeChart value={calculatedWPrime / 1000} min={5} max={45} label="W' Estimate" unit="kJ" color="#A855F7" decimals={1} />
-                    </div>
-                    <div className="bg-white dark:bg-slate-800 rounded-xl p-3 shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center">
-                        <GaugeChart value={athleteWeight} min={50} max={120} label="Weight" unit="kg" color="#3B82F6" decimals={1} />
-                    </div>
-                    <div className="bg-white dark:bg-slate-800 rounded-xl p-3 shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center">
-                        <GaugeChart value={latestActivity.suffer_score || 0} min={0} max={300} label="Suffer Score" unit="points" color="#EF4444" subLabel={latestActivity.suffer_score ? (latestActivity.suffer_score > 150 ? "Hard" : latestActivity.suffer_score > 50 ? "Moderate" : "Easy") : "N/A"} />
-                    </div>
-                </div>
-
-                {/* 4. Main Evolution Chart */}
-                <MainAnalysisChart
-                    hasData={hasData}
-                    currentSyncStatus={currentSyncStatus}
-                    handleSyncActivity={handleSyncActivity}
-                    selectedActivityId={selectedActivityId}
-                    chartVisibility={chartVisibility}
-                    toggleSeries={toggleSeries}
-                    chartData={chartData}
-                    calculatedCP={calculatedCP}
-                    calculatedWPrime={calculatedWPrime}
-                    hrStream={hrStream}
-                    altitudeStream={altitudeStream}
-                    cadenceStream={cadenceStream}
-                />
-
-                {/* 5. Distribution Row */}
-                <div className="md:col-span-6 bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col">
-                    <ZoneDistribution zones={summary.zones} mmp20m={summary.mmp20m} />
-
-                    <div className="flex-1 flex flex-col border-t border-slate-800 pt-6 mt-4 min-h-[220px]">
-                        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-2">
-                            <Heart className="w-4 h-4 text-red-500" />
-                            Heart Rate Zones {summary.isOfficialHrZones ? <span className="text-orange-400 text-[10px] border border-orange-400/30 px-1 rounded">STRAVA OFFICIAL</span> : `(Max: ${athleteMaxHR})`}
-                        </h3>
-                        <p className="text-xs text-slate-400 mb-2">
-                            {summary.isOfficialHrZones
-                                ? "使用 Strava 官方分析的心率區間數據。"
-                                : `基於最大心率 (${athleteMaxHR} bpm) 計算。`}
-                        </p>
-                        <div className="flex-1 w-full min-h-0">
-                            {summary.hrZones.reduce((a: number, b: ZoneBucket) => a + (b.value || 0), 0) > 0 ? (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={summary.hrZones}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} vertical={false} />
-                                        <XAxis dataKey="name" stroke="#64748b" tick={{ fontSize: 10 }} />
-                                        <YAxis stroke="#64748b" tick={{ fontSize: 10 }} unit="%" />
-                                        <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '12px' }} />
-                                        <Bar dataKey="pct" radius={[4, 4, 0, 0]}>
-                                            <LabelList dataKey="pct" position="top" formatter={(val: number) => val > 0 ? `${val}%` : ""} fill="#94a3b8" fontSize={10} />
-                                            {summary.hrZones.map((entry: ZoneBucket, index: number) => (
-                                                <Cell key={`cell-hr-${index}`} fill={entry.color} />
-                                            ))}
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            ) : (
-                                <div className="h-full flex items-center justify-center text-slate-600 text-sm">
-                                    No Heart Rate Data
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                <div className="md:col-span-6 bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col justify-between">
-                    <div>
-                        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-4 flex items-center gap-2">
-                            <Info className="w-4 h-4 text-blue-500" />
-                            Activity Details
-                        </h3>
-                        <div className="space-y-3">
-                            <div className="grid grid-cols-2 text-sm py-2 border-b border-slate-800 items-center">
-                                <span className="text-slate-400">Activity Name</span>
-                                <span className="font-bold text-white truncate text-center pl-2">{latestActivity.name}</span>
-                            </div>
-                            <div className="grid grid-cols-2 text-sm py-2 border-b border-slate-800 items-center">
-                                <span className="text-slate-400">Max Power</span>
-                                <span className="font-bold text-white text-center">{summary.maxPower} W</span>
-                            </div>
-                            <div className="grid grid-cols-2 text-sm py-2 border-b border-slate-800 items-center">
-                                <span className="text-slate-400">Avg Power</span>
-                                <span className="font-bold text-white text-center">{summary.avgPower} W</span>
-                            </div>
-                            <div className="grid grid-cols-2 text-sm py-2 border-b border-slate-800 items-center">
-                                <span className="text-slate-400">Weight Setting</span>
-                                <span className="font-bold text-white text-center">{athleteWeight} kg</span>
-                            </div>
-                        </div>
-                        <div className="mt-4 flex items-center justify-between p-3 bg-white/5 dark:bg-black/20 rounded-lg">
-                            <span className="text-slate-500">Watts/kg</span>
-                            <span className="font-mono font-bold text-white">{(summary.maxPower / (athleteWeight || 70)).toFixed(2)} W/kg</span>
-                        </div>
-
-                        {summary.cadence.total > 0 && (
-                            <div className="mt-6">
-                                <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
-                                    <RotateCw className="w-3 h-3" /> 踏頻 (Cadence)
-                                </h4>
-                                <div className="grid grid-cols-2 gap-3 mb-3">
-                                    <div className="p-3 bg-white/5 dark:bg-black/20 rounded-lg">
-                                        <div className="text-[10px] text-slate-500 uppercase">Avg RPM</div>
-                                        <div className="text-xl font-bold text-white">{summary.cadence.avg} <span className="text-xs text-slate-600">rpm</span></div>
-                                    </div>
-                                    <div className="p-3 bg-white/5 dark:bg-black/20 rounded-lg">
-                                        <div className="text-[10px] text-slate-500 uppercase">Max RPM</div>
-                                        <div className="text-xl font-bold text-white">{summary.cadence.max} <span className="text-xs text-slate-600">rpm</span></div>
-                                    </div>
-                                </div>
-                                <div className="p-3 bg-white/5 dark:bg-black/20 rounded-lg">
-                                    <div className="text-[10px] text-slate-500 uppercase">Total Strokes</div>
-                                    <div className="text-xl font-bold text-white">{summary.cadence.total.toLocaleString()}</div>
-                                </div>
-                            </div>
-                        )}
-
-                        {summary.temp.avg !== 0 && (
-                            <div className="mt-6">
-                                <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
-                                    <Thermometer className="w-3 h-3" /> 溫度 (Temp)
-                                </h4>
-                                <div className="grid grid-cols-3 gap-3">
-                                    <div className="p-2 bg-white/5 dark:bg-black/20 rounded-lg text-center">
-                                        <div className="text-[9px] text-slate-500 uppercase">Avg</div>
-                                        <div className="text-sm font-bold text-white">{summary.temp.avg}°</div>
-                                    </div>
-                                    <div className="p-2 bg-white/5 dark:bg-black/20 rounded-lg text-center">
-                                        <div className="text-[9px] text-slate-500 uppercase">Min</div>
-                                        <div className="text-sm font-bold text-blue-400">{summary.temp.min}°</div>
-                                    </div>
-                                    <div className="p-2 bg-white/5 dark:bg-black/20 rounded-lg text-center">
-                                        <div className="text-[9px] text-slate-500 uppercase">Max</div>
-                                        <div className="text-sm font-bold text-red-400">{summary.temp.max}°</div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* 6. Advanced Metrics Row */}
-                {fatigueZones.length > 0 && (
-                    <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* 2. Stat Overview Row */}
+                    <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Totals Card */}
                         <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
+                            <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
+                                <Clock className="w-3.5 h-3.5" /> Totals
+                            </h4>
+                            <div className="space-y-1.5 text-sm">
+                                <div className="flex justify-between"><span className="text-slate-400">Duration</span><span className="font-mono font-bold">{summary.durationStr}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400">Time Moving</span><span className="font-mono font-bold">{latestActivity.moving_time ? new Date(latestActivity.moving_time * 1000).toISOString().substr(11, 8) : '–'}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400">Distance (km)</span><span className="font-mono font-bold">{latestActivity.distance ? (latestActivity.distance / 1000).toFixed(1) : '–'}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400">Work (kJ)</span><span className="font-mono font-bold">{summary.work}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400">W' Work (kJ)</span><span className="font-mono font-bold text-purple-400">{summary.wPrimeWork}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400">Elevation (m)</span><span className="font-mono font-bold">{latestActivity.total_elevation_gain ? Math.round(latestActivity.total_elevation_gain) : '–'}</span></div>
+                            </div>
+                        </div>
+
+                        {/* Averages Card */}
+                        <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
+                            <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
+                                <Activity className="w-3.5 h-3.5" /> Averages
+                            </h4>
+                            <div className="space-y-1.5 text-sm">
+                                <div className="flex justify-between"><span className="text-slate-400">Athlete Weight (kg)</span><span className="font-mono font-bold">{athleteWeight}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400">Avg Speed (kph)</span><span className="font-mono font-bold">{latestActivity.average_speed ? (latestActivity.average_speed * 3.6).toFixed(1) : '–'}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400">Avg Power (W)</span><span className="font-mono font-bold">{summary.avgPower}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400">Avg Heart Rate (bpm)</span><span className="font-mono font-bold">{latestActivity.average_heartrate ? Math.round(latestActivity.average_heartrate) : '–'}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400">Avg Cadence (rpm)</span><span className="font-mono font-bold">{latestActivity.average_cadence ? Math.round(latestActivity.average_cadence) : '–'}</span></div>
+                            </div>
+                        </div>
+
+                        {/* Maxima Card */}
+                        <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
+                            <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
+                                <TrendingUp className="w-3.5 h-3.5" /> Maximum
+                            </h4>
+                            <div className="space-y-1.5 text-sm">
+                                <div className="flex justify-between"><span className="text-slate-400">Max Speed (kph)</span><span className="font-mono font-bold">{latestActivity.max_speed ? (latestActivity.max_speed * 3.6).toFixed(1) : '–'}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400">Max Power (W)</span><span className="font-mono font-bold">{summary.maxPower}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400">Max Heart Rate (bpm)</span><span className="font-mono font-bold">{latestActivity.max_heartrate ? Math.round(latestActivity.max_heartrate) : '–'}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400">Max Cadence (rpm)</span><span className="font-mono font-bold">{summary.cadence.max}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400">Max W' Expended (%)</span><span className="font-mono font-bold text-red-400">{maxWExpendedPct}%</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 3. Gauges Row */}
+                    <div className="md:col-span-12 grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-white dark:bg-slate-800 rounded-xl p-3 shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                            <GaugeChart value={calculatedCP} min={100} max={400} label="CP Estimate" unit="watts" color="#EAB308" subLabel={`${(calculatedCP / athleteWeight).toFixed(1)} W/kg`} />
+                        </div>
+                        <div className="bg-white dark:bg-slate-800 rounded-xl p-3 shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                            <GaugeChart value={calculatedWPrime / 1000} min={5} max={45} label="W' Estimate" unit="kJ" color="#A855F7" decimals={1} />
+                        </div>
+                        <div className="bg-white dark:bg-slate-800 rounded-xl p-3 shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                            <GaugeChart value={athleteWeight} min={50} max={120} label="Weight" unit="kg" color="#3B82F6" decimals={1} />
+                        </div>
+                        <div className="bg-white dark:bg-slate-800 rounded-xl p-3 shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                            <GaugeChart value={latestActivity.suffer_score || 0} min={0} max={300} label="Suffer Score" unit="points" color="#EF4444" subLabel={latestActivity.suffer_score ? (latestActivity.suffer_score > 150 ? "Hard" : latestActivity.suffer_score > 50 ? "Moderate" : "Easy") : "N/A"} />
+                        </div>
+                    </div>
+
+                    {/* 4. Main Evolution Chart */}
+                    <MainAnalysisChart
+                        hasData={hasData}
+                        currentSyncStatus={currentSyncStatus}
+                        handleSyncActivity={handleSyncActivity}
+                        selectedActivityId={selectedActivityId}
+                        chartVisibility={chartVisibility}
+                        toggleSeries={toggleSeries}
+                        chartData={chartData}
+                        calculatedCP={calculatedCP}
+                        calculatedWPrime={calculatedWPrime}
+                        hrStream={hrStream}
+                        altitudeStream={altitudeStream}
+                        cadenceStream={cadenceStream}
+                    />
+
+                    {/* 5. Distribution Row */}
+                    <div className="md:col-span-6 bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col">
+                        <ZoneDistribution zones={summary.zones} mmp20m={summary.mmp20m} />
+
+                        <div className="flex-1 flex flex-col border-t border-slate-800 pt-6 mt-4 min-h-[220px]">
                             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-2">
-                                <Gauge className="w-4 h-4 text-orange-500" />
-                                W' Fatigue Zones
+                                <Heart className="w-4 h-4 text-red-500" />
+                                Heart Rate Zones {summary.isOfficialHrZones ? <span className="text-orange-400 text-[10px] border border-orange-400/30 px-1 rounded">STRAVA OFFICIAL</span> : `(Max: ${athleteMaxHR})`}
                             </h3>
-                            <div className="h-[200px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={fatigueZones} layout="vertical">
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} horizontal={false} />
-                                        <XAxis type="number" stroke="#64748b" tick={{ fontSize: 10 }} unit="%" />
-                                        <YAxis type="category" dataKey="name" stroke="#64748b" tick={{ fontSize: 11 }} width={30} />
-                                        <Tooltip
-                                            cursor={{ fill: 'transparent' }}
-                                            contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '12px' }}
-                                            formatter={(value: number, name: string, item: { payload?: { timeStr?: string; label?: string } }) => {
-                                                const payload = item.payload;
-                                                if (name === 'power' && chartVisibility.power) return [`${value} W`, 'Power'];
-                                                if (name === 'wBal' && chartVisibility.wBal) return [`${value} kJ`, "W' Bal"];
-                                                if (name === 'hr' && chartVisibility.hr) return [`${value} bpm`, 'Heart Rate'];
-                                                if (name === 'altitude' && chartVisibility.altitude) return [`${value} m`, 'Altitude'];
-                                                if (name === 'cadence' && chartVisibility.cadence) return [`${value} rpm`, 'Cadence'];
-                                                return [
-                                                    `${value}% (${payload?.timeStr || ''})`,
-                                                    payload?.label || ''
-                                                ];
-                                            }}
-                                        />
-                                        <Bar dataKey="pct" radius={[0, 4, 4, 0]}>
-                                            <LabelList dataKey="pct" position="right" formatter={(val: number) => val > 0 ? `${val}%` : ""} fill="#94a3b8" fontSize={10} />
-                                            {fatigueZones.map((entry, index) => (
-                                                <Cell key={`fatigue-${index}`} fill={entry.color} />
-                                            ))}
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
+                            <p className="text-xs text-slate-400 mb-2">
+                                {summary.isOfficialHrZones
+                                    ? "使用 Strava 官方分析的心率區間數據。"
+                                    : `基於最大心率 (${athleteMaxHR} bpm) 計算。`}
+                            </p>
+                            <div className="flex-1 w-full min-h-0">
+                                {summary.hrZones.reduce((a: number, b: ZoneBucket) => a + (b.value || 0), 0) > 0 ? (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={summary.hrZones}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} vertical={false} />
+                                            <XAxis dataKey="name" stroke="#64748b" tick={{ fontSize: 10 }} />
+                                            <YAxis stroke="#64748b" tick={{ fontSize: 10 }} unit="%" />
+                                            <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '12px' }} />
+                                            <Bar dataKey="pct" radius={[4, 4, 0, 0]}>
+                                                <LabelList dataKey="pct" position="top" formatter={(val: number) => val > 0 ? `${val}%` : ""} fill="#94a3b8" fontSize={10} />
+                                                {summary.hrZones.map((entry: ZoneBucket, index: number) => (
+                                                    <Cell key={`cell-hr-${index}`} fill={entry.color} />
+                                                ))}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                ) : (
+                                    <div className="h-full flex items-center justify-center text-slate-600 text-sm">
+                                        No Heart Rate Data
+                                    </div>
+                                )}
                             </div>
                         </div>
+                    </div>
 
-                        <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
-                            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-2">
+                    <div className="md:col-span-6 bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col justify-between">
+                        <div>
+                            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-4 flex items-center gap-2">
                                 <Info className="w-4 h-4 text-blue-500" />
-                                Fatigue Details
+                                Activity Details
                             </h3>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
-                                    <thead>
-                                        <tr className="text-slate-400 text-xs uppercase border-b border-slate-700">
-                                            <th className="py-2 text-left">Zone</th>
-                                            <th className="py-2 text-right">Low</th>
-                                            <th className="py-2 text-right">High</th>
-                                            <th className="py-2 text-right">Time</th>
-                                            <th className="py-2 text-right">%</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {fatigueZones.map((z) => (
-                                            <tr key={z.name} className="border-b border-slate-800/50 hover:bg-slate-700/20 transition-colors">
-                                                <td className="py-2 font-bold" style={{ color: z.color }}>{z.name}</td>
-                                                <td className="py-2 text-right font-mono text-slate-400">{z.minJ}</td>
-                                                <td className="py-2 text-right font-mono text-slate-400">{z.maxJ}</td>
-                                                <td className="py-2 text-right font-mono">{z.timeStr}</td>
-                                                <td className="py-2 text-right font-mono font-bold">{z.pct}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                            <div className="space-y-3">
+                                <div className="grid grid-cols-2 text-sm py-2 border-b border-slate-800 items-center">
+                                    <span className="text-slate-400">Activity Name</span>
+                                    <span className="font-bold text-white truncate text-center pl-2">{latestActivity.name}</span>
+                                </div>
+                                <div className="grid grid-cols-2 text-sm py-2 border-b border-slate-800 items-center">
+                                    <span className="text-slate-400">Max Power</span>
+                                    <span className="font-bold text-white text-center">{summary.maxPower} W</span>
+                                </div>
+                                <div className="grid grid-cols-2 text-sm py-2 border-b border-slate-800 items-center">
+                                    <span className="text-slate-400">Avg Power</span>
+                                    <span className="font-bold text-white text-center">{summary.avgPower} W</span>
+                                </div>
+                                <div className="grid grid-cols-2 text-sm py-2 border-b border-slate-800 items-center">
+                                    <span className="text-slate-400">Weight Setting</span>
+                                    <span className="font-bold text-white text-center">{athleteWeight} kg</span>
+                                </div>
+                            </div>
+                            <div className="mt-4 flex items-center justify-between p-3 bg-white/5 dark:bg-black/20 rounded-lg">
+                                <span className="text-slate-500">Watts/kg</span>
+                                <span className="font-mono font-bold text-white">{(summary.maxPower / (athleteWeight || 70)).toFixed(2)} W/kg</span>
                             </div>
 
-                            {latestActivity.description && (
-                                <div className="mt-4 pt-4 border-t border-slate-700">
-                                    <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2 flex items-center gap-2">
-                                        <FileText className="w-3 h-3" /> Notes
+                            {summary.cadence.total > 0 && (
+                                <div className="mt-6">
+                                    <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
+                                        <RotateCw className="w-3 h-3" /> 踏頻 (Cadence)
                                     </h4>
-                                    <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{latestActivity.description}</p>
+                                    <div className="grid grid-cols-2 gap-3 mb-3">
+                                        <div className="p-3 bg-white/5 dark:bg-black/20 rounded-lg">
+                                            <div className="text-[10px] text-slate-500 uppercase">Avg RPM</div>
+                                            <div className="text-xl font-bold text-white">{summary.cadence.avg} <span className="text-xs text-slate-600">rpm</span></div>
+                                        </div>
+                                        <div className="p-3 bg-white/5 dark:bg-black/20 rounded-lg">
+                                            <div className="text-[10px] text-slate-500 uppercase">Max RPM</div>
+                                            <div className="text-xl font-bold text-white">{summary.cadence.max} <span className="text-xs text-slate-600">rpm</span></div>
+                                        </div>
+                                    </div>
+                                    <div className="p-3 bg-white/5 dark:bg-black/20 rounded-lg">
+                                        <div className="text-[10px] text-slate-500 uppercase">Total Strokes</div>
+                                        <div className="text-xl font-bold text-white">{summary.cadence.total.toLocaleString()}</div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {summary.temp.avg !== 0 && (
+                                <div className="mt-6">
+                                    <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
+                                        <Thermometer className="w-3 h-3" /> 溫度 (Temp)
+                                    </h4>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        <div className="p-2 bg-white/5 dark:bg-black/20 rounded-lg text-center">
+                                            <div className="text-[9px] text-slate-500 uppercase">Avg</div>
+                                            <div className="text-sm font-bold text-white">{summary.temp.avg}°</div>
+                                        </div>
+                                        <div className="p-2 bg-white/5 dark:bg-black/20 rounded-lg text-center">
+                                            <div className="text-[9px] text-slate-500 uppercase">Min</div>
+                                            <div className="text-sm font-bold text-blue-400">{summary.temp.min}°</div>
+                                        </div>
+                                        <div className="p-2 bg-white/5 dark:bg-black/20 rounded-lg text-center">
+                                            <div className="text-[9px] text-slate-500 uppercase">Max</div>
+                                            <div className="text-sm font-bold text-red-400">{summary.temp.max}°</div>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </div>
                     </div>
-                )}
-            </div>
+
+                    {/* 6. Advanced Metrics Row */}
+                    {fatigueZones.length > 0 && (
+                        <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
+                                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-2">
+                                    <Gauge className="w-4 h-4 text-orange-500" />
+                                    W' Fatigue Zones
+                                </h3>
+                                <div className="h-[200px]">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={fatigueZones} layout="vertical">
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} horizontal={false} />
+                                            <XAxis type="number" stroke="#64748b" tick={{ fontSize: 10 }} unit="%" />
+                                            <YAxis type="category" dataKey="name" stroke="#64748b" tick={{ fontSize: 11 }} width={30} />
+                                            <Tooltip
+                                                cursor={{ fill: 'transparent' }}
+                                                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '12px' }}
+                                                formatter={(value: number, name: string, item: { payload?: { timeStr?: string; label?: string } }) => {
+                                                    const payload = item.payload;
+                                                    if (name === 'power' && chartVisibility.power) return [`${value} W`, 'Power'];
+                                                    if (name === 'wBal' && chartVisibility.wBal) return [`${value} kJ`, "W' Bal"];
+                                                    if (name === 'hr' && chartVisibility.hr) return [`${value} bpm`, 'Heart Rate'];
+                                                    if (name === 'altitude' && chartVisibility.altitude) return [`${value} m`, 'Altitude'];
+                                                    if (name === 'cadence' && chartVisibility.cadence) return [`${value} rpm`, 'Cadence'];
+                                                    return [
+                                                        `${value}% (${payload?.timeStr || ''})`,
+                                                        payload?.label || ''
+                                                    ];
+                                                }}
+                                            />
+                                            <Bar dataKey="pct" radius={[0, 4, 4, 0]}>
+                                                <LabelList dataKey="pct" position="right" formatter={(val: number) => val > 0 ? `${val}%` : ""} fill="#94a3b8" fontSize={10} />
+                                                {fatigueZones.map((entry, index) => (
+                                                    <Cell key={`fatigue-${index}`} fill={entry.color} />
+                                                ))}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+
+                            <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
+                                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-2">
+                                    <Info className="w-4 h-4 text-blue-500" />
+                                    Fatigue Details
+                                </h3>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="text-slate-400 text-xs uppercase border-b border-slate-700">
+                                                <th className="py-2 text-left">Zone</th>
+                                                <th className="py-2 text-right">Low</th>
+                                                <th className="py-2 text-right">High</th>
+                                                <th className="py-2 text-right">Time</th>
+                                                <th className="py-2 text-right">%</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {fatigueZones.map((z) => (
+                                                <tr key={z.name} className="border-b border-slate-800/50 hover:bg-slate-700/20 transition-colors">
+                                                    <td className="py-2 font-bold" style={{ color: z.color }}>{z.name}</td>
+                                                    <td className="py-2 text-right font-mono text-slate-400">{z.minJ}</td>
+                                                    <td className="py-2 text-right font-mono text-slate-400">{z.maxJ}</td>
+                                                    <td className="py-2 text-right font-mono">{z.timeStr}</td>
+                                                    <td className="py-2 text-right font-mono font-bold">{z.pct}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {latestActivity.description && (
+                                    <div className="mt-4 pt-4 border-t border-slate-700">
+                                        <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2 flex items-center gap-2">
+                                            <FileText className="w-3 h-3" /> Notes
+                                        </h4>
+                                        <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{latestActivity.description}</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {activeView === 'aerolab' && (
+                <div className="flex flex-col items-center justify-center min-h-[400px] text-slate-400">
+                    <div className="bg-slate-800 p-8 rounded-2xl text-center border border-slate-700">
+                        <h3 className="text-xl font-bold text-white mb-2">Aerolab Coming Soon</h3>
+                        <p>Virtual Elevation analysis features are under development.</p>
+                    </div>
+                </div>
+            )}
+
+            {activeView === 'compare' && (
+                <div className="flex flex-col items-center justify-center min-h-[400px] text-slate-400">
+                    <div className="bg-slate-800 p-8 rounded-2xl text-center border border-slate-700">
+                        <h3 className="text-xl font-bold text-white mb-2">Compare Mode Coming Soon</h3>
+                        <p>Activity comparison features are under development.</p>
+                    </div>
+                </div>
+            )}
+
 
             {/* Footer Area */}
             <footer className="mt-8 border-t border-slate-800 pt-6 text-center">

@@ -58,8 +58,8 @@ export const PMCChart: React.FC<PMCChartProps> = ({ activities, ftp }) => {
             const dateStr = activity.start_date.split('T')[0];
 
             let tss = 0;
-            if (ftp > 0 && (activity.average_watts || (activity as any).weighted_average_watts)) {
-                const np = Number((activity as any).weighted_average_watts || (activity.average_watts ? activity.average_watts * 1.05 : 0));
+            if (ftp > 0 && (activity.average_watts || activity.weighted_average_watts)) {
+                const np = Number(activity.weighted_average_watts || (activity.average_watts ? activity.average_watts * 1.05 : 0));
                 if (np > 0) {
                     const intensity = np / ftp;
                     tss = (activity.moving_time * np * intensity) / (ftp * 3600) * 100;

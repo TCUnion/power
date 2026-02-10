@@ -61,8 +61,7 @@ const PowerAnalysisPage: React.FC = () => {
     // 每日 TSS 數據
     const [dailyTSSData, setDailyTSSData] = useState<{ date: string; tss: number; activityCount: number }[]>([]);
 
-    // 設定面板
-    const [showSettings, setShowSettings] = useState(false);
+    // 設定面板已移除，改為固定顯示
     const [analysisRange] = useState<number>(42);
 
     /**
@@ -244,15 +243,7 @@ const PowerAnalysisPage: React.FC = () => {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setShowSettings(!showSettings)}
-                            className={`p-2.5 rounded-xl border transition-all ${showSettings
-                                ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
-                                : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
-                                }`}
-                        >
-                            <Settings2 className="w-4 h-4" />
-                        </button>
+
                         <button
                             onClick={loadAnalysisData}
                             disabled={loading}
@@ -263,25 +254,28 @@ const PowerAnalysisPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* ====== 設定面板 ====== */}
-                {showSettings && (
-                    <div className="bg-slate-900/80 backdrop-blur-sm rounded-2xl border border-slate-800 p-4 animate-in slide-in-from-top-2">
-                        <div className="flex items-center gap-6">
-                            <div>
-                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">分析區間</label>
-                                <div className="text-lg font-black text-white">42天 (固定)</div>
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">目前 FTP</label>
-                                <span className="text-lg font-black text-blue-400">{currentFTP > 0 ? `${currentFTP}W` : '未設定'}</span>
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">體重</label>
-                                <span className="text-lg font-black text-slate-300">{athleteWeight > 0 ? `${athleteWeight}kg` : '未設定'}</span>
+                {/* ====== 資訊面板 (固定顯示) ====== */}
+                <div className="bg-slate-900/40 rounded-2xl border border-slate-800 p-4">
+                    <div className="flex items-center gap-6">
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">分析區間</label>
+                            <div className="text-lg font-black text-white flex items-center gap-2">
+                                42天
+                                <span className="text-[10px] font-bold bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700">固定</span>
                             </div>
                         </div>
+                        <div className="w-px h-8 bg-slate-800" />
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">目前 FTP</label>
+                            <span className="text-lg font-black text-blue-400">{currentFTP > 0 ? `${currentFTP}W` : '未設定'}</span>
+                        </div>
+                        <div className="w-px h-8 bg-slate-800" />
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">體重</label>
+                            <span className="text-lg font-black text-slate-300">{athleteWeight > 0 ? `${athleteWeight}kg` : '未設定'}</span>
+                        </div>
                     </div>
-                )}
+                </div>
 
                 {/* ====== 摘要統計列 ====== */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">

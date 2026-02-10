@@ -20,7 +20,7 @@ import {
     Line, Area, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, ReferenceLine, ComposedChart, BarChart, Bar, Cell, LabelList
 } from 'recharts';
-import { Activity, Dumbbell, Zap, TrendingUp, Scale, Info, Loader2, ArrowLeft, Thermometer, RotateCw, Timer, Heart, Clock, Gauge, FileText, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Activity, Dumbbell, Zap, TrendingUp, Scale, Info, Loader2, ArrowLeft, Thermometer, RotateCw, Timer, Heart, Clock, Gauge, FileText, ChevronDown, ChevronLeft, ChevronRight, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { fitMorton3P, calculateMMP, calculateNP } from '../../utils/power-models';
@@ -134,6 +134,120 @@ export const GoldenCheetahPage = () => {
     const [athleteWeight, setAthleteWeight] = useState(70);
     const [calculatedCP, setCalculatedCP] = useState(250);
     const [calculatedWPrime, setCalculatedWPrime] = useState(20000);
+
+    // Sync Logic
+    const [syncStatus, setSyncStatus] = useState<Record<number, 'idle' | 'syncing' | 'success' | 'error'>>({});
+    const [lastSyncTime, setLastSyncTime] = useState<Record<number, number>>({});
+
+    const handleSyncActivity = async (activityId: number) => {
+        const now = Date.now();
+        const lastTime = lastSyncTime[activityId] || 0;
+        if (syncStatus[activityId] === 'syncing' || (now - lastTime < 5000)) return;
+
+        setSyncStatus(prev => ({ ...prev, [activityId]: 'syncing' }));
+        setLastSyncTime(prev => ({ ...prev, [activityId]: now }));
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+        try {
+            const payload = {
+                aspect_type: "create",
+                event_time: Math.floor(Date.now() / 1000),
+                object_id: Number(activityId),
+                activity_id: Number(activityId),
+                object_type: "activity",
+                owner_id: athlete?.id,
+                subscription_id: 0,
+                updates: {}
+            };
+
+            const response = await fetch('https://service.criterium.tw/webhook/strava-activity-webhook', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+
+            if (response.ok) {
+                // Polling for data
+                let retries = 0;
+                const maxRetries = 20;
+
+                const checkData = async (): Promise<boolean> => {
+                    const { data: streamData } = await supabase
+                        .from('strava_streams')
+                        .select('activity_id, streams, max_heartrate, strava_zones')
+                        .eq('activity_id', activityId)
+                        .maybeSingle();
+
+                    if (streamData) {
+                        setSyncStatus(prev => ({ ...prev, [activityId]: 'success' }));
+
+                        // Update local data
+                        setAllStreamsData(prev => {
+                            // Deduplicate
+                            const others = prev.filter(s => s.activity_id !== activityId);
+                            return [...others, streamData];
+                        });
+
+                        // If this is the currently selected activity, update it
+                        if (selectedActivityId === activityId) {
+                            // Trigger a re-select to refresh streams
+                            // We need to access the LATEST allStreamsData, so we use the functional update result logic implicitly
+                            // effectively manually setting the streams here for immediate feedback
+                            if (streamData.streams) {
+                                const watts = streamData.streams.find((s: any) => s.type === 'watts')?.data || [];
+                                const cadence = streamData.streams.find((s: any) => s.type === 'cadence')?.data || [];
+                                const temp = streamData.streams.find((s: any) => s.type === 'temp')?.data || [];
+                                const heartrate = streamData.streams.find((s: any) => s.type === 'heartrate')?.data || [];
+                                const altitude = streamData.streams.find((s: any) => s.type === 'altitude')?.data || [];
+
+                                setActivityStream(watts);
+                                setCadenceStream(cadence);
+                                setTempStream(temp);
+                                setHrStream(heartrate);
+                                setAltitudeStream(altitude);
+                                if (streamData.max_heartrate) setAthleteMaxHR(streamData.max_heartrate);
+                                if (streamData.strava_zones) setStravaZonesFromStream(streamData.strava_zones);
+                            }
+                        }
+
+                        setTimeout(() => {
+                            setSyncStatus(prev => ({ ...prev, [activityId]: 'idle' }));
+                        }, 1000);
+                        return true;
+                    }
+                    return false;
+                };
+
+                const poll = async () => {
+                    if (retries >= maxRetries) {
+                        setSyncStatus(prev => ({ ...prev, [activityId]: 'error' }));
+                        setTimeout(() => setSyncStatus(prev => ({ ...prev, [activityId]: 'idle' })), 3000);
+                        return;
+                    }
+
+                    const found = await checkData();
+                    if (!found) {
+                        retries++;
+                        setTimeout(poll, 2000);
+                    }
+                };
+
+                poll();
+            } else {
+                throw new Error('Webhook call failed');
+            }
+        } catch (error) {
+            clearTimeout(timeoutId);
+            console.error('Sync failed:', error);
+            setSyncStatus(prev => ({ ...prev, [activityId]: 'error' }));
+            setTimeout(() => setSyncStatus(prev => ({ ...prev, [activityId]: 'idle' })), 3000);
+        }
+    };
 
     /**
      * 切換活動：從快取的 streamsData 中載入指定活動的 stream 資料
@@ -519,15 +633,75 @@ export const GoldenCheetahPage = () => {
         );
     }
 
-    if (error || !summary || !latestActivity) {
+    if (error || !latestActivity) {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-slate-500">
                 <Activity className="w-16 h-16 mb-4 opacity-20" />
-                <h2 className="text-xl font-bold text-slate-300">No Analytics Available</h2>
-                <p className="mb-6">We couldn't load activity data for GoldenCheetah analysis.</p>
+                <h2 className="text-xl font-bold text-slate-300">No Activities Found</h2>
+                <p className="mb-6">Please upload activities to Strava.</p>
                 <Link to="/" className="text-blue-400 hover:text-blue-300 flex items-center gap-2">
                     <ArrowLeft className="w-4 h-4" /> Back Home
                 </Link>
+            </div>
+        );
+    }
+
+    // Check if data is empty (Unsynced Activity)
+    const hasData = activityStream.length > 0 || hrStream.length > 0;
+    const currentSyncStatus = selectedActivityId ? syncStatus[selectedActivityId] : 'idle';
+
+    if (!hasData) {
+        return (
+            <div className="min-h-screen bg-slate-50 dark:bg-[#0f111a] text-slate-900 dark:text-slate-100 p-4 md:p-6">
+                {/* Header (Simplified) */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 border-b border-slate-200 dark:border-slate-800 pb-4">
+                    <div>
+                        <h1 className="text-2xl font-black italic tracking-tighter uppercase flex items-center gap-2">
+                            <span className="text-yellow-500">GOLDEN</span> CHEETAH <span className="text-slate-400 text-sm font-normal normal-case not-italic tracking-normal px-2 bg-slate-800 rounded-full">Dashboard View</span>
+                        </h1>
+                        <div className="text-sm font-mono text-slate-400 mt-2">{latestActivity.name}</div>
+                    </div>
+                    <Link to="/power" className="p-2 bg-slate-800 rounded-lg hover:bg-slate-700 transition self-start md:self-auto mt-4 md:mt-0">
+                        <ArrowLeft className="w-4 h-4 text-slate-400" />
+                    </Link>
+                </div>
+
+                <div className="flex flex-col items-center justify-center py-20 bg-slate-900/50 rounded-2xl border border-slate-800/50 border-dashed">
+                    <div className="bg-slate-800 p-6 rounded-full mb-6 relative">
+                        <RefreshCw className={`w-12 h-12 text-blue-500 ${currentSyncStatus === 'syncing' ? 'animate-spin' : ''}`} />
+                        {currentSyncStatus === 'success' && <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-white p-1 rounded-full"><CheckCircle className="w-5 h-5" /></div>}
+                    </div>
+                    <h2 className="text-2xl font-bold text-white mb-2">
+                        {currentSyncStatus === 'syncing' ? '正在同步數據...' : '此活動尚未同步詳細數據'}
+                    </h2>
+                    <p className="text-slate-400 mb-8 text-center max-w-md">
+                        {currentSyncStatus === 'syncing'
+                            ? '正在從 Strava 抓取詳細的功率與心率串流數據，請稍候...'
+                            : 'GoldenCheetah 分析需要完整的每秒功率與心率數據。請點擊下方按鈕進行同步。'
+                        }
+                    </p>
+
+                    {currentSyncStatus === 'idle' || currentSyncStatus === 'error' ? (
+                        <button
+                            onClick={() => selectedActivityId && handleSyncActivity(selectedActivityId)}
+                            className="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-500/20 active:scale-95 flex items-center gap-2"
+                        >
+                            <RefreshCw className="w-5 h-5" />
+                            立即同步數據
+                        </button>
+                    ) : (
+                        <div className="px-8 py-3 bg-slate-800 text-slate-400 font-bold rounded-xl cursor-not-allowed flex items-center gap-2">
+                            <RefreshCw className="w-5 h-5 animate-spin" />
+                            同步中...
+                        </div>
+                    )}
+
+                    {currentSyncStatus === 'error' && (
+                        <p className="mt-4 text-red-400 flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4" /> 同步失敗，請稍後再試
+                        </p>
+                    )}
+                </div>
             </div>
         );
     }
@@ -597,9 +771,7 @@ export const GoldenCheetahPage = () => {
                                                 className={`w-full text-left px-3 py-2.5 flex items-center gap-3 transition cursor-pointer border-b border-slate-800/50 last:border-0 ${isSelected
                                                     ? 'bg-yellow-500/10 border-l-2 border-l-yellow-500'
                                                     : 'hover:bg-slate-800/60'
-                                                    } ${!hasStream ? 'opacity-40' : ''}`}
-                                                disabled={!hasStream}
-                                                title={!hasStream ? '尚未同步 stream 資料' : undefined}
+                                                    }`}
                                             >
                                                 <div className="text-xs text-slate-500 font-mono w-[80px] flex-shrink-0">
                                                     {format(new Date(act.start_date), 'MM/dd HH:mm')}
@@ -608,14 +780,34 @@ export const GoldenCheetahPage = () => {
                                                     <div className={`text-sm truncate ${isSelected ? 'text-yellow-400 font-bold' : 'text-slate-200'}`}>
                                                         {act.name}
                                                     </div>
-                                                    <div className="text-[10px] text-slate-500 flex gap-3 mt-0.5">
+                                                    <div className="text-[10px] text-slate-500 flex gap-3 mt-0.5 items-center">
                                                         <span>{(act.distance / 1000).toFixed(1)} km</span>
                                                         <span>{new Date(act.moving_time * 1000).toISOString().substr(11, 8)}</span>
-                                                        {act.average_watts && <span>{act.average_watts}W avg</span>}
-                                                        {act.total_elevation_gain && <span>↗{Math.round(act.total_elevation_gain)}m</span>}
+                                                        {!hasStream && (
+                                                            <span className="text-orange-400 flex items-center gap-1 ml-auto">
+                                                                {syncStatus[act.id] === 'syncing' ? (
+                                                                    <RefreshCw className="w-3 h-3 animate-spin" />
+                                                                ) : (
+                                                                    <Info className="w-3 h-3" />
+                                                                )}
+                                                                {syncStatus[act.id] === 'syncing' ? '同步中' : '無數據'}
+                                                            </span>
+                                                        )}
+                                                        {hasStream && act.average_watts && <span>{act.average_watts}W avg</span>}
                                                     </div>
                                                 </div>
-                                                {isSelected && <span className="text-yellow-500 text-xs">●</span>}
+                                                {isSelected && !hasStream && syncStatus[act.id] !== 'syncing' && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleSyncActivity(act.id);
+                                                        }}
+                                                        className="p-1 rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/40"
+                                                        title="立即同步"
+                                                    >
+                                                        <RefreshCw className="w-3.5 h-3.5" />
+                                                    </button>
+                                                )}
                                             </button>
                                         );
                                     })}

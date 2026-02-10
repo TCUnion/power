@@ -20,7 +20,7 @@ import {
     Line, Area, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, ReferenceLine, ComposedChart, BarChart, Bar, Cell
 } from 'recharts';
-import { Activity, Dumbbell, Zap, TrendingUp, Scale, Info, Loader2, ArrowLeft, Thermometer, RotateCw, Timer } from 'lucide-react';
+import { Activity, Dumbbell, Zap, TrendingUp, Scale, Info, Loader2, ArrowLeft, Thermometer, RotateCw, Timer, Heart } from 'lucide-react';
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { fitMorton3P, calculateMMP, calculateNP } from '../../utils/power-models';
@@ -87,12 +87,13 @@ const MetricCard = ({ title, value, unit, icon: Icon, color = "text-slate-200", 
 
 // Power Zones Definition (Coggan)
 const ZONES = [
-    { name: 'Z1', label: 'Active Recovery', min: 0, max: 0.55, color: '#9CA3AF' },
-    { name: 'Z2', label: 'Endurance', min: 0.55, max: 0.75, color: '#3B82F6' },
-    { name: 'Z3', label: 'Tempo', min: 0.75, max: 0.90, color: '#10B981' },
-    { name: 'Z4', label: 'Threshold', min: 0.90, max: 1.05, color: '#FACC15' },
-    { name: 'Z5', label: 'VO2max', min: 1.05, max: 1.20, color: '#F97316' },
-    { name: 'Z6', label: 'Anaerobic', min: 1.20, max: 9.99, color: '#EF4444' },
+    { name: 'Z1 積極恢復', min: 0, max: 0.55, color: '#94a3b8' },      // < 55%
+    { name: 'Z2 耐力', min: 0.55, max: 0.75, color: '#3b82f6' },      // 56 - 75%
+    { name: 'Z3 節奏', min: 0.75, max: 0.90, color: '#10b981' },      // 76 - 90%
+    { name: 'Z4 閾值', min: 0.90, max: 1.05, color: '#f59e0b' },      // 91 - 105%
+    { name: 'Z5 最大攝氧', min: 1.05, max: 1.20, color: '#ef4444' },    // 106 - 120%
+    { name: 'Z6 無氧能力', min: 1.20, max: 1.50, color: '#8b5cf6' },    // 121 - 150%
+    { name: 'Z7 神經肌肉', min: 1.50, max: 10.0, color: '#a855f7' },    // > 150%
 ];
 
 export const GoldenCheetahPage = () => {
@@ -108,7 +109,9 @@ export const GoldenCheetahPage = () => {
     const [activityStream, setActivityStream] = useState<number[]>([]);
     const [cadenceStream, setCadenceStream] = useState<number[]>([]);
     const [tempStream, setTempStream] = useState<number[]>([]);
+    const [hrStream, setHrStream] = useState<number[]>([]);
     const [athleteFTP, setAthleteFTP] = useState(250);
+    const [athleteMaxHR, setAthleteMaxHR] = useState(190); // Default Max HR
     const [athleteWeight, setAthleteWeight] = useState(70);
     const [calculatedCP, setCalculatedCP] = useState(250);
     const [calculatedWPrime, setCalculatedWPrime] = useState(20000);
@@ -175,6 +178,19 @@ export const GoldenCheetahPage = () => {
                 return;
             }
 
+            // Fetch Athlete Max HR (Official Setting)
+            if (latest.athlete_id) {
+                const { data: athleteData } = await supabase
+                    .from('athletes')
+                    .select('max_heartrate')
+                    .eq('id', latest.athlete_id)
+                    .maybeSingle();
+
+                if (athleteData && athleteData.max_heartrate) {
+                    setAthleteMaxHR(athleteData.max_heartrate);
+                }
+            }
+
             // Extract Power Streams
             const powerArrays: number[][] = [];
             let latestStream: number[] = [];
@@ -188,8 +204,11 @@ export const GoldenCheetahPage = () => {
                         // Extract other streams for the latest activity
                         const cadence = row.streams?.find((s: any) => s.type === 'cadence')?.data;
                         const temp = row.streams?.find((s: any) => s.type === 'temp')?.data;
+                        const heartrate = row.streams?.find((s: any) => s.type === 'heartrate')?.data;
+
                         if (cadence) setCadenceStream(cadence); else setCadenceStream([]);
                         if (temp) setTempStream(temp); else setTempStream([]);
+                        if (heartrate) setHrStream(heartrate); else setHrStream([]);
                     }
                 }
             });
@@ -270,7 +289,9 @@ export const GoldenCheetahPage = () => {
             zones: ZONES.map(z => ({ ...z, value: 0, pct: 0 })),
             mmp20m: 0,
             cadence: { avg: 0, max: 0, total: 0 },
-            temp: { avg: 0, min: 0, max: 0 }
+            temp: { avg: 0, min: 0, max: 0 },
+            hrZones: [] as any[],
+            isOfficialHrZones: false
         };
 
         const duration = activityStream.length;
@@ -317,6 +338,54 @@ export const GoldenCheetahPage = () => {
             if (zoneIdx !== -1) zonesHistogram[zoneIdx].count += 1;
         });
 
+        // Heart Rate Zones
+        // Priority: Use Strava Official Zones from 'latestActivity.zones' if available (requires DB column support)
+        // Fallback: Calculate based on Max HR (default 190 or custom)
+
+        let hrZonesWithPct: any[] = [];
+        let isOfficialHrZones = false;
+        const stravaZones = (latestActivity as any)?.zones;
+        const officialHrZone = Array.isArray(stravaZones) ? stravaZones.find((z: any) => z.type === 'heartrate') : null;
+
+        const HR_COLORS = ['#94a3b8', '#3b82f6', '#10b981', '#f59e0b', '#ef4444']; // Z1-Z5 Colors
+
+        if (officialHrZone && officialHrZone.distribution_buckets) {
+            // Use Official Data
+            isOfficialHrZones = true;
+            const buckets = officialHrZone.distribution_buckets;
+            const totalHrTime = buckets.reduce((acc: number, b: any) => acc + b.time, 0);
+
+            hrZonesWithPct = buckets.map((b: any, i: number) => ({
+                name: `Z${i + 1}`,
+                min: b.min,
+                max: b.max,
+                count: b.time,
+                pct: totalHrTime > 0 ? Math.round((b.time / totalHrTime) * 1000) / 10 : 0,
+                color: HR_COLORS[i] || '#cbd5e1'
+            }));
+
+            // If Strava provides 5 zones, match them. If more/less, logic adapts.
+        } else {
+            // Fallback: Local Calculation
+            const HR_ZONES_DEF = [
+                { name: 'Z1 暖身', min: 0, max: 0.60, color: '#94a3b8' },      // < 60% (Includes <50%)
+                { name: 'Z2 放鬆', min: 0.60, max: 0.70, color: '#3b82f6' },      // 60 - 70%
+                { name: 'Z3 有氧', min: 0.70, max: 0.80, color: '#10b981' },   // 70 - 80%
+                { name: 'Z4 閾值', min: 0.80, max: 0.90, color: '#f59e0b' }, // 80 - 90%
+                { name: 'Z5 最大', min: 0.90, max: 2.0, color: '#ef4444' },    // 90 - 100%
+            ];
+
+            const hrHistogram = HR_ZONES_DEF.map(z => ({ name: z.name, count: 0, color: z.color }));
+            if (hrStream.length > 0) {
+                hrStream.forEach(hr => {
+                    const pct = athleteMaxHR > 0 ? hr / athleteMaxHR : 0;
+                    const zoneIdx = HR_ZONES_DEF.findIndex(z => pct >= z.min && pct < z.max);
+                    if (zoneIdx !== -1) hrHistogram[zoneIdx].count += 1;
+                });
+            }
+            hrZonesWithPct = hrHistogram.map(z => ({ ...z, pct: Math.round((z.count / duration) * 1000) / 10 }));
+        }
+
         const timeAboveCPCount = activityStream.filter(p => p > calculatedCP).length;
         const timeAboveCPPct = Math.round((timeAboveCPCount / duration) * 100);
         const timeAboveCPFraction = timeAboveCPCount > 0 ? Math.round(timeAboveCPCount / 60) : 0; // Convert to minutes for display
@@ -339,9 +408,11 @@ export const GoldenCheetahPage = () => {
             zones: zonesWithPct,
             mmp20m,
             cadence: { avg: cadAvg, max: cadMax, total: cadTotal },
-            temp: { avg: tempAvg, min: tempMin, max: tempMax }
+            temp: { avg: tempAvg, min: tempMin, max: tempMax },
+            hrZones: hrZonesWithPct,
+            isOfficialHrZones
         };
-    }, [activityStream, cadenceStream, tempStream, athleteFTP, calculatedCP]);
+    }, [activityStream, cadenceStream, tempStream, hrStream, athleteFTP, calculatedCP, athleteMaxHR, latestActivity]);
 
     // ============================================
     // Rendering
@@ -445,7 +516,7 @@ export const GoldenCheetahPage = () => {
                 </div>
 
                 {/* 2. Main Chart: Power & W' Balance */}
-                <div className="md:col-span-9 bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 min-h-[400px] flex flex-col">
+                <div className="md:col-span-12 bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 min-h-[400px] flex flex-col">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
                             <Zap className="w-4 h-4 text-yellow-500" />
@@ -530,25 +601,66 @@ export const GoldenCheetahPage = () => {
                 </div>
 
                 {/* 3. Bottom Row: Zones & Details */}
-                <div className="md:col-span-6 bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-4 flex items-center gap-2">
-                        <Scale className="w-4 h-4 text-emerald-500" />
-                        Power Zones Distribution
-                    </h3>
-                    <div className="h-[200px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={summary.zones}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} vertical={false} />
-                                <XAxis dataKey="name" stroke="#64748b" tick={{ fontSize: 10 }} />
-                                <YAxis stroke="#64748b" tick={{ fontSize: 10 }} unit="%" />
-                                <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '12px' }} />
-                                <Bar dataKey="pct" radius={[4, 4, 0, 0]}>
-                                    {summary.zones.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.color} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
+                <div className="md:col-span-6 bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col">
+
+                    {/* Power Zones */}
+                    <div className="flex-1 flex flex-col min-h-[220px]">
+                        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-2">
+                            <Scale className="w-4 h-4 text-emerald-500" />
+                            Power Zones Distribution
+                        </h3>
+                        <p className="text-xs text-slate-400 mb-2">
+                            基於 FTP 設定 ({athleteFTP}W) 計算，顯示各功率區間的時間分佈。
+                        </p>
+                        <div className="flex-1 w-full min-h-0">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={summary.zones}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} vertical={false} />
+                                    <XAxis dataKey="name" stroke="#64748b" tick={{ fontSize: 10 }} />
+                                    <YAxis stroke="#64748b" tick={{ fontSize: 10 }} unit="%" />
+                                    <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '12px' }} />
+                                    <Bar dataKey="pct" radius={[4, 4, 0, 0]}>
+                                        {summary.zones.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                    {/* Heart Rate Zones */}
+                    <div className="flex-1 flex flex-col border-t border-slate-800 pt-6 mt-4 min-h-[220px]">
+                        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-2">
+                            <Heart className="w-4 h-4 text-red-500" />
+                            Heart Rate Zones {summary.isOfficialHrZones ? <span className="text-orange-400 text-[10px] border border-orange-400/30 px-1 rounded">STRAVA OFFICIAL</span> : `(Max: ${athleteMaxHR})`}
+                        </h3>
+                        <p className="text-xs text-slate-400 mb-2">
+                            {summary.isOfficialHrZones
+                                ? "使用 Strava 官方分析的心率區間數據。"
+                                : `基於最大心率 (${athleteMaxHR} bpm) 計算，監控心血管強度與訓練負荷。`}
+                        </p>
+                        <div className="flex-1 w-full min-h-0">
+                            {summary.hrZones.reduce((a: number, b: any) => a + b.count, 0) > 0 ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={summary.hrZones}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} vertical={false} />
+                                        <XAxis dataKey="name" stroke="#64748b" tick={{ fontSize: 10 }} />
+                                        <YAxis stroke="#64748b" tick={{ fontSize: 10 }} unit="%" />
+                                        <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '12px' }} />
+                                        <Bar dataKey="pct" radius={[4, 4, 0, 0]}>
+                                            {summary.hrZones.map((entry: any, index: number) => (
+                                                <Cell key={`cell-hr-${index}`} fill={entry.color} />
+                                            ))}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <div className="h-full flex items-center justify-center text-slate-600 text-sm">
+                                    No Heart Rate Data
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -559,21 +671,21 @@ export const GoldenCheetahPage = () => {
                             Activity Details
                         </h3>
                         <div className="space-y-3">
-                            <div className="flex justify-between text-sm py-2 border-b border-slate-800">
+                            <div className="grid grid-cols-2 text-sm py-2 border-b border-slate-800 items-center">
                                 <span className="text-slate-400">Activity Name</span>
-                                <span className="font-bold text-white truncate max-w-[200px] text-right">{latestActivity.name}</span>
+                                <span className="font-bold text-white truncate text-center">{latestActivity.name}</span>
                             </div>
-                            <div className="flex justify-between text-sm py-2 border-b border-slate-800">
+                            <div className="grid grid-cols-2 text-sm py-2 border-b border-slate-800 items-center">
                                 <span className="text-slate-400">Max Power</span>
-                                <span className="font-bold text-white">{summary.maxPower} W</span>
+                                <span className="font-bold text-white text-center">{summary.maxPower} W</span>
                             </div>
-                            <div className="flex justify-between text-sm py-2 border-b border-slate-800">
+                            <div className="grid grid-cols-2 text-sm py-2 border-b border-slate-800 items-center">
                                 <span className="text-slate-400">Avg Power</span>
-                                <span className="font-bold text-white">{summary.avgPower} W</span>
+                                <span className="font-bold text-white text-center">{summary.avgPower} W</span>
                             </div>
-                            <div className="flex justify-between text-sm py-2 border-b border-slate-800">
+                            <div className="grid grid-cols-2 text-sm py-2 border-b border-slate-800 items-center">
                                 <span className="text-slate-400">Weight Setting</span>
-                                <span className="font-bold text-white">{athleteWeight} kg</span>
+                                <span className="font-bold text-white text-center">{athleteWeight} kg</span>
                             </div>
                         </div>
                         <div className="flex items-center justify-between p-3 bg-white/5 dark:bg-black/20 rounded-lg">

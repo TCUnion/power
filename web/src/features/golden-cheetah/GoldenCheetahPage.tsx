@@ -407,11 +407,11 @@ export const GoldenCheetahPage = () => {
         } else {
             // Fallback: Local Calculation
             const HR_ZONES_DEF = [
-                { name: 'Z1 基礎', min: 0, max: 0.65, color: '#94a3b8' },      // < 65% Endurance
-                { name: 'Z2 中等', min: 0.65, max: 0.75, color: '#3b82f6' },   // 65-75% Moderate
-                { name: 'Z3 節奏', min: 0.75, max: 0.85, color: '#10b981' },   // 75-85% Tempo
-                { name: 'Z4 閾值', min: 0.85, max: 0.95, color: '#f59e0b' },   // 85-95% Threshold
-                { name: 'Z5 無氧', min: 0.95, max: 2.0, color: '#ef4444' },    // > 95% Anaerobic
+                { name: 'Z1 恢復', min: 0.50, max: 0.60, color: '#9CA3AF' },   // 50-60% Recovery
+                { name: 'Z2 有氧', min: 0.60, max: 0.70, color: '#60A5FA' },   // 60-70% Aerobic
+                { name: 'Z3 節奏', min: 0.70, max: 0.80, color: '#34D399' },   // 70-80% Tempo
+                { name: 'Z4 閾值', min: 0.80, max: 0.90, color: '#FBBF24' },   // 80-90% Threshold
+                { name: 'Z5 無氧', min: 0.90, max: 2.0, color: '#EF4444' },    // > 90% Anaerobic
             ];
 
             const hrHistogram = HR_ZONES_DEF.map(z => ({ name: z.name, count: 0, color: z.color }));

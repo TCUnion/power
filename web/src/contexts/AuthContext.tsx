@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { API_BASE_URL } from '../lib/api_config';
+import type { TCUMember } from '../types';
 
 export interface StravaAthlete {
     id: number;
@@ -17,7 +18,7 @@ export interface StravaAthlete {
 interface AuthContextType {
     athlete: StravaAthlete | null;
     isBound: boolean;
-    memberData: Record<string, unknown> | null;
+    memberData: TCUMember | null;
     isAdmin: boolean;
     isLoading: boolean;
     logout: () => void;
@@ -32,7 +33,7 @@ const AUTH_EVENT = 'strava-auth-changed';
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [athlete, setAthlete] = useState<StravaAthlete | null>(null);
     const [isBound, setIsBound] = useState(false);
-    const [memberData, setMemberData] = useState<Record<string, unknown> | null>(null);
+    const [memberData, setMemberData] = useState<TCUMember | null>(null);
     const [isAdmin, setIsAdmin] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -192,30 +193,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const handleAuthChange = async () => {
             const current = loadAthleteFromStorage();
             if (current) {
-                // 如果已經載入且有資料，且並非初次載入，可考慮不重複顯示全域 Loading
-                // 這裡暫時維持原邏輯，但加上超時保護
-                setIsLoading(true);
+                // 如果已經有 athlete 資料，立即讓 UI 顯示，不再阻塞在 binding 檢查上
+                setAthlete(current);
+                setIsLoading(false);
+
                 const aid = Number(current.id);
-                try {
-                    // 同步執行 binding 和 admin 檢查，增加超時保護
-                    const checkPromise = Promise.all([
-                        checkBindingStatus(aid),
-                        checkAdminStatus(aid)
-                    ]);
+                // 異步執行 binding 和 admin 檢查，結果更新會自動觸發再次渲染
+                Promise.all([
+                    checkBindingStatus(aid),
+                    checkAdminStatus(aid)
+                ]).catch(err => {
+                    console.warn('[AuthContext] 背景初始化檢查失敗:', err);
+                });
 
-                    const timeoutPromise = new Promise((_, reject) =>
-                        setTimeout(() => reject(new Error('Auth Initialization Timeout')), 10000)
-                    );
-
-                    await Promise.race([checkPromise, timeoutPromise]);
-                } catch (err) {
-                    console.warn('[AuthContext] 初始化檢查超時或失敗:', err);
-                } finally {
-                    setIsLoading(false);
-                }
                 // 背景同步 token
                 syncToken(current);
             } else {
+                setAthlete(null);
                 setIsLoading(false);
             }
         };

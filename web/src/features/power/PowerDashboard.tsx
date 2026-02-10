@@ -9,6 +9,7 @@ import { usePowerAnalysis } from '../../hooks/usePowerAnalysis';
 import type {
     StravaActivity,
     ActivityPowerAnalysis,
+    StravaZoneSummary,
 } from '../../types';
 
 import { PMCChart } from '../../components/charts/PMCChart';
@@ -126,7 +127,6 @@ const PowerDashboard: React.FC = () => {
             }
 
             if (data) {
-                // @ts-expect-error - 忽略部分非必要欄位的型別檢查 (如 map, commute 等)
                 setChartActivities(data as StravaActivity[]);
             }
         };
@@ -738,14 +738,20 @@ const PowerDashboard: React.FC = () => {
                                                                             </h5>
                                                                             <div className="space-y-4">
                                                                                 {(() => {
-                                                                                    const zones = Array.isArray(activityAnalysis.stravaZones)
-                                                                                        ? activityAnalysis.stravaZones
-                                                                                        : [{ type: 'heartrate', distribution_buckets: activityAnalysis.stravaZones }];
+                                                                                    const zones: StravaZoneSummary[] = Array.isArray(activityAnalysis.stravaZones)
+                                                                                        ? activityAnalysis.stravaZones.map(z => ({
+                                                                                            type: 'heartrate' as const,
+                                                                                            distribution_buckets: [z] as any[]
+                                                                                        }))
+                                                                                        : (activityAnalysis.stravaZones ? [{
+                                                                                            type: 'heartrate' as const,
+                                                                                            distribution_buckets: activityAnalysis.stravaZones as any[]
+                                                                                        }] : []);
 
                                                                                     return zones
-                                                                                        .filter((z: StravaZoneSummary) => z.type === 'power' || z.type === 'heartrate')
-                                                                                        .map((z: StravaZoneSummary, idx: number) => (
-                                                                                            <StravaZoneChart key={idx} data={z.distribution_buckets} type={z.type} />
+                                                                                        .filter((z) => z.type === 'power' || z.type === 'heartrate')
+                                                                                        .map((z, idx: number) => (
+                                                                                            <StravaZoneChart key={idx} data={z.distribution_buckets || []} type={z.type} />
                                                                                         ));
                                                                                 })()}
                                                                             </div>

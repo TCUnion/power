@@ -60,6 +60,20 @@ export interface StravaZoneSummary {
     resource_state?: number;
 }
 
+export interface TCUMember {
+    email: string;
+    real_name: string;
+    tcu_id: string;
+    account?: string;
+    nickname?: string;
+    team?: string;
+    member_type?: string;
+    self_introduction?: string;
+    skills?: string;
+    otp_code?: string;
+    otp_expires_at?: string;
+}
+
 export interface StravaActivity {
     id: number;
     athlete_id: number;

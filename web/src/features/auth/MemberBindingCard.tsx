@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { API_BASE_URL } from '../../lib/api_config';
 import { useAuth } from '../../hooks/useAuth';
+import type { TCUMember } from '../../types';
 import {
     UserCheck,
     Mail,
@@ -30,7 +31,7 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
     const [tcuId, setTcuId] = useState('');
     const [isSyncing, setIsSyncing] = useState(false);
     const [step, setStep] = useState<'input' | 'otp' | 'success'>('input');
-    const [localMemberData, setLocalMemberData] = useState<Record<string, unknown> | null>(null);
+    const [localMemberData, setLocalMemberData] = useState<TCUMember | null>(null);
     const [otp, setOtp] = useState('');
     const [isVerifying, setIsVerifying] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -150,6 +151,11 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
 
         try {
             // 驗證 OTP (仍從 tcu_members 檢查)
+            if (!memberData?.email) {
+                setError('會員資料缺失，請重新輸入 TCU-ID。');
+                return;
+            }
+
             const { data, error } = await supabase
                 .from('tcu_members')
                 .select('*')
@@ -223,11 +229,11 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
                                 <h3 className="text-slate-900 dark:text-white text-2xl font-black italic uppercase tracking-tight">TCU 會員資料</h3>
                                 <div className="flex flex-wrap items-center gap-2 mt-1">
                                     <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">
-                                        {memberData.member_type || '正式會員'}
+                                        {memberData?.member_type || '正式會員'}
                                     </span>
                                     <span className="flex items-center gap-1 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
                                         <Hash className="w-3 h-3" />
-                                        {memberData.tcu_id}
+                                        {memberData?.tcu_id}
                                     </span>
                                 </div>
                             </div>
@@ -245,15 +251,15 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
                                 <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">真實姓名</p>
                                     <div className="flex items-center gap-2">
-                                        <span className="text-lg font-black text-slate-900 dark:text-white">{memberData.real_name}</span>
-                                        {memberData.nickname && <span className="text-sm font-bold text-slate-500">({memberData.nickname})</span>}
+                                        <span className="text-lg font-black text-slate-900 dark:text-white">{memberData?.real_name}</span>
+                                        {memberData?.nickname && <span className="text-sm font-bold text-slate-500">({memberData.nickname})</span>}
                                     </div>
                                 </div>
                                 <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">所屬車隊</p>
                                     <div className="flex items-center gap-2 text-slate-900 dark:text-white">
                                         <Users className="w-4 h-4 text-emerald-500" />
-                                        <span className="text-base font-bold truncate">{memberData.team || '未填寫'}</span>
+                                        <span className="text-base font-bold truncate">{memberData?.team || '未填寫'}</span>
                                     </div>
                                 </div>
                             </div>
@@ -262,23 +268,23 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
 
 
                         {/* Section 3: Profile & Skills */}
-                        {(memberData.self_introduction || memberData.skills) && (
+                        {(memberData?.self_introduction || memberData?.skills) && (
                             <div>
                                 <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
                                     <FileText className="w-4 h-4" /> 個人簡介 & 技能
                                 </h4>
                                 <div className="space-y-4">
-                                    {memberData.self_introduction && (
+                                    {memberData?.self_introduction && (
                                         <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
                                             <p className="text-sm font-medium text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">
                                                 {memberData.self_introduction}
                                             </p>
                                         </div>
                                     )}
-                                    {memberData.skills && (
+                                    {memberData?.skills && (
                                         <div className="flex flex-col gap-3">
                                             <div className="flex flex-wrap gap-2">
-                                                {memberData.skills.split('\n').map((skill: string, idx: number) => (
+                                                {(memberData.skills as string).split('\n').map((skill: string, idx: number) => (
                                                     <div key={idx} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300">
                                                         <Zap className="w-3 h-3 text-amber-500 fill-amber-500" />
                                                         {skill}
@@ -289,7 +295,7 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
                                                 <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
                                                 <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">若要修正能力分組，請前往</span>
                                                 <a
-                                                    href={`https://strava.criterium.tw/skill?tcu_id=${memberData.tcu_id}`}
+                                                    href={`https://strava.criterium.tw/skill?tcu_id=${memberData?.tcu_id}`}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="text-[10px] font-black text-tcu-blue hover:text-tcu-blue-light hover:underline flex items-center gap-1 transition-colors"
@@ -336,12 +342,12 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
             <div className="absolute -top-10 -right-10 w-40 h-40 bg-tcu-blue/5 rounded-full blur-3xl group-hover:bg-tcu-blue/10 transition-colors"></div>
             <div className="relative z-10 flex flex-col gap-6">
                 <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-tcu-blue text-white shadow-lg shadow-tcu-blue/20">
+                    <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 shadow-sm">
                         <UserCheck className="w-6 h-6" />
                     </div>
                     <div>
-                        <h3 className="text-slate-900 dark:text-white text-xl font-black italic uppercase">TCU 會員身份綁定</h3>
-                        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Authenticate your status to unlock pro features</p>
+                        <h3 className="text-slate-900 dark:text-white text-xl font-black italic uppercase">TCU 會員身份連結 (選用)</h3>
+                        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Connect your profile for personalized stats and rankings</p>
                     </div>
                 </div>
 

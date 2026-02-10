@@ -164,45 +164,40 @@ const HomePage: React.FC = () => {
   return (
     <div className={`mx-auto space-y-8 ${isBound ? 'max-w-7xl' : 'max-w-4xl'}`}>
       <div className="grid gap-8">
-        {/* TCU 綁定卡片 */}
-        <div className="md:col-span-1">
-          <MemberBindingCard onBindingSuccess={() => { }} />
-        </div>
-
-        {/* 功率分析頁面進入按鈕 */}
-        <div className="flex flex-col md:flex-row justify-center gap-4">
-          {isBound ? (
-            <>
-              <RouterLink
-                to="/analysis"
-                className="w-full md:w-auto px-8 py-4 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-black text-lg shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 uppercase tracking-wider"
-              >
-                <Zap className="w-5 h-5 fill-white" />
-                進入功率分析頁面
-              </RouterLink>
-              <RouterLink
-                to="/goldencheetah"
-                className="w-full md:w-auto px-8 py-4 rounded-xl bg-slate-800 text-yellow-400 font-black text-lg shadow-lg border border-yellow-500/20 hover:bg-slate-700 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 uppercase tracking-wider"
-              >
-                <Zap className="w-5 h-5" />
-                GoldenCheetah 看板
-              </RouterLink>
-            </>
-          ) : (
-            <div className="relative group w-full md:w-auto">
-              <button
-                disabled
-                className="w-full md:w-auto px-8 py-4 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-400 font-black text-lg cursor-not-allowed flex items-center justify-center gap-3 uppercase tracking-wider transition-colors border border-slate-300 dark:border-slate-700"
-              >
-                <Zap className="w-5 h-5" />
-                進入功率分析頁面
-              </button>
-              <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-xs font-bold px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap shadow-xl pointer-events-none">
-                需先完成 TCU 會員綁定以解鎖進階功能
-                <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45"></div>
-              </div>
+        {/* TCU 綁定卡片 - 僅在未綁定時顯示，且改為次要提示 */}
+        {!isBound && (
+          <div className="md:col-span-1">
+            <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-2xl">
+              <p className="text-sm font-bold text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                <Activity className="w-4 h-4" /> 綁定 TCU 會員以解鎖更完整的個人數據與車隊排名！
+              </p>
             </div>
-          )}
+            <MemberBindingCard onBindingSuccess={() => { }} />
+          </div>
+        )}
+
+        {isBound && (
+          <div className="md:col-span-1">
+            <MemberBindingCard onBindingSuccess={() => { }} />
+          </div>
+        )}
+
+        {/* 功率分析頁面進入按鈕 - 現在對所有登入使用者開放 */}
+        <div className="flex flex-col md:flex-row justify-center gap-4">
+          <RouterLink
+            to="/analysis"
+            className="w-full md:w-auto px-8 py-4 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-black text-lg shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 uppercase tracking-wider"
+          >
+            <Zap className="w-5 h-5 fill-white" />
+            進入功率分析頁面
+          </RouterLink>
+          <RouterLink
+            to="/goldencheetah"
+            className="w-full md:w-auto px-8 py-4 rounded-xl bg-slate-800 text-yellow-400 font-black text-lg shadow-lg border border-yellow-500/20 hover:bg-slate-700 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 uppercase tracking-wider"
+          >
+            <Zap className="w-5 h-5" />
+            GoldenCheetah 看板
+          </RouterLink>
         </div>
 
         {/* 功率儀表板 (包含 PMC) - 登入後即可查看 */}

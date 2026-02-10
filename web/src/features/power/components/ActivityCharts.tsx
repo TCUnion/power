@@ -303,7 +303,6 @@ export const ActivityCharts: React.FC<{ data: ActivityPowerAnalysis }> = ({ data
                         )}
 
                         {refAreaLeft !== null && refAreaRight !== null && (
-                            // @ts-expect-error - ReferenceArea 型別定義與實際使用不完全匹配
                             <ReferenceArea
                                 x1={refAreaLeft}
                                 x2={refAreaRight}

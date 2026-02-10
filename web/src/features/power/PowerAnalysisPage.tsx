@@ -394,8 +394,9 @@ const PowerAnalysisPage: React.FC = () => {
                             {/* FTP 趨勢 */}
                             {activeTab === 'ftp' && (
                                 <FTPTrendChart
-                                    history={ftpHistory}
-                                    currentFTP={currentFTP}
+                                    data={ftpHistory}
+                                    activities={filteredActivities}
+                                    currentFtp={userFtp}
                                 />
                             )}
 

@@ -13,16 +13,16 @@
  * This implementation adapts the core concepts for a web-based React application.
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import {
     Line, Area, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, ReferenceLine, ComposedChart, BarChart, Bar, Cell, LabelList
 } from 'recharts';
-import { Activity, Dumbbell, Zap, TrendingUp, Scale, Info, Loader2, ArrowLeft, Thermometer, RotateCw, Timer, Heart, Clock, Gauge, FileText, ChevronDown, ChevronLeft, ChevronRight, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
+import { Activity, Dumbbell, Zap, TrendingUp, Scale, Info, Loader2, ArrowLeft, Thermometer, RotateCw, Timer, Heart, Clock, Gauge, FileText, ChevronDown, ChevronLeft, ChevronRight, RefreshCw, CheckCircle, Search } from 'lucide-react';
 import { format } from 'date-fns';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { fitMorton3P, calculateMMP, calculateNP } from '../../utils/power-models';
 import { GaugeChart } from './GaugeChart';
 
@@ -99,19 +99,22 @@ const ZONES = [
 
 export const GoldenCheetahPage = () => {
     const { athlete } = useAuth();
+    const navigate = useNavigate();
     const [stravaZonesFromStream, setStravaZonesFromStream] = useState<any[] | null>(null);
 
     // State
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [statusMessage, setStatusMessage] = useState("Initializing...");
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const dropdownRef = useRef<HTMLDivElement>(null);
 
     // Data
     const [latestActivity, setLatestActivity] = useState<any>(null);
     const [allActivities, setAllActivities] = useState<any[]>([]);
     const [allStreamsData, setAllStreamsData] = useState<any[]>([]);
     const [selectedActivityId, setSelectedActivityId] = useState<number | null>(null);
-    const [showActivityDropdown, setShowActivityDropdown] = useState(false);
     const [activityStream, setActivityStream] = useState<number[]>([]);
     const [cadenceStream, setCadenceStream] = useState<number[]>([]);
     const [tempStream, setTempStream] = useState<number[]>([]);
@@ -263,7 +266,7 @@ export const GoldenCheetahPage = () => {
 
         setLatestActivity(meta);
         setSelectedActivityId(activityId);
-        setShowActivityDropdown(false);
+        setIsDropdownOpen(false);
 
         const row = streams.find((r: any) => r.activity_id === activityId);
         if (!row) {
@@ -386,6 +389,18 @@ export const GoldenCheetahPage = () => {
     useEffect(() => {
         loadData();
     }, [loadData]);
+
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsDropdownOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, []);
 
 
     // ============================================
@@ -620,6 +635,27 @@ export const GoldenCheetahPage = () => {
         return Math.round((1 - minWBal / calculatedWPrime) * 100);
     }, [wPrimeBalance, calculatedWPrime]);
 
+    const filteredActivities = useMemo(() => {
+        if (!searchQuery) return allActivities;
+        const lower = searchQuery.toLowerCase();
+        return allActivities.filter((a: any) =>
+            a.name.toLowerCase().includes(lower)
+        );
+    }, [allActivities, searchQuery]);
+
+    const handleNavigateActivity = useCallback((direction: 'prev' | 'next') => {
+        if (!selectedActivityId || filteredActivities.length === 0) return;
+        const idx = filteredActivities.findIndex((a: any) => a.id === selectedActivityId);
+        if (idx === -1) return;
+
+        // "prev" means older activity (next in list), "next" means newer activity (prev in list)
+        const newIdx = direction === 'prev' ? idx + 1 : idx - 1;
+
+        if (newIdx >= 0 && newIdx < filteredActivities.length) {
+            selectActivity(filteredActivities[newIdx].id);
+        }
+    }, [filteredActivities, selectedActivityId, selectActivity]);
+
     // ============================================
     // Rendering
     // ============================================
@@ -714,7 +750,7 @@ export const GoldenCheetahPage = () => {
                                             無法找到符合的活動
                                         </div>
                                     ) : (
-                                        filteredActivities.map(act => {
+                                        filteredActivities.map((act: any) => {
                                             const hasStream = allStreamsData.some((s: any) => s.activity_id === act.id);
                                             const isSelected = act.id === selectedActivityId;
                                             return (
@@ -775,14 +811,14 @@ export const GoldenCheetahPage = () => {
                     <div className="flex items-center gap-1 bg-slate-800 rounded-lg p-1 border border-slate-700/50 hidden sm:flex">
                         <button
                             onClick={() => handleNavigateActivity('prev')}
-                            disabled={filteredActivities.findIndex(a => a.id === selectedActivityId) >= filteredActivities.length - 1}
+                            disabled={filteredActivities.findIndex((a: any) => a.id === selectedActivityId) >= filteredActivities.length - 1}
                             className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                         >
                             <ChevronLeft className="w-4 h-4" />
                         </button>
                         <button
                             onClick={() => handleNavigateActivity('next')}
-                            disabled={filteredActivities.findIndex(a => a.id === selectedActivityId) <= 0}
+                            disabled={filteredActivities.findIndex((a: any) => a.id === selectedActivityId) <= 0}
                             className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                         >
                             <ChevronRight className="w-4 h-4" />

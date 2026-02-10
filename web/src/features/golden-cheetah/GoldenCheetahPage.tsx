@@ -98,6 +98,7 @@ const ZONES = [
 
 export const GoldenCheetahPage = () => {
     const { athlete } = useAuth();
+    const [stravaZonesFromStream, setStravaZonesFromStream] = useState<any[] | null>(null);
 
     // State
     const [loading, setLoading] = useState(true);
@@ -169,7 +170,7 @@ export const GoldenCheetahPage = () => {
 
             const { data: streamsData, error: streamsError } = await supabase
                 .from('strava_streams')
-                .select('activity_id, streams')
+                .select('activity_id, streams, max_heartrate, strava_zones')
                 .in('activity_id', activityIds);
 
             if (streamsError) throw streamsError;
@@ -178,8 +179,20 @@ export const GoldenCheetahPage = () => {
                 return;
             }
 
-            // Fetch Athlete Max HR (Official Setting)
-            if (latest.athlete_id) {
+            // Set Max HR priority: Activity Stream > Athlete Profile > Default
+            const latestStreamRow = streamsData.find((row: any) => row.activity_id === latest.id);
+
+            // Set Strava Zones from Stream (Distribution Buckets)
+            if (latestStreamRow?.strava_zones) {
+                setStravaZonesFromStream(latestStreamRow.strava_zones);
+            } else {
+                setStravaZonesFromStream(null);
+            }
+
+            if (latestStreamRow?.max_heartrate) {
+                setAthleteMaxHR(latestStreamRow.max_heartrate);
+            } else if (latest.athlete_id) {
+                // Fetch Athlete Profile Fallback
                 const { data: athleteData } = await supabase
                     .from('athletes')
                     .select('max_heartrate')
@@ -283,7 +296,10 @@ export const GoldenCheetahPage = () => {
 
     // Metrics
     const summary = useMemo(() => {
-        if (activityStream.length === 0) return {
+        const hasPower = activityStream.length > 0;
+        const hasHr = hrStream.length > 0;
+
+        if (!hasPower && !hasHr) return {
             tss: 0, if: 0, work: 0, duration: 0, normPower: 0,
             avgPower: 0, maxPower: 0, timeAboveCP: 0, timeAboveCPPct: 0, timeAboveCPFraction: 0,
             zones: ZONES.map(z => ({ ...z, value: 0, pct: 0 })),
@@ -291,14 +307,15 @@ export const GoldenCheetahPage = () => {
             cadence: { avg: 0, max: 0, total: 0 },
             temp: { avg: 0, min: 0, max: 0 },
             hrZones: [] as any[],
-            isOfficialHrZones: false
+            isOfficialHrZones: false,
+            vi: 0
         };
 
-        const duration = activityStream.length;
-        const avgPower = Math.round(activityStream.reduce((a, b) => a + b, 0) / duration);
-        const maxPower = Math.max(...activityStream);
-        const normPower = calculateNP(activityStream);
-        const work = Math.round(activityStream.reduce((a, b) => a + b, 0) / 1000); // kJ
+        const duration = hasPower ? activityStream.length : hrStream.length;
+        const avgPower = hasPower ? Math.round(activityStream.reduce((a, b) => a + b, 0) / duration) : 0;
+        const maxPower = hasPower ? Math.max(...activityStream) : 0;
+        const normPower = hasPower ? calculateNP(activityStream) : 0;
+        const work = hasPower ? Math.round(activityStream.reduce((a, b) => a + b, 0) / 1000) : 0; // kJ
 
         // Calculate MMP 20m
         const mmpCurve = calculateMMP([activityStream]);
@@ -329,6 +346,7 @@ export const GoldenCheetahPage = () => {
 
         const intensityFactor = athleteFTP > 0 ? normPower / athleteFTP : 0;
         const tss = athleteFTP > 0 ? Math.round((duration * normPower * intensityFactor) / (athleteFTP * 3600) * 100) : 0;
+        const vi = avgPower > 0 ? normPower / avgPower : 0;
 
         // Power Zones
         const zonesHistogram = ZONES.map(z => ({ name: z.name, count: 0, color: z.color }));
@@ -339,40 +357,61 @@ export const GoldenCheetahPage = () => {
         });
 
         // Heart Rate Zones
-        // Priority: Use Strava Official Zones from 'latestActivity.zones' if available (requires DB column support)
-        // Fallback: Calculate based on Max HR (default 190 or custom)
+        // Priority: Strava Official Zones (from Activity Response OR Stream Buckets) > Calculation by Max HR
 
         let hrZonesWithPct: any[] = [];
         let isOfficialHrZones = false;
-        const stravaZones = (latestActivity as any)?.zones;
-        const officialHrZone = Array.isArray(stravaZones) ? stravaZones.find((z: any) => z.type === 'heartrate') : null;
+
+        let targetBuckets: any[] | null = null;
+        const stravaActivityZones = (latestActivity as any)?.zones;
+
+        // 1. Check for Standard Strava Zones Object (Activity Level)
+        const officialHrZone = Array.isArray(stravaActivityZones)
+            ? stravaActivityZones.find((z: any) => z.type === 'heartrate')
+            : null;
+
+        if (officialHrZone && officialHrZone.distribution_buckets) {
+            targetBuckets = officialHrZone.distribution_buckets;
+            isOfficialHrZones = true;
+        }
+        // 2. Check for "Buckets Array" from strava_streams (My new source)
+        else if (stravaZonesFromStream && Array.isArray(stravaZonesFromStream)) {
+            // Heuristic: Check if likely HR (Max bucket value < 260)
+            // Strava Power zones can go up into hundreds/thousands. HR usually < 200.
+            const maxVal = Math.max(...stravaZonesFromStream.map((b: any) => b.max));
+            // Also valid HR zone usually has min > 0 for at least some buckets
+            if (maxVal > 0 && maxVal < 260) {
+                targetBuckets = stravaZonesFromStream;
+                isOfficialHrZones = true;
+            }
+        }
 
         const HR_COLORS = ['#94a3b8', '#3b82f6', '#10b981', '#f59e0b', '#ef4444']; // Z1-Z5 Colors
 
-        if (officialHrZone && officialHrZone.distribution_buckets) {
-            // Use Official Data
-            isOfficialHrZones = true;
-            const buckets = officialHrZone.distribution_buckets;
-            const totalHrTime = buckets.reduce((acc: number, b: any) => acc + b.time, 0);
+        if (targetBuckets) {
+            // Use Official Buckets
+            const totalHrTime = targetBuckets.reduce((acc: number, b: any) => acc + b.time, 0);
 
-            hrZonesWithPct = buckets.map((b: any, i: number) => ({
-                name: `Z${i + 1}`,
-                min: b.min,
-                max: b.max,
-                count: b.time,
-                pct: totalHrTime > 0 ? Math.round((b.time / totalHrTime) * 1000) / 10 : 0,
-                color: HR_COLORS[i] || '#cbd5e1'
-            }));
-
-            // If Strava provides 5 zones, match them. If more/less, logic adapts.
+            hrZonesWithPct = targetBuckets.map((b: any, i: number) => {
+                // Determine Label (Z1, Z2, or Custom Name if available?)
+                // Strava buckets don't always have names.
+                return {
+                    name: `Z${i + 1}`,
+                    min: b.min,
+                    max: b.max,
+                    count: b.time,
+                    pct: totalHrTime > 0 ? Math.round((b.time / totalHrTime) * 1000) / 10 : 0,
+                    color: HR_COLORS[i] || '#cbd5e1'
+                };
+            });
         } else {
             // Fallback: Local Calculation
             const HR_ZONES_DEF = [
-                { name: 'Z1 暖身', min: 0, max: 0.60, color: '#94a3b8' },      // < 60% (Includes <50%)
-                { name: 'Z2 放鬆', min: 0.60, max: 0.70, color: '#3b82f6' },      // 60 - 70%
-                { name: 'Z3 有氧', min: 0.70, max: 0.80, color: '#10b981' },   // 70 - 80%
-                { name: 'Z4 閾值', min: 0.80, max: 0.90, color: '#f59e0b' }, // 80 - 90%
-                { name: 'Z5 最大', min: 0.90, max: 2.0, color: '#ef4444' },    // 90 - 100%
+                { name: 'Z1 基礎', min: 0, max: 0.65, color: '#94a3b8' },      // < 65% Endurance
+                { name: 'Z2 中等', min: 0.65, max: 0.75, color: '#3b82f6' },   // 65-75% Moderate
+                { name: 'Z3 節奏', min: 0.75, max: 0.85, color: '#10b981' },   // 75-85% Tempo
+                { name: 'Z4 閾值', min: 0.85, max: 0.95, color: '#f59e0b' },   // 85-95% Threshold
+                { name: 'Z5 無氧', min: 0.95, max: 2.0, color: '#ef4444' },    // > 95% Anaerobic
             ];
 
             const hrHistogram = HR_ZONES_DEF.map(z => ({ name: z.name, count: 0, color: z.color }));
@@ -401,6 +440,7 @@ export const GoldenCheetahPage = () => {
             work,
             tss,
             if: intensityFactor,
+            vi,
             timeAboveCP: timeAboveCPCount,
             timeAboveCPPct,
             timeAboveCPFraction,
@@ -412,7 +452,7 @@ export const GoldenCheetahPage = () => {
             hrZones: hrZonesWithPct,
             isOfficialHrZones
         };
-    }, [activityStream, cadenceStream, tempStream, hrStream, athleteFTP, calculatedCP, athleteMaxHR, latestActivity]);
+    }, [activityStream, cadenceStream, tempStream, hrStream, athleteFTP, calculatedCP, athleteMaxHR, latestActivity, stravaZonesFromStream]);
 
     // ============================================
     // Rendering
@@ -472,13 +512,13 @@ export const GoldenCheetahPage = () => {
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4 auto-rows-min">
 
                 {/* Summary Cards */}
-                <div className="md:col-span-12 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-4">
+                <div className="md:col-span-12 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
                     <MetricCard
                         title="TSS"
                         value={summary.tss}
                         icon={Activity}
                         color="text-yellow-400"
-                        subValue={`IF: ${summary.if.toFixed(2)}`}
+                        subValue={`IF: ${(Math.round(summary.if * 100) / 100).toFixed(2)}`}
                     />
                     <MetricCard
                         title="WORK"
@@ -512,6 +552,13 @@ export const GoldenCheetahPage = () => {
                         icon={TrendingUp}
                         color="text-red-400"
                         subValue={summary.timeAboveCP > 0 ? `${(summary.timeAboveCPFraction ?? 0).toFixed(0)} CP Efforts` : "No Anaerobic Work"}
+                    />
+                    <MetricCard
+                        title="VI"
+                        value={summary.vi.toFixed(2)}
+                        icon={Scale}
+                        color="text-pink-400"
+                        subValue="Variability Index"
                     />
                 </div>
 

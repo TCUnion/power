@@ -6,12 +6,13 @@ import StravaConnect from './features/auth/StravaConnect';
 
 import PowerAnalysisPage from './features/power/PowerAnalysisPage';
 import { Link as RouterLink } from 'react-router-dom';
-import { Zap } from 'lucide-react';
+import { Zap, LogOut } from 'lucide-react';
 import MemberBindingCard from './features/auth/MemberBindingCard';
 import PowerDashboard from './features/power/PowerDashboard';
 import tcuLogo from './assets/tcu-logo.png';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { athlete, logout } = useAuth();
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-tcu-blue/20">
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
@@ -22,13 +23,21 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               RELEASE YOUR <span className="text-tcu-orange text-2xl">TCU POWER</span>
             </span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <div className="px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800">
               <span className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-500 uppercase tracking-wider">
                 {import.meta.env.VITE_GIT_HASH || 'v1.2-dev'}
               </span>
             </div>
-            {/* Future: User Menu */}
+            {athlete && (
+              <button
+                onClick={logout}
+                className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all flex items-center justify-center group"
+                title="登出"
+              >
+                <LogOut className="w-4 h-4 group-hover:scale-110 transition-transform" />
+              </button>
+            )}
           </div>
         </div>
       </header>

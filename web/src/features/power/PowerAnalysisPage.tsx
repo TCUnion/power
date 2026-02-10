@@ -16,7 +16,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
     ArrowLeft, Zap, TrendingUp, BarChart3, Target,
-    Activity, Loader2, AlertCircle, RefreshCw, Settings2
+    Activity, Loader2, AlertCircle, RefreshCw
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';

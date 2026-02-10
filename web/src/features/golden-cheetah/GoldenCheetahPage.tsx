@@ -316,7 +316,7 @@ export const GoldenCheetahPage = () => {
 
             const { data: activityData, error: actError } = await supabase
                 .from('strava_activities')
-                .select('id, athlete_id, name, distance, moving_time, elapsed_time, total_elevation_gain, type, sport_type, start_date, average_watts, max_watts, average_heartrate, max_heartrate, suffer_score, average_speed, max_speed')
+                .select('id, athlete_id, name, distance, moving_time, elapsed_time, total_elevation_gain, type, sport_type, start_date, average_watts, max_watts, average_heartrate, max_heartrate, suffer_score, average_speed, max_speed, average_cadence')
                 .eq('athlete_id', athlete.id)
                 .gte('start_date', cutoffDate.toISOString())
                 .in('sport_type', ['Ride', 'VirtualRide', 'MountainBikeRide', 'GravelRide'])

@@ -194,7 +194,7 @@ export function usePowerAnalysis(): UsePowerAnalysisReturn {
         try {
             const { data, error: rpcError } = await supabase
                 .rpc('calculate_normalized_power', {
-                    power_data: JSON.stringify(powerData),
+                    power_data: powerData,
                 });
 
             if (rpcError) {

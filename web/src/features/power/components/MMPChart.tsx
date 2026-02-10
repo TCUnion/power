@@ -2,9 +2,11 @@
  * MMP 曲線圖表 (Mean Maximal Power / Power-Duration Curve)
  * 
  * 顯示選手在不同時間長度下的最大平均功率，
- * 並疊加 Morton's 3P CP 模型擬合曲線。
- * 
- * 參考：GoldenCheetah Power-Duration Model, Velozs cycling-analytics
+ * 並疊加 CP 模型擬合曲線。
+ * 支援多種擬合算法：
+ * 1. Morton's 3-Parameter
+ * 2. Cycling Analytics (Monod & Scherrer 2P)
+ * 3. GoldenCheetah (Inverse Time 2P)
  */
 
 import React, { useMemo, useState } from 'react';
@@ -30,93 +32,190 @@ const formatDurationLabel = (seconds: number): string => {
     return min > 0 ? `${hr}h${min}m` : `${hr}h`;
 };
 
-// Morton's 3-Parameter CP Model: P(t) = CP + W' / (t - τ)
-// 使用 Levenberg-Marquardt 簡化近似
-const fitMorton3P = (pdCurve: { duration: number; power: number }[]): {
+// CP 模型型別定義
+type CPModelType = 'morton3p' | 'cycling_analytics' | 'goldencheetah';
+
+interface CPModelResult {
     cp: number;
     wPrime: number;
     tau: number;
     rSquared: number;
     fittedCurve: { duration: number; power: number }[];
-} | null => {
-    // 需要至少 4 個有效數據點
-    const validPoints = pdCurve.filter(p => p.power > 0 && p.duration >= 60);
-    if (validPoints.length < 4) return null;
+    modelName: string;
+}
 
-    // 初始估計
-    let cp = validPoints[validPoints.length - 1].power; // 最長時間的功率作為 CP 初始值
-    let wPrime = 20000; // 20kJ 初始估計
-    let tau = 15; // 15s 初始估計
+// ============================================================================
+// 1. Morton's 3-Parameter CP Model (TCU Default)
+// Formula: P(t) = CP + W' / (t - τ)
+// Algorithm: Grid Search on τ + OLS for (CP, W')
+// Range: 3 min ~ 20 min (Classic CP Range)
+// ============================================================================
+const fitMorton3P = (pdCurve: { duration: number; power: number }[]): CPModelResult | null => {
+    // 限制範圍：3分鐘 ~ 20分鐘 (CP 黃金區間)
+    const validPoints = pdCurve.filter(p => p.power > 0 && p.duration >= 180 && p.duration <= 1200);
+    if (validPoints.length < 3) return null;
 
-    const maxIterations = 200;
-    let lambda = 0.001;
+    const meanPower = validPoints.reduce((sum, p) => sum + p.power, 0) / validPoints.length;
+    const ssTotal = validPoints.reduce((sum, p) => sum + (p.power - meanPower) ** 2, 0);
+    if (ssTotal === 0) return null;
 
-    for (let iter = 0; iter < maxIterations; iter++) {
-        // 計算殘差
-        let ssr = 0;
-        const residuals: number[] = [];
-        const jacobian: number[][] = [];
+    const solveForTau = (tau: number) => {
+        const n = validPoints.length;
+        let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
 
-        for (const point of validPoints) {
-            const predicted = cp + wPrime / (point.duration - tau);
-            const residual = point.power - predicted;
-            residuals.push(residual);
-            ssr += residual * residual;
-
-            // 偏導數
-            const dcp = -1;
-            const dwp = -1 / (point.duration - tau);
-            const dtau = wPrime / ((point.duration - tau) * (point.duration - tau));
-            jacobian.push([dcp, dwp, dtau]);
+        for (const p of validPoints) {
+            const denominator = p.duration - tau;
+            if (denominator <= 1) return null;
+            const x = 1 / denominator;
+            const y = p.power;
+            sumX += x; sumY += y; sumXY += x * y; sumXX += x * x;
         }
 
-        // 簡化的 LM 步驟 (梯度下降方向)
-        let gradCp = 0, gradWp = 0, gradTau = 0;
-        for (let i = 0; i < residuals.length; i++) {
-            gradCp += -2 * residuals[i] * jacobian[i][0];
-            gradWp += -2 * residuals[i] * jacobian[i][1];
-            gradTau += -2 * residuals[i] * jacobian[i][2];
+        const denom = n * sumXX - sumX * sumX;
+        if (Math.abs(denom) < 1e-10) return null;
+
+        const wPrime = (n * sumXY - sumX * sumY) / denom;
+        const cp = (sumY - wPrime * sumX) / n;
+
+        if (cp <= 0 || wPrime <= 0) return null;
+
+        let ssResidual = 0;
+        for (const p of validPoints) {
+            const predicted = cp + wPrime / (p.duration - tau);
+            ssResidual += (p.power - predicted) ** 2;
         }
+        const rSquared = 1 - ssResidual / ssTotal;
 
-        // 更新參數
-        const newCp = cp - lambda * gradCp;
-        const newWp = wPrime - lambda * gradWp * 100; // W' 的尺度較大
-        const newTau = tau - lambda * gradTau * 0.1;
+        return { cp, wPrime, tau, rSquared };
+    };
 
-        // 邊界限制
-        cp = Math.max(50, Math.min(500, newCp));
-        wPrime = Math.max(1000, Math.min(100000, newWp));
-        tau = Math.max(1, Math.min(60, newTau));
-
-        // 收斂判定
-        if (Math.abs(gradCp) < 0.01 && Math.abs(gradWp) < 1 && Math.abs(gradTau) < 0.001) {
-            break;
+    let bestResult = solveForTau(0);
+    // Grid Search from 0.5s to 30s
+    for (let testTau = 0.5; testTau <= 30; testTau += 0.5) {
+        if (testTau >= 170) break; // Ensure tau < min_duration
+        const result = solveForTau(testTau);
+        if (result && (!bestResult || result.rSquared > bestResult.rSquared)) {
+            bestResult = result;
         }
     }
 
-    // 計算 R²
-    const mean = validPoints.reduce((sum, p) => sum + p.power, 0) / validPoints.length;
-    const ssTotal = validPoints.reduce((sum, p) => sum + (p.power - mean) ** 2, 0);
-    const ssResidual = validPoints.reduce((sum, p) => {
-        const predicted = cp + wPrime / (p.duration - tau);
-        return sum + (p.power - predicted) ** 2;
-    }, 0);
-    const rSquared = Math.max(0, 1 - ssResidual / ssTotal);
+    if (!bestResult) return null;
 
-    // 生成擬合曲線
-    const fittedCurve = MMP_DURATIONS
-        .filter(d => d > tau + 1 && d >= 60)
-        .map(d => ({
-            duration: d,
-            power: Math.round(cp + wPrime / (d - tau)),
-        }));
-
+    const { cp, wPrime, tau, rSquared } = bestResult;
     return {
         cp: Math.round(cp),
         wPrime: Math.round(wPrime),
         tau: Math.round(tau * 10) / 10,
         rSquared: Math.round(rSquared * 1000) / 1000,
-        fittedCurve,
+        modelName: 'Morton 3-Parameter',
+        fittedCurve: MMP_DURATIONS
+            .filter(d => d > tau + 1 && d >= 60)
+            .map(d => ({ duration: d, power: Math.round(cp + wPrime / (d - tau)) })),
+    };
+};
+
+// ============================================================================
+// 2. Cycling Analytics (Monod & Scherrer 2P)
+// Reference: https://github.com/velozs/cycling-analytics
+// Formula: Work = CP * time + W' (Linear Regression on Work vs Time)
+// Range: 3 min ~ 20 min
+// ============================================================================
+const fitCyclingAnalytics = (pdCurve: { duration: number; power: number }[]): CPModelResult | null => {
+    const validPoints = pdCurve.filter(p => p.power > 0 && p.duration >= 180 && p.duration <= 1200);
+    if (validPoints.length < 3) return null;
+
+    // Linear Regression: y = mx + c
+    // y = Work (Joules), x = Time (Seconds)
+    // m (Slope) = CP
+    // c (Intercept) = W'
+
+    const n = validPoints.length;
+    let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+
+    for (const p of validPoints) {
+        const x = p.duration;
+        const y = p.power * p.duration; // Work
+        sumX += x; sumY += y; sumXY += x * y; sumXX += x * x;
+    }
+
+    const denom = n * sumXX - sumX * sumX;
+    if (Math.abs(denom) < 1e-10) return null;
+
+    const cp = (n * sumXY - sumX * sumY) / denom;
+    const wPrime = (sumY - cp * sumX) / n;
+
+    // Calculate R² (in Power domain for fair comparison)
+    const meanPower = validPoints.reduce((sum, p) => sum + p.power, 0) / validPoints.length;
+    const ssTotal = validPoints.reduce((sum, p) => sum + (p.power - meanPower) ** 2, 0);
+    let ssResidual = 0;
+    for (const p of validPoints) {
+        const predicted = cp + wPrime / p.duration;
+        ssResidual += (p.power - predicted) ** 2;
+    }
+    const rSquared = ssTotal !== 0 ? Math.max(0, 1 - ssResidual / ssTotal) : 0;
+
+    return {
+        cp: Math.round(cp),
+        wPrime: Math.round(wPrime),
+        tau: 0,
+        rSquared: Math.round(rSquared * 1000) / 1000,
+        modelName: 'Cycling Analytics (2P)',
+        fittedCurve: MMP_DURATIONS
+            .filter(d => d >= 60)
+            .map(d => ({ duration: d, power: Math.round(cp + wPrime / d) })),
+    };
+};
+
+// ============================================================================
+// 3. GoldenCheetah (Inverse Time 2P)
+// Reference: https://github.com/GoldenCheetah/GoldenCheetah
+// Formula: Power = CP + W' * (1/time) (Linear Regression on Power vs 1/Time)
+// Note: This minimizes error in Watts, unlike Monod-Scherrer which minimizes Work error.
+// Range: 3 min ~ 20 min
+// ============================================================================
+const fitGoldenCheetah = (pdCurve: { duration: number; power: number }[]): CPModelResult | null => {
+    const validPoints = pdCurve.filter(p => p.power > 0 && p.duration >= 180 && p.duration <= 1200);
+    if (validPoints.length < 3) return null;
+
+    // Linear Regression: y = mx + c
+    // y = Power, x = 1 / Time
+    // m (Slope) = W'
+    // c (Intercept) = CP
+
+    const n = validPoints.length;
+    let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+
+    for (const p of validPoints) {
+        const x = 1 / p.duration;
+        const y = p.power;
+        sumX += x; sumY += y; sumXY += x * y; sumXX += x * x;
+    }
+
+    const denom = n * sumXX - sumX * sumX;
+    if (Math.abs(denom) < 1e-10) return null;
+
+    const wPrime = (n * sumXY - sumX * sumY) / denom;
+    const cp = (sumY - wPrime * sumX) / n;
+
+    // Calculate R²
+    const meanPower = validPoints.reduce((sum, p) => sum + p.power, 0) / validPoints.length;
+    const ssTotal = validPoints.reduce((sum, p) => sum + (p.power - meanPower) ** 2, 0);
+    let ssResidual = 0;
+    for (const p of validPoints) {
+        const predicted = cp + wPrime / p.duration;
+        ssResidual += (p.power - predicted) ** 2;
+    }
+    const rSquared = ssTotal !== 0 ? Math.max(0, 1 - ssResidual / ssTotal) : 0;
+
+    return {
+        cp: Math.round(cp),
+        wPrime: Math.round(wPrime),
+        tau: 0,
+        rSquared: Math.round(rSquared * 1000) / 1000,
+        modelName: 'GoldenCheetah (2P)',
+        fittedCurve: MMP_DURATIONS
+            .filter(d => d >= 60)
+            .map(d => ({ duration: d, power: Math.round(cp + wPrime / d) })),
     };
 };
 
@@ -126,28 +225,20 @@ const calculateMMP = (allPowerArrays: number[][]): { duration: number; power: nu
 
     for (const duration of MMP_DURATIONS) {
         let maxAvg = 0;
-
         for (const powerData of allPowerArrays) {
             if (powerData.length < duration) continue;
-
-            // 滑動窗口
             let windowSum = 0;
-            for (let i = 0; i < duration; i++) {
-                windowSum += powerData[i];
-            }
+            // First window
+            for (let i = 0; i < duration; i++) windowSum += powerData[i];
             maxAvg = Math.max(maxAvg, windowSum / duration);
-
+            // Sliding window
             for (let i = duration; i < powerData.length; i++) {
                 windowSum += powerData[i] - powerData[i - duration];
                 maxAvg = Math.max(maxAvg, windowSum / duration);
             }
         }
-
-        if (maxAvg > 0) {
-            result.push({ duration, power: Math.round(maxAvg) });
-        }
+        if (maxAvg > 0) result.push({ duration, power: Math.round(maxAvg) });
     }
-
     return result;
 };
 
@@ -160,9 +251,7 @@ const POWER_PROFILE_DURATIONS = [
     { key: '60min', duration: 3600, label: '60 分鐘', category: '耐力' },
 ];
 
-// 根據體重計算功率分級 (W/kg)
 const getPowerLevel = (wpk: number, durationKey: string): { level: string; color: string; pct: number } => {
-    // 簡化的 Coggan 功率分級表 (男性)
     const thresholds: Record<string, number[]> = {
         '5s': [10.0, 13.0, 16.0, 19.0, 22.0, 25.0],
         '1min': [5.0, 6.5, 8.0, 9.5, 11.0, 12.5],
@@ -172,40 +261,38 @@ const getPowerLevel = (wpk: number, durationKey: string): { level: string; color
     };
     const levels = ['未訓練', '初學者', '中級', '進階', '菁英', '世界級'];
     const colors = ['#6B7280', '#60A5FA', '#34D399', '#FBBF24', '#F97316', '#EF4444'];
-
     const t = thresholds[durationKey] || thresholds['5min'];
     let idx = 0;
-    for (let i = t.length - 1; i >= 0; i--) {
-        if (wpk >= t[i]) { idx = i; break; }
-    }
+    for (let i = t.length - 1; i >= 0; i--) { if (wpk >= t[i]) { idx = i; break; } }
     const pct = Math.min(100, (wpk / t[t.length - 1]) * 100);
     return { level: levels[idx], color: colors[idx], pct };
 };
 
 interface MMPChartProps {
-    powerArrays: number[][]; // 多個活動的功率數據陣列
+    powerArrays: number[][];
     ftp: number;
-    weight?: number; // 體重 (kg)，用於 W/kg 計算
+    weight?: number;
 }
 
 export const MMPChart: React.FC<MMPChartProps> = ({ powerArrays, ftp, weight = 70 }) => {
     const [showFitted, setShowFitted] = useState(true);
+    const [modelType, setModelType] = useState<CPModelType>('cycling_analytics'); // Default to Cycling Analytics
 
-    // 計算 MMP 曲線
     const mmpCurve = useMemo(() => calculateMMP(powerArrays), [powerArrays]);
 
-    // 擬合 CP 模型
-    const cpModel = useMemo(() => fitMorton3P(mmpCurve), [mmpCurve]);
+    const cpModel = useMemo(() => {
+        switch (modelType) {
+            case 'morton3p': return fitMorton3P(mmpCurve);
+            case 'cycling_analytics': return fitCyclingAnalytics(mmpCurve);
+            case 'goldencheetah': return fitGoldenCheetah(mmpCurve);
+            default: return fitCyclingAnalytics(mmpCurve);
+        }
+    }, [mmpCurve, modelType]);
 
-    // 合併數據供圖表使用 (使用對數刻度的 X 軸)
     const chartData = useMemo(() => {
         if (mmpCurve.length === 0) return [];
-
         const fittedMap = new Map<number, number>();
-        if (cpModel?.fittedCurve) {
-            cpModel.fittedCurve.forEach(p => fittedMap.set(p.duration, p.power));
-        }
-
+        if (cpModel?.fittedCurve) cpModel.fittedCurve.forEach(p => fittedMap.set(p.duration, p.power));
         return mmpCurve.map(p => ({
             duration: p.duration,
             durationLabel: formatDurationLabel(p.duration),
@@ -215,7 +302,6 @@ export const MMPChart: React.FC<MMPChartProps> = ({ powerArrays, ftp, weight = 7
         }));
     }, [mmpCurve, cpModel, weight]);
 
-    // 功率剖面分析
     const powerProfile = useMemo(() => {
         return POWER_PROFILE_DURATIONS.map(pp => {
             const mmpPoint = mmpCurve.find(m => m.duration === pp.duration);
@@ -237,36 +323,63 @@ export const MMPChart: React.FC<MMPChartProps> = ({ powerArrays, ftp, weight = 7
 
     return (
         <div className="space-y-6">
+            {/* Model Selector Header */}
+            <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
+                <div className="flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-yellow-500" />
+                    <h3 className="text-lg font-bold text-white">MMP / CP 模型分析</h3>
+                </div>
+
+                <div className="flex bg-slate-800 p-1 rounded-lg">
+                    <button
+                        onClick={() => setModelType('morton3p')}
+                        className={`text-[10px] md:text-xs font-bold px-3 py-1.5 rounded-md transition-all ${modelType === 'morton3p' ? 'bg-indigo-500 text-white shadow-lg' : 'text-slate-400 hover:text-white'
+                            }`}
+                        title="Morton 3-Parameter (TCU)"
+                    >
+                        Morton 3P
+                    </button>
+                    <button
+                        onClick={() => setModelType('cycling_analytics')}
+                        className={`text-[10px] md:text-xs font-bold px-3 py-1.5 rounded-md transition-all ${modelType === 'cycling_analytics' ? 'bg-blue-500 text-white shadow-lg' : 'text-slate-400 hover:text-white'
+                            }`}
+                        title="Cycling Analytics (Velozs)"
+                    >
+                        Cycling Analytics
+                    </button>
+                    <button
+                        onClick={() => setModelType('goldencheetah')}
+                        className={`text-[10px] md:text-xs font-bold px-3 py-1.5 rounded-md transition-all ${modelType === 'goldencheetah' ? 'bg-orange-500 text-white shadow-lg' : 'text-slate-400 hover:text-white'
+                            }`}
+                        title="GoldenCheetah (2P)"
+                    >
+                        GoldenCheetah
+                    </button>
+                </div>
+            </div>
+
             {/* CP 模型結果 */}
             {cpModel && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div className="bg-gradient-to-br from-yellow-500/10 to-orange-500/10 rounded-2xl p-4 border border-yellow-500/20">
                         <div className="text-[10px] font-bold text-yellow-500/70 uppercase tracking-widest mb-1">Critical Power</div>
                         <div className="text-2xl font-black text-yellow-400">{cpModel.cp}<span className="text-sm font-bold text-yellow-500/50 ml-1">W</span></div>
-                        <div className="text-[10px] text-slate-500 mt-1">
-                            {weight > 0 && `${(cpModel.cp / weight).toFixed(2)} W/kg`}
-                        </div>
+                        <div className="text-[10px] text-slate-500 mt-1">{weight > 0 && `${(cpModel.cp / weight).toFixed(2)} W/kg`}</div>
                     </div>
                     <div className="bg-gradient-to-br from-red-500/10 to-pink-500/10 rounded-2xl p-4 border border-red-500/20">
                         <div className="text-[10px] font-bold text-red-500/70 uppercase tracking-widest mb-1">W' (無氧容量)</div>
                         <div className="text-2xl font-black text-red-400">{(cpModel.wPrime / 1000).toFixed(1)}<span className="text-sm font-bold text-red-500/50 ml-1">kJ</span></div>
-                        <div className="text-[10px] text-slate-500 mt-1">
-                            衝刺耐受極限
-                        </div>
+                        <div className="text-[10px] text-slate-500 mt-1">{cpModel.modelName}</div>
                     </div>
                     <div className="bg-gradient-to-br from-purple-500/10 to-indigo-500/10 rounded-2xl p-4 border border-purple-500/20">
                         <div className="text-[10px] font-bold text-purple-500/70 uppercase tracking-widest mb-1">τ (時間常數)</div>
                         <div className="text-2xl font-black text-purple-400">{cpModel.tau}<span className="text-sm font-bold text-purple-500/50 ml-1">s</span></div>
-                        <div className="text-[10px] text-slate-500 mt-1">
-                            反應延遲修正
-                        </div>
+                        <div className="text-[10px] text-slate-500 mt-1">{cpModel.tau === 0 ? '不適用 (2P 模型)' : '反應延遲修正'}</div>
                     </div>
                     <div className="bg-gradient-to-br from-emerald-500/10 to-teal-500/10 rounded-2xl p-4 border border-emerald-500/20">
                         <div className="text-[10px] font-bold text-emerald-500/70 uppercase tracking-widest mb-1">模型擬合度 (R²)</div>
                         <div className="text-2xl font-black text-emerald-400">{cpModel.rSquared.toFixed(3)}</div>
-                        <div className="text-[10px] text-slate-500 mt-1">
-                            {cpModel.rSquared >= 0.95 ? '極佳' : cpModel.rSquared >= 0.90 ? '良好' : '普通'}
-                        </div>
+                        <div className="text-[10px] text-slate-500 mt-1">{cpModel.rSquared >= 0.95 ? '極佳' : cpModel.rSquared >= 0.90 ? '良好' : '普通'}</div>
                     </div>
                 </div>
             )}
@@ -314,7 +427,6 @@ export const MMPChart: React.FC<MMPChartProps> = ({ powerArrays, ftp, weight = 7
                                 domain={[0, 'auto']}
                                 tickFormatter={(v) => `${v}W`}
                             />
-                            {/* FTP 參考線 */}
                             {ftp > 0 && (
                                 <ReferenceLine
                                     y={ftp}
@@ -324,7 +436,6 @@ export const MMPChart: React.FC<MMPChartProps> = ({ powerArrays, ftp, weight = 7
                                     label={{ value: `FTP ${ftp}W`, position: 'right', fill: '#3B82F6', fontSize: 10, fontWeight: 700 }}
                                 />
                             )}
-                            {/* CP 參考線 */}
                             {cpModel && (
                                 <ReferenceLine
                                     y={cpModel.cp}
@@ -344,11 +455,10 @@ export const MMPChart: React.FC<MMPChartProps> = ({ powerArrays, ftp, weight = 7
                                 }}
                                 formatter={(value: any, name: string) => {
                                     if (name === 'power') return [`${value} W`, '實際最大功率'];
-                                    if (name === 'fitted') return [`${value} W`, 'CP 模型預測'];
+                                    if (name === 'fitted') return [`${value} W`, `CP 模型 (${cpModel?.modelName})`];
                                     return [value, name];
                                 }}
                             />
-                            {/* 實際 MMP 曲線 */}
                             <Area
                                 type="monotone"
                                 dataKey="power"
@@ -358,7 +468,6 @@ export const MMPChart: React.FC<MMPChartProps> = ({ powerArrays, ftp, weight = 7
                                 dot={{ r: 3, fill: '#EAB308', strokeWidth: 0 }}
                                 activeDot={{ r: 5, fill: '#EAB308', stroke: '#fff', strokeWidth: 2 }}
                             />
-                            {/* CP 模型擬合曲線 */}
                             {showFitted && (
                                 <Line
                                     type="monotone"
@@ -402,7 +511,6 @@ export const MMPChart: React.FC<MMPChartProps> = ({ powerArrays, ftp, weight = 7
                                     </span>
                                 </div>
                             </div>
-                            {/* 進度條 */}
                             <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
                                 <div
                                     className="h-full rounded-full transition-all duration-700 ease-out"

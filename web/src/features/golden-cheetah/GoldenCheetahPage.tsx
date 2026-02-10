@@ -650,179 +650,178 @@ export const GoldenCheetahPage = () => {
     const hasData = activityStream.length > 0 || hrStream.length > 0;
     const currentSyncStatus = selectedActivityId ? syncStatus[selectedActivityId] : 'idle';
 
-    if (!hasData) {
-        return (
-            <div className="min-h-screen bg-slate-50 dark:bg-[#0f111a] text-slate-900 dark:text-slate-100 p-4 md:p-6">
-                {/* Header (Simplified) */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 border-b border-slate-200 dark:border-slate-800 pb-4">
-                    <div>
-                        <h1 className="text-2xl font-black italic tracking-tighter uppercase flex items-center gap-2">
-                            <span className="text-yellow-500">GOLDEN</span> CHEETAH <span className="text-slate-400 text-sm font-normal normal-case not-italic tracking-normal px-2 bg-slate-800 rounded-full">Dashboard View</span>
-                        </h1>
-                        <div className="text-sm font-mono text-slate-400 mt-2">{latestActivity.name}</div>
-                    </div>
-                    <Link to="/power" className="p-2 bg-slate-800 rounded-lg hover:bg-slate-700 transition self-start md:self-auto mt-4 md:mt-0">
-                        <ArrowLeft className="w-4 h-4 text-slate-400" />
-                    </Link>
-                </div>
-
-                <div className="flex flex-col items-center justify-center py-20 bg-slate-900/50 rounded-2xl border border-slate-800/50 border-dashed">
-                    <div className="bg-slate-800 p-6 rounded-full mb-6 relative">
-                        <RefreshCw className={`w-12 h-12 text-blue-500 ${currentSyncStatus === 'syncing' ? 'animate-spin' : ''}`} />
-                        {currentSyncStatus === 'success' && <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-white p-1 rounded-full"><CheckCircle className="w-5 h-5" /></div>}
-                    </div>
-                    <h2 className="text-2xl font-bold text-white mb-2">
-                        {currentSyncStatus === 'syncing' ? '正在同步數據...' : '此活動尚未同步詳細數據'}
-                    </h2>
-                    <p className="text-slate-400 mb-8 text-center max-w-md">
-                        {currentSyncStatus === 'syncing'
-                            ? '正在從 Strava 抓取詳細的功率與心率串流數據，請稍候...'
-                            : 'GoldenCheetah 分析需要完整的每秒功率與心率數據。請點擊下方按鈕進行同步。'
-                        }
-                    </p>
-
-                    {currentSyncStatus === 'idle' || currentSyncStatus === 'error' ? (
-                        <button
-                            onClick={() => selectedActivityId && handleSyncActivity(selectedActivityId)}
-                            className="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-500/20 active:scale-95 flex items-center gap-2"
-                        >
-                            <RefreshCw className="w-5 h-5" />
-                            立即同步數據
-                        </button>
-                    ) : (
-                        <div className="px-8 py-3 bg-slate-800 text-slate-400 font-bold rounded-xl cursor-not-allowed flex items-center gap-2">
-                            <RefreshCw className="w-5 h-5 animate-spin" />
-                            同步中...
-                        </div>
-                    )}
-
-                    {currentSyncStatus === 'error' && (
-                        <p className="mt-4 text-red-400 flex items-center gap-2">
-                            <AlertCircle className="w-4 h-4" /> 同步失敗，請稍後再試
-                        </p>
-                    )}
-                </div>
-            </div>
-        );
-    }
+    // ============================================
+    // Main Render
+    // ============================================
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-[#0f111a] text-slate-900 dark:text-slate-100 p-4 md:p-6 pb-20">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 border-b border-slate-200 dark:border-slate-800 pb-4">
-                <div>
-                    <h1 className="text-2xl font-black italic tracking-tighter uppercase flex items-center gap-2">
-                        <span className="text-yellow-500">GOLDEN</span> CHEETAH <span className="text-slate-400 text-sm font-normal normal-case not-italic tracking-normal px-2 bg-slate-800 rounded-full">Dashboard View</span>
-                    </h1>
-                    {/* Activity Selector */}
-                    <div className="flex items-center gap-2 mt-2 relative">
-                        {/* 上一個活動 */}
-                        <button
-                            onClick={() => {
-                                const idx = allActivities.findIndex((a: any) => a.id === selectedActivityId);
-                                if (idx < allActivities.length - 1) selectActivity(allActivities[idx + 1].id);
-                            }}
-                            disabled={allActivities.findIndex((a: any) => a.id === selectedActivityId) >= allActivities.length - 1}
-                            className="p-1.5 rounded-md bg-slate-800 hover:bg-slate-700 transition disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
-                            title="上一個活動"
-                        >
-                            <ChevronLeft className="w-4 h-4 text-slate-400" />
-                        </button>
+            <header className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6">
+                <div className="flex items-center gap-4 bg-slate-900/50 p-2 pr-4 rounded-xl border border-slate-800/50">
+                    <button
+                        onClick={() => navigate('/power')}
+                        className="p-2 hover:bg-slate-800 rounded-lg transition-colors group"
+                        title="返回"
+                    >
+                        <ChevronLeft className="w-5 h-5 text-slate-400 group-hover:text-white" />
+                    </button>
 
-                        {/* 活動名稱（點擊展開下拉） */}
+                    {/* Activity Selector (The "Table" user refers to) */}
+                    <div className="relative" ref={dropdownRef}>
                         <button
-                            onClick={() => setShowActivityDropdown(!showActivityDropdown)}
-                            className="flex items-center gap-2 text-sm font-mono bg-slate-800/80 hover:bg-slate-700/80 px-3 py-1.5 rounded-lg border border-slate-700 transition cursor-pointer min-w-0"
+                            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                            className="flex items-center gap-3 px-4 py-2 bg-slate-800 hover:bg-slate-700/80 rounded-lg transition-all border border-slate-700/50 min-w-[280px] sm:min-w-[320px] max-w-[500px]"
                         >
-                            <span className="text-white font-bold truncate max-w-[300px]">{latestActivity.name}</span>
-                            <span className="text-slate-500">•</span>
-                            <span className="text-slate-400 whitespace-nowrap">{format(new Date(latestActivity.start_date), 'yyyy-MM-dd HH:mm')}</span>
-                            <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform flex-shrink-0 ${showActivityDropdown ? 'rotate-180' : ''}`} />
-                        </button>
-
-                        {/* 下一個活動 */}
-                        <button
-                            onClick={() => {
-                                const idx = allActivities.findIndex((a: any) => a.id === selectedActivityId);
-                                if (idx > 0) selectActivity(allActivities[idx - 1].id);
-                            }}
-                            disabled={allActivities.findIndex((a: any) => a.id === selectedActivityId) <= 0}
-                            className="p-1.5 rounded-md bg-slate-800 hover:bg-slate-700 transition disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
-                            title="下一個活動"
-                        >
-                            <ChevronRight className="w-4 h-4 text-slate-400" />
-                        </button>
-
-                        {/* 活動下拉列表 */}
-                        {showActivityDropdown && (
-                            <>
-                                <div className="fixed inset-0 z-40" onClick={() => setShowActivityDropdown(false)} />
-                                <div className="absolute top-full left-0 mt-1 z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl max-h-[400px] overflow-y-auto w-[500px] scrollbar-thin">
-                                    <div className="sticky top-0 bg-slate-900 px-3 py-2 border-b border-slate-700 text-xs text-slate-500 font-mono">
-                                        {allActivities.length} 個活動（最近 90 天）
-                                    </div>
-                                    {allActivities.map((act: any, idx: number) => {
-                                        const hasStream = allStreamsData.some((s: any) => s.activity_id === act.id);
-                                        const isSelected = act.id === selectedActivityId;
-                                        return (
-                                            <button
-                                                key={act.id}
-                                                onClick={() => selectActivity(act.id)}
-                                                className={`w-full text-left px-3 py-2.5 flex items-center gap-3 transition cursor-pointer border-b border-slate-800/50 last:border-0 ${isSelected
-                                                    ? 'bg-yellow-500/10 border-l-2 border-l-yellow-500'
-                                                    : 'hover:bg-slate-800/60'
-                                                    }`}
-                                            >
-                                                <div className="text-xs text-slate-500 font-mono w-[80px] flex-shrink-0">
-                                                    {format(new Date(act.start_date), 'MM/dd HH:mm')}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className={`text-sm truncate ${isSelected ? 'text-yellow-400 font-bold' : 'text-slate-200'}`}>
-                                                        {act.name}
-                                                    </div>
-                                                    <div className="text-[10px] text-slate-500 flex gap-3 mt-0.5 items-center">
-                                                        <span>{(act.distance / 1000).toFixed(1)} km</span>
-                                                        <span>{new Date(act.moving_time * 1000).toISOString().substr(11, 8)}</span>
-                                                        {!hasStream && (
-                                                            <span className="text-orange-400 flex items-center gap-1 ml-auto">
-                                                                {syncStatus[act.id] === 'syncing' ? (
-                                                                    <RefreshCw className="w-3 h-3 animate-spin" />
-                                                                ) : (
-                                                                    <Info className="w-3 h-3" />
-                                                                )}
-                                                                {syncStatus[act.id] === 'syncing' ? '同步中' : '無數據'}
-                                                            </span>
-                                                        )}
-                                                        {hasStream && act.average_watts && <span>{act.average_watts}W avg</span>}
-                                                    </div>
-                                                </div>
-                                                {isSelected && !hasStream && syncStatus[act.id] !== 'syncing' && (
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleSyncActivity(act.id);
-                                                        }}
-                                                        className="p-1 rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/40"
-                                                        title="立即同步"
-                                                    >
-                                                        <RefreshCw className="w-3.5 h-3.5" />
-                                                    </button>
-                                                )}
-                                            </button>
-                                        );
-                                    })}
+                            <div className="flex flex-col items-start truncate flex-1">
+                                <span className={`text-sm font-bold truncate w-full ${!hasData ? 'text-slate-400' : 'text-white'}`}>
+                                    {latestActivity.name}
+                                </span>
+                                <div className="flex items-center gap-2 text-xs text-slate-400 font-mono mt-0.5">
+                                    <span>{format(new Date(latestActivity.start_date), 'yyyy-MM-dd HH:mm')}</span>
+                                    <span>•</span>
+                                    <span>{(latestActivity.distance / 1000).toFixed(1)}km</span>
+                                    {!hasData && (
+                                        <span className="flex items-center gap-1 text-orange-400 ml-2 bg-orange-500/10 px-1.5 py-0.5 rounded">
+                                            <Info className="w-3 h-3" /> 未同步
+                                        </span>
+                                    )}
                                 </div>
-                            </>
+                            </div>
+                            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {/* Dropdown Menu */}
+                        {isDropdownOpen && (
+                            <div className="absolute top-full left-0 mt-2 w-full sm:w-[500px] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 max-h-[600px] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+                                <div className="p-3 border-b border-slate-800 bg-slate-900/95 backdrop-blur sticky top-0 z-10">
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                                        <input
+                                            type="text"
+                                            placeholder="搜尋活動名稱..."
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500 transition-colors placeholder:text-slate-600"
+                                            autoFocus
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="overflow-y-auto flex-1 custom-scrollbar">
+                                    {filteredActivities.length === 0 ? (
+                                        <div className="p-8 text-center text-slate-500 text-xs">
+                                            無法找到符合的活動
+                                        </div>
+                                    ) : (
+                                        filteredActivities.map(act => {
+                                            const hasStream = allStreamsData.some((s: any) => s.activity_id === act.id);
+                                            const isSelected = act.id === selectedActivityId;
+                                            return (
+                                                <button
+                                                    key={act.id}
+                                                    onClick={() => selectActivity(act.id)}
+                                                    className={`w-full text-left px-3 py-2.5 flex items-center gap-3 transition cursor-pointer border-b border-slate-800/50 last:border-0 ${isSelected
+                                                        ? 'bg-yellow-500/10 border-l-2 border-l-yellow-500'
+                                                        : 'hover:bg-slate-800/60'
+                                                        }`}
+                                                >
+                                                    <div className="text-xs text-slate-500 font-mono w-[80px] flex-shrink-0">
+                                                        {format(new Date(act.start_date), 'MM/dd HH:mm')}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className={`text-sm truncate ${isSelected ? 'text-yellow-400 font-bold' : 'text-slate-200'}`}>
+                                                            {act.name}
+                                                        </div>
+                                                        <div className="text-[10px] text-slate-500 flex gap-3 mt-0.5 items-center">
+                                                            <span>{(act.distance / 1000).toFixed(1)} km</span>
+                                                            <span>{new Date(act.moving_time * 1000).toISOString().substr(11, 8)}</span>
+                                                            {!hasStream && (
+                                                                <span className="text-orange-400 flex items-center gap-1 ml-auto">
+                                                                    {syncStatus[act.id] === 'syncing' ? (
+                                                                        <RefreshCw className="w-3 h-3 animate-spin" />
+                                                                    ) : (
+                                                                        <Info className="w-3 h-3" />
+                                                                    )}
+                                                                    {syncStatus[act.id] === 'syncing' ? '同步中' : '無數據'}
+                                                                </span>
+                                                            )}
+                                                            {hasStream && act.average_watts && <span>{act.average_watts}W avg</span>}
+                                                        </div>
+                                                    </div>
+                                                    {isSelected && !hasStream && syncStatus[act.id] !== 'syncing' && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleSyncActivity(act.id);
+                                                            }}
+                                                            className="p-1 rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/40"
+                                                            title="立即同步"
+                                                        >
+                                                            <RefreshCw className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
+                                                </button>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            </div>
                         )}
                     </div>
+
+
+                    {/* 快速切換按鈕 */}
+                    <div className="flex items-center gap-1 bg-slate-800 rounded-lg p-1 border border-slate-700/50 hidden sm:flex">
+                        <button
+                            onClick={() => handleNavigateActivity('prev')}
+                            disabled={filteredActivities.findIndex(a => a.id === selectedActivityId) >= filteredActivities.length - 1}
+                            className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={() => handleNavigateActivity('next')}
+                            disabled={filteredActivities.findIndex(a => a.id === selectedActivityId) <= 0}
+                            className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                        >
+                            <ChevronRight className="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
-                <div className="flex items-center gap-4 mt-4 md:mt-0">
-                    <Link to="/power" className="p-2 bg-slate-800 rounded-lg hover:bg-slate-700 transition mr-2">
-                        <ArrowLeft className="w-4 h-4 text-slate-400" />
-                    </Link>
-                    {/* Header Metrics Removed */}
+
+                {/* Right Side Actions */}
+                <div className="flex items-center gap-3">
+                    {/* Sync Button (Visible if unsynced) */}
+                    {!hasData && (
+                        <button
+                            onClick={() => selectedActivityId && handleSyncActivity(selectedActivityId)}
+                            disabled={currentSyncStatus === 'syncing'}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all
+                                ${currentSyncStatus === 'syncing'
+                                    ? 'bg-slate-800 text-slate-400 cursor-not-allowed'
+                                    : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20 active:scale-95'}`}
+                        >
+                            <RefreshCw className={`w-4 h-4 ${currentSyncStatus === 'syncing' ? 'animate-spin' : ''}`} />
+                            {currentSyncStatus === 'syncing' ? '同步中...' : '同步數據'}
+                        </button>
+                    )}
+
+                    {hasData && (
+                        <div className="flex items-center bg-slate-900/50 rounded-xl p-1 border border-slate-800/50">
+                            <button className="px-3 py-1.5 rounded-lg bg-yellow-500 text-slate-900 text-xs font-bold shadow-lg shadow-yellow-500/20">
+                                Dashboard
+                            </button>
+                            <button className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 text-xs font-medium transition-colors">
+                                Aerolab
+                            </button>
+                            <button className="px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 text-xs font-medium transition-colors">
+                                Compare
+                            </button>
+                        </div>
+                    )}
                 </div>
-            </div>
+            </header>
 
             {/* Main Grid Layout */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4 auto-rows-min">
@@ -939,8 +938,44 @@ export const GoldenCheetahPage = () => {
                 </div>
 
                 {/* 2. Main Chart: Power & W' Balance */}
-                <div className="md:col-span-12 bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 min-h-[400px] flex flex-col">
-                    <div className="flex justify-between items-center mb-4">
+                <div className="md:col-span-12 bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 min-h-[400px] flex flex-col relative overflow-hidden">
+
+                    {/* Sync Overlay */}
+                    {!hasData && (
+                        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-900/60 backdrop-blur-sm p-6 text-center animate-in fade-in duration-500">
+                            <div className="bg-slate-800 p-5 rounded-full mb-4 shadow-xl border border-slate-700 relative">
+                                <RefreshCw className={`w-10 h-10 text-blue-500 ${currentSyncStatus === 'syncing' ? 'animate-spin' : ''}`} />
+                                {currentSyncStatus === 'success' && <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-0.5 rounded-full"><CheckCircle className="w-4 h-4" /></div>}
+                            </div>
+                            <h3 className="text-xl font-bold text-white mb-2">
+                                {currentSyncStatus === 'syncing' ? '正在同步數據...' : '需要同步資料'}
+                            </h3>
+                            <p className="text-slate-200 mb-6 text-sm max-w-sm">
+                                {currentSyncStatus === 'syncing'
+                                    ? '正在抓取功率與心率數據，請稍候...'
+                                    : '此活動尚未有詳細串流數據，無法進行功率分析。'
+                                }
+                            </p>
+
+                            {currentSyncStatus === 'idle' || currentSyncStatus === 'error' ? (
+                                <button
+                                    onClick={() => selectedActivityId && handleSyncActivity(selectedActivityId)}
+                                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-all shadow-lg shadow-blue-500/20 active:scale-95 flex items-center gap-2 text-sm"
+                                >
+                                    <RefreshCw className="w-4 h-4" />
+                                    立即同步
+                                </button>
+                            ) : (
+                                <div className="px-6 py-2.5 bg-slate-800 text-slate-400 font-bold rounded-lg cursor-not-allowed flex items-center gap-2 text-sm border border-slate-700">
+                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                    同步中...
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Existing Chart Header */}
+                    <div className={`flex justify-between items-center mb-4 transition-all duration-500 ${!hasData ? 'opacity-10 blur-[2px]' : ''}`}>
                         <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
                             <Zap className="w-4 h-4 text-yellow-500" />
                             Power & W' Balance
@@ -975,7 +1010,7 @@ export const GoldenCheetahPage = () => {
                         </div>
                     </div>
 
-                    <div className="flex-1 w-full min-h-[350px]">
+                    <div className={`flex-1 w-full min-h-[350px] transition-all duration-500 ${!hasData ? 'opacity-10 blur-[2px] pointer-events-none' : ''}`}>
                         <ResponsiveContainer width="100%" height="100%">
                             <ComposedChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                                 <defs>
@@ -1247,89 +1282,91 @@ export const GoldenCheetahPage = () => {
                 </div>
 
                 {/* 4. Fatigue Zones (W' Balance Distribution) - GoldenCheetah 核心功能 */}
-                {fatigueZones.length > 0 && (
-                    <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Fatigue Zones Bar Chart */}
-                        <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
-                            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-2">
-                                <Gauge className="w-4 h-4 text-orange-500" />
-                                W' Fatigue Zones
-                            </h3>
-                            <p className="text-xs text-slate-400 mb-3">
-                                根據 W' Balance 剩餘量分析疲勞分佈，數值越低代表疲勞程度越高。
-                            </p>
-                            <div className="h-[200px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={fatigueZones} layout="vertical">
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} horizontal={false} />
-                                        <XAxis type="number" stroke="#64748b" tick={{ fontSize: 10 }} unit="%" />
-                                        <YAxis type="category" dataKey="name" stroke="#64748b" tick={{ fontSize: 11 }} width={30} />
-                                        <Tooltip
-                                            cursor={{ fill: 'transparent' }}
-                                            contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '12px' }}
-                                            formatter={(val: number, _: string, props: any) => [`${val}% (${props.payload.timeStr})`, props.payload.label]}
-                                        />
-                                        <Bar dataKey="pct" radius={[0, 4, 4, 0]}>
-                                            <LabelList dataKey="pct" position="right" formatter={(val: number) => val > 0 ? `${val}%` : ''} fill="#94a3b8" fontSize={10} />
-                                            {fatigueZones.map((entry, index) => (
-                                                <Cell key={`fatigue-${index}`} fill={entry.color} />
-                                            ))}
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
-
-                        {/* Fatigue Zones Table + Notes */}
-                        <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
-                            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-2">
-                                <Info className="w-4 h-4 text-blue-500" />
-                                Fatigue Zone Details
-                            </h3>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
-                                    <thead>
-                                        <tr className="text-slate-400 text-xs uppercase border-b border-slate-700">
-                                            <th className="py-2 text-left">Zone</th>
-                                            <th className="py-2 text-left">Description</th>
-                                            <th className="py-2 text-right">Low (J)</th>
-                                            <th className="py-2 text-right">High (J)</th>
-                                            <th className="py-2 text-right">Time</th>
-                                            <th className="py-2 text-right">%</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {fatigueZones.map((z) => (
-                                            <tr key={z.name} className="border-b border-slate-800/50 hover:bg-slate-700/20 transition-colors">
-                                                <td className="py-2 font-bold" style={{ color: z.color }}>{z.name}</td>
-                                                <td className="py-2 text-slate-300">{z.label}</td>
-                                                <td className="py-2 text-right font-mono text-slate-400">{z.minJ}</td>
-                                                <td className="py-2 text-right font-mono text-slate-400">{z.maxJ}</td>
-                                                <td className="py-2 text-right font-mono">{z.timeStr}</td>
-                                                <td className="py-2 text-right font-mono font-bold">{z.pct}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Notes / 活動描述 */}
-                            {latestActivity.description && (
-                                <div className="mt-4 pt-4 border-t border-slate-700">
-                                    <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2 flex items-center gap-2">
-                                        <FileText className="w-3 h-3" /> Notes
-                                    </h4>
-                                    <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{latestActivity.description}</p>
+                {
+                    fatigueZones.length > 0 && (
+                        <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Fatigue Zones Bar Chart */}
+                            <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
+                                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-2">
+                                    <Gauge className="w-4 h-4 text-orange-500" />
+                                    W' Fatigue Zones
+                                </h3>
+                                <p className="text-xs text-slate-400 mb-3">
+                                    根據 W' Balance 剩餘量分析疲勞分佈，數值越低代表疲勞程度越高。
+                                </p>
+                                <div className="h-[200px]">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={fatigueZones} layout="vertical">
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} horizontal={false} />
+                                            <XAxis type="number" stroke="#64748b" tick={{ fontSize: 10 }} unit="%" />
+                                            <YAxis type="category" dataKey="name" stroke="#64748b" tick={{ fontSize: 11 }} width={30} />
+                                            <Tooltip
+                                                cursor={{ fill: 'transparent' }}
+                                                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '12px' }}
+                                                formatter={(val: number, _: string, props: any) => [`${val}% (${props.payload.timeStr})`, props.payload.label]}
+                                            />
+                                            <Bar dataKey="pct" radius={[0, 4, 4, 0]}>
+                                                <LabelList dataKey="pct" position="right" formatter={(val: number) => val > 0 ? `${val}%` : ''} fill="#94a3b8" fontSize={10} />
+                                                {fatigueZones.map((entry, index) => (
+                                                    <Cell key={`fatigue-${index}`} fill={entry.color} />
+                                                ))}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
                                 </div>
-                            )}
-                        </div>
-                    </div>
-                )}
+                            </div>
 
-            </div>
+                            {/* Fatigue Zones Table + Notes */}
+                            <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
+                                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-2">
+                                    <Info className="w-4 h-4 text-blue-500" />
+                                    Fatigue Zone Details
+                                </h3>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="text-slate-400 text-xs uppercase border-b border-slate-700">
+                                                <th className="py-2 text-left">Zone</th>
+                                                <th className="py-2 text-left">Description</th>
+                                                <th className="py-2 text-right">Low (J)</th>
+                                                <th className="py-2 text-right">High (J)</th>
+                                                <th className="py-2 text-right">Time</th>
+                                                <th className="py-2 text-right">%</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {fatigueZones.map((z) => (
+                                                <tr key={z.name} className="border-b border-slate-800/50 hover:bg-slate-700/20 transition-colors">
+                                                    <td className="py-2 font-bold" style={{ color: z.color }}>{z.name}</td>
+                                                    <td className="py-2 text-slate-300">{z.label}</td>
+                                                    <td className="py-2 text-right font-mono text-slate-400">{z.minJ}</td>
+                                                    <td className="py-2 text-right font-mono text-slate-400">{z.maxJ}</td>
+                                                    <td className="py-2 text-right font-mono">{z.timeStr}</td>
+                                                    <td className="py-2 text-right font-mono font-bold">{z.pct}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Notes / 活動描述 */}
+                                {latestActivity.description && (
+                                    <div className="mt-4 pt-4 border-t border-slate-700">
+                                        <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2 flex items-center gap-2">
+                                            <FileText className="w-3 h-3" /> Notes
+                                        </h4>
+                                        <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{latestActivity.description}</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )
+                }
+
+            </div >
 
             {/* Footer / Copyright */}
-            <footer className="mt-8 border-t border-slate-800 pt-6 text-center">
+            < footer className="mt-8 border-t border-slate-800 pt-6 text-center" >
                 <p className="text-xs text-slate-500 font-mono">
                     Based on <a href="https://github.com/GoldenCheetah/GoldenCheetah" target="_blank" rel="noreferrer" className="text-slate-400 hover:text-white underline">GoldenCheetah</a> (GPL v2).
                     Algorithms adapted for web visualization.
@@ -1337,8 +1374,8 @@ export const GoldenCheetahPage = () => {
                 <p className="text-[10px] text-slate-600 mt-1">
                     Power & W' Balance model uses Skiba (2012) / Froncioni integral method (Tau=570s).
                 </p>
-            </footer>
-        </div>
+            </footer >
+        </div >
     );
 };
 

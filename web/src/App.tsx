@@ -9,6 +9,7 @@ import { Link as RouterLink } from 'react-router-dom';
 import { Zap, LogOut } from 'lucide-react';
 import MemberBindingCard from './features/auth/MemberBindingCard';
 import PowerDashboard from './features/power/PowerDashboard';
+import GoldenCheetahPage from './features/golden-cheetah/GoldenCheetahPage';
 import tcuLogo from './assets/tcu-logo.png';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -118,15 +119,24 @@ const HomePage: React.FC = () => {
         </div>
 
         {/* 功率分析頁面進入按鈕 */}
-        <div className="flex justify-center">
+        <div className="flex flex-col md:flex-row justify-center gap-4">
           {isBound ? (
-            <RouterLink
-              to="/analysis"
-              className="w-full md:w-auto px-8 py-4 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-black text-lg shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 uppercase tracking-wider"
-            >
-              <Zap className="w-5 h-5 fill-white" />
-              進入功率分析頁面
-            </RouterLink>
+            <>
+              <RouterLink
+                to="/analysis"
+                className="w-full md:w-auto px-8 py-4 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-black text-lg shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 uppercase tracking-wider"
+              >
+                <Zap className="w-5 h-5 fill-white" />
+                進入功率分析頁面
+              </RouterLink>
+              <RouterLink
+                to="/goldencheetah"
+                className="w-full md:w-auto px-8 py-4 rounded-xl bg-slate-800 text-yellow-400 font-black text-lg shadow-lg border border-yellow-500/20 hover:bg-slate-700 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 uppercase tracking-wider"
+              >
+                <Zap className="w-5 h-5" />
+                GoldenCheetah 看板
+              </RouterLink>
+            </>
           ) : (
             <div className="relative group w-full md:w-auto">
               <button
@@ -175,6 +185,7 @@ const App: React.FC = () => {
           <Route path="/" element={<HomePage />} />
           <Route path="/power" element={<PowerDashboard />} />
           <Route path="/analysis" element={<PowerAnalysisPage />} />
+          <Route path="/goldencheetah" element={<GoldenCheetahPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

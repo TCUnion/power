@@ -9,6 +9,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  define: {
+    'import.meta.env.VITE_GIT_HASH': JSON.stringify(process.env.VITE_GIT_HASH || 'v1.2-dev')
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),

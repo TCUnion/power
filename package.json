@@ -4,7 +4,7 @@
     "version": "1.2.0",
     "scripts": {
         "install:web": "cd web && npm install",
-        "build": "export VITE_GIT_HASH=$(git rev-parse --short HEAD) && cd web && npm install && npm run build",
+        "build": "cd web && npm install && npm run build",
         "preview": "cd web && npm run preview"
     }
 }

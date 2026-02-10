@@ -18,7 +18,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import {
     Line, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-    ResponsiveContainer, ReferenceLine, ComposedChart, BarChart, Bar, Cell
+    ResponsiveContainer, ReferenceLine, ComposedChart, BarChart, Bar, Cell, LabelList
 } from 'recharts';
 import { Activity, Dumbbell, Zap, TrendingUp, Scale, Info, Loader2, ArrowLeft, Thermometer, RotateCw, Timer, Heart } from 'lucide-react';
 import { format } from 'date-fns';
@@ -667,6 +667,7 @@ export const GoldenCheetahPage = () => {
                                     <YAxis stroke="#64748b" tick={{ fontSize: 10 }} unit="%" />
                                     <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '12px' }} />
                                     <Bar dataKey="pct" radius={[4, 4, 0, 0]}>
+                                        <LabelList dataKey="pct" position="top" formatter={(val: number) => val > 0 ? `${val}%` : ''} fill="#94a3b8" fontSize={10} />
                                         {summary.zones.map((entry, index) => (
                                             <Cell key={`cell-${index}`} fill={entry.color} />
                                         ))}
@@ -696,6 +697,7 @@ export const GoldenCheetahPage = () => {
                                         <YAxis stroke="#64748b" tick={{ fontSize: 10 }} unit="%" />
                                         <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '12px' }} />
                                         <Bar dataKey="pct" radius={[4, 4, 0, 0]}>
+                                            <LabelList dataKey="pct" position="top" formatter={(val: number) => val > 0 ? `${val}%` : ''} fill="#94a3b8" fontSize={10} />
                                             {summary.hrZones.map((entry: any, index: number) => (
                                                 <Cell key={`cell-hr-${index}`} fill={entry.color} />
                                             ))}

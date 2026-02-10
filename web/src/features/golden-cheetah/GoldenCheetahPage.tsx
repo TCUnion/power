@@ -20,7 +20,7 @@ import {
     Line, Area, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, ReferenceLine, ComposedChart, BarChart, Bar, Cell, LabelList
 } from 'recharts';
-import { Activity, Dumbbell, Zap, TrendingUp, Scale, Info, Loader2, ArrowLeft, Thermometer, RotateCw, Timer, Heart, Clock, Gauge, FileText } from 'lucide-react';
+import { Activity, Dumbbell, Zap, TrendingUp, Scale, Info, Loader2, ArrowLeft, Thermometer, RotateCw, Timer, Heart, Clock, Gauge, FileText, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { fitMorton3P, calculateMMP, calculateNP } from '../../utils/power-models';
@@ -107,7 +107,11 @@ export const GoldenCheetahPage = () => {
     const [statusMessage, setStatusMessage] = useState("Initializing...");
 
     // Data
-    const [latestActivity, setLatestActivity] = useState<any>(null); // TODO: Type this properly with StravaActivity
+    const [latestActivity, setLatestActivity] = useState<any>(null);
+    const [allActivities, setAllActivities] = useState<any[]>([]);
+    const [allStreamsData, setAllStreamsData] = useState<any[]>([]);
+    const [selectedActivityId, setSelectedActivityId] = useState<number | null>(null);
+    const [showActivityDropdown, setShowActivityDropdown] = useState(false);
     const [activityStream, setActivityStream] = useState<number[]>([]);
     const [cadenceStream, setCadenceStream] = useState<number[]>([]);
     const [tempStream, setTempStream] = useState<number[]>([]);
@@ -126,10 +130,53 @@ export const GoldenCheetahPage = () => {
     const toggleSeries = useCallback((key: keyof typeof chartVisibility) => {
         setChartVisibility(prev => ({ ...prev, [key]: !prev[key] }));
     }, []);
-    const [athleteMaxHR, setAthleteMaxHR] = useState(190); // Default Max HR
+    const [athleteMaxHR, setAthleteMaxHR] = useState(190);
     const [athleteWeight, setAthleteWeight] = useState(70);
     const [calculatedCP, setCalculatedCP] = useState(250);
     const [calculatedWPrime, setCalculatedWPrime] = useState(20000);
+
+    /**
+     * 切換活動：從快取的 streamsData 中載入指定活動的 stream 資料
+     * @param activityId 要切換的活動 ID
+     * @param activities 活動列表（可選，預設用 allActivities）
+     * @param streamsCache streams 快取（可選，預設用 allStreamsData）
+     */
+    const selectActivity = useCallback((activityId: number, activities?: any[], streamsCache?: any[]) => {
+        const acts = activities || allActivities;
+        const streams = streamsCache || allStreamsData;
+        const meta = acts.find((a: any) => a.id === activityId);
+        if (!meta) return;
+
+        setLatestActivity(meta);
+        setSelectedActivityId(activityId);
+        setShowActivityDropdown(false);
+
+        const row = streams.find((r: any) => r.activity_id === activityId);
+        if (!row) {
+            setActivityStream([]);
+            setCadenceStream([]);
+            setTempStream([]);
+            setHrStream([]);
+            setAltitudeStream([]);
+            return;
+        }
+
+        // 設定 Max HR
+        if (row.max_heartrate) setAthleteMaxHR(row.max_heartrate);
+        if (row.strava_zones) setStravaZonesFromStream(row.strava_zones);
+
+        const watts = row.streams?.find((s: any) => s.type === 'watts')?.data || [];
+        const cadence = row.streams?.find((s: any) => s.type === 'cadence')?.data || [];
+        const temp = row.streams?.find((s: any) => s.type === 'temp')?.data || [];
+        const heartrate = row.streams?.find((s: any) => s.type === 'heartrate')?.data || [];
+        const altitude = row.streams?.find((s: any) => s.type === 'altitude')?.data || [];
+
+        setActivityStream(watts);
+        setCadenceStream(cadence);
+        setTempStream(temp);
+        setHrStream(heartrate);
+        setAltitudeStream(altitude);
+    }, [allActivities, allStreamsData]);
 
     // Fetch Data Logic
     const loadData = useCallback(async () => {
@@ -169,17 +216,15 @@ export const GoldenCheetahPage = () => {
                 return;
             }
 
-            // Set Latest Activity Metadata
+            // 儲存所有活動清單
+            setAllActivities(activityData);
             const latest = activityData[0];
-            setLatestActivity(latest);
+            setSelectedActivityId(latest.id);
 
-            // 3. Fetch Streams for CP Calculation (Batch)
-            // Ideally we need all streams, but to save bandwidth let's fetch:
-            // - Latest Activity Stream (Full)
-            // - Top 20 Activities Streams (for decent CP estimation)
+            // 3. 取得活動 Streams（前 20 筆用於 CP 模型計算）
             setStatusMessage("Analyzing power data...");
 
-            const activitiesToFetch = activityData.slice(0, 20); // Limit to 20 for performance
+            const activitiesToFetch = activityData.slice(0, 20);
             const activityIds = activitiesToFetch.map(a => a.id);
 
             const { data: streamsData, error: streamsError } = await supabase
@@ -193,72 +238,18 @@ export const GoldenCheetahPage = () => {
                 return;
             }
 
-            // Set Max HR priority: Activity Stream > Athlete Profile > Default
-            const latestStreamRow = streamsData.find((row: any) => row.activity_id === latest.id);
+            // 快取所有 streams 供後續切換使用
+            setAllStreamsData(streamsData);
 
-            // Set Strava Zones from Stream (Distribution Buckets)
-            if (latestStreamRow?.strava_zones) {
-                setStravaZonesFromStream(latestStreamRow.strava_zones);
-            } else {
-                setStravaZonesFromStream(null);
-            }
-
-            if (latestStreamRow?.max_heartrate) {
-                setAthleteMaxHR(latestStreamRow.max_heartrate);
-            } else if (latest.athlete_id) {
-                // Fetch Athlete Profile Fallback
-                const { data: athleteData } = await supabase
-                    .from('athletes')
-                    .select('max_heartrate')
-                    .eq('id', latest.athlete_id)
-                    .maybeSingle();
-
-                if (athleteData && athleteData.max_heartrate) {
-                    setAthleteMaxHR(athleteData.max_heartrate);
-                }
-            }
-
-            // Extract Power Streams
+            // 提取 Power Streams 計算 CP 模型
             const powerArrays: number[][] = [];
-            let latestStream: number[] = [];
-
             streamsData.forEach((row: { activity_id: number; streams: any[] }) => {
                 const watts = row.streams?.find((s: any) => s.type === 'watts')?.data;
-                if (watts && watts.length > 0) {
-                    powerArrays.push(watts);
-                    if (row.activity_id === latest.id) {
-                        latestStream = watts;
-                        // Extract other streams for the latest activity
-                        const cadence = row.streams?.find((s: any) => s.type === 'cadence')?.data;
-                        const temp = row.streams?.find((s: any) => s.type === 'temp')?.data;
-                        const heartrate = row.streams?.find((s: any) => s.type === 'heartrate')?.data;
-
-                        const altitude = row.streams?.find((s: any) => s.type === 'altitude')?.data;
-
-                        if (cadence) setCadenceStream(cadence); else setCadenceStream([]);
-                        if (temp) setTempStream(temp); else setTempStream([]);
-                        if (heartrate) setHrStream(heartrate); else setHrStream([]);
-                        if (altitude) setAltitudeStream(altitude); else setAltitudeStream([]);
-                    }
-                }
+                if (watts && watts.length > 0) powerArrays.push(watts);
             });
 
-            if (latestStream.length === 0) {
-                // Latest activity has no power data, fallback?
-                // Try to find the first one that has power
-                const hasPower = streamsData.find((d: { activity_id: number, streams: any[] }) => {
-                    const w = d.streams?.find((s: any) => s.type === 'watts')?.data;
-                    return w && w.length > 0;
-                });
-                if (hasPower) {
-                    const w = hasPower.streams?.find((s: any) => s.type === 'watts')?.data;
-                    latestStream = w;
-                    const meta = activityData.find(a => a.id === hasPower.activity_id);
-                    if (meta) setLatestActivity(meta); // Update metadata to match stream
-                }
-            }
-
-            setActivityStream(latestStream);
+            // 使用 selectActivity 載入最新活動的 streams
+            selectActivity(latest.id, activityData, streamsData);
 
             // 4. Calculate CP / W'
             if (powerArrays.length >= 3) {
@@ -549,11 +540,89 @@ export const GoldenCheetahPage = () => {
                     <h1 className="text-2xl font-black italic tracking-tighter uppercase flex items-center gap-2">
                         <span className="text-yellow-500">GOLDEN</span> CHEETAH <span className="text-slate-400 text-sm font-normal normal-case not-italic tracking-normal px-2 bg-slate-800 rounded-full">Dashboard View</span>
                     </h1>
-                    <p className="text-sm text-slate-500 mt-1 font-mono flex items-center gap-2">
-                        <span className="text-white font-bold">{latestActivity.name}</span>
-                        <span>•</span>
-                        {format(new Date(latestActivity.start_date), 'yyyy-MM-dd HH:mm')}
-                    </p>
+                    {/* Activity Selector */}
+                    <div className="flex items-center gap-2 mt-2 relative">
+                        {/* 上一個活動 */}
+                        <button
+                            onClick={() => {
+                                const idx = allActivities.findIndex((a: any) => a.id === selectedActivityId);
+                                if (idx < allActivities.length - 1) selectActivity(allActivities[idx + 1].id);
+                            }}
+                            disabled={allActivities.findIndex((a: any) => a.id === selectedActivityId) >= allActivities.length - 1}
+                            className="p-1.5 rounded-md bg-slate-800 hover:bg-slate-700 transition disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
+                            title="上一個活動"
+                        >
+                            <ChevronLeft className="w-4 h-4 text-slate-400" />
+                        </button>
+
+                        {/* 活動名稱（點擊展開下拉） */}
+                        <button
+                            onClick={() => setShowActivityDropdown(!showActivityDropdown)}
+                            className="flex items-center gap-2 text-sm font-mono bg-slate-800/80 hover:bg-slate-700/80 px-3 py-1.5 rounded-lg border border-slate-700 transition cursor-pointer min-w-0"
+                        >
+                            <span className="text-white font-bold truncate max-w-[300px]">{latestActivity.name}</span>
+                            <span className="text-slate-500">•</span>
+                            <span className="text-slate-400 whitespace-nowrap">{format(new Date(latestActivity.start_date), 'yyyy-MM-dd HH:mm')}</span>
+                            <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform flex-shrink-0 ${showActivityDropdown ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {/* 下一個活動 */}
+                        <button
+                            onClick={() => {
+                                const idx = allActivities.findIndex((a: any) => a.id === selectedActivityId);
+                                if (idx > 0) selectActivity(allActivities[idx - 1].id);
+                            }}
+                            disabled={allActivities.findIndex((a: any) => a.id === selectedActivityId) <= 0}
+                            className="p-1.5 rounded-md bg-slate-800 hover:bg-slate-700 transition disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
+                            title="下一個活動"
+                        >
+                            <ChevronRight className="w-4 h-4 text-slate-400" />
+                        </button>
+
+                        {/* 活動下拉列表 */}
+                        {showActivityDropdown && (
+                            <>
+                                <div className="fixed inset-0 z-40" onClick={() => setShowActivityDropdown(false)} />
+                                <div className="absolute top-full left-0 mt-1 z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl max-h-[400px] overflow-y-auto w-[500px] scrollbar-thin">
+                                    <div className="sticky top-0 bg-slate-900 px-3 py-2 border-b border-slate-700 text-xs text-slate-500 font-mono">
+                                        {allActivities.length} 個活動（最近 90 天）
+                                    </div>
+                                    {allActivities.map((act: any, idx: number) => {
+                                        const hasStream = allStreamsData.some((s: any) => s.activity_id === act.id);
+                                        const isSelected = act.id === selectedActivityId;
+                                        return (
+                                            <button
+                                                key={act.id}
+                                                onClick={() => selectActivity(act.id)}
+                                                className={`w-full text-left px-3 py-2.5 flex items-center gap-3 transition cursor-pointer border-b border-slate-800/50 last:border-0 ${isSelected
+                                                        ? 'bg-yellow-500/10 border-l-2 border-l-yellow-500'
+                                                        : 'hover:bg-slate-800/60'
+                                                    } ${!hasStream ? 'opacity-40' : ''}`}
+                                                disabled={!hasStream}
+                                                title={!hasStream ? '尚未同步 stream 資料' : undefined}
+                                            >
+                                                <div className="text-xs text-slate-500 font-mono w-[80px] flex-shrink-0">
+                                                    {format(new Date(act.start_date), 'MM/dd HH:mm')}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className={`text-sm truncate ${isSelected ? 'text-yellow-400 font-bold' : 'text-slate-200'}`}>
+                                                        {act.name}
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-500 flex gap-3 mt-0.5">
+                                                        <span>{(act.distance / 1000).toFixed(1)} km</span>
+                                                        <span>{new Date(act.moving_time * 1000).toISOString().substr(11, 8)}</span>
+                                                        {act.average_watts && <span>{act.average_watts}W avg</span>}
+                                                        {act.total_elevation_gain && <span>↗{Math.round(act.total_elevation_gain)}m</span>}
+                                                    </div>
+                                                </div>
+                                                {isSelected && <span className="text-yellow-500 text-xs">●</span>}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </>
+                        )}
+                    </div>
                 </div>
                 <div className="flex items-center gap-4 mt-4 md:mt-0">
                     <Link to="/power" className="p-2 bg-slate-800 rounded-lg hover:bg-slate-700 transition mr-2">

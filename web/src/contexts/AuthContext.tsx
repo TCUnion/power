@@ -99,6 +99,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (!apiRes.ok) throw new Error('API request failed');
 
             const data = await apiRes.json();
+
+            if (data.error) {
+                console.warn('[AuthContext] 後端設定錯誤:', data.error);
+            }
+
             setIsBound(data.isBound || false);
             setMemberData(data.member_data || null);
 

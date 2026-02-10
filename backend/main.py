@@ -103,26 +103,36 @@ async def get_binding_status(athlete_id: int):
             }
         
         binding = binding_res.data[0]
+        tcu_account = binding.get("tcu_account")
         tcu_member_email = binding.get("tcu_member_email")
         
-        # 2. 根據綁定的 email 查詢 tcu_members 取得完整會員資料
-        if tcu_member_email:
+        # 2. 優先使用 account (身分證號) 查詢，其次使用 email (相容舊資料)
+        member_res = None
+        if tcu_account:
+            logger.info(f"Querying member by account: {tcu_account}")
+            member_res = supabase.table("tcu_members") \
+                .select("*") \
+                .eq("account", tcu_account) \
+                .execute()
+        
+        if (not member_res or not member_res.data) and tcu_member_email:
+            logger.info(f"Falling back to email query: {tcu_member_email}")
             member_res = supabase.table("tcu_members") \
                 .select("*") \
                 .eq("email", tcu_member_email) \
                 .execute()
                 
-            if member_res.data and len(member_res.data) > 0:
-                member = member_res.data[0]
-                logger.info(f"Found binding for athlete {athlete_id}: {member.get('tcu_id', 'Unknown')}")
-                return {
-                    "isBound": True,
-                    "member_data": member,
-                    "strava_name": binding.get("member_name", "")
-                }
+        if member_res and member_res.data and len(member_res.data) > 0:
+            member = member_res.data[0]
+            logger.info(f"Found binding for athlete {athlete_id}: {member.get('tcu_id', 'Unknown')}")
+            return {
+                "isBound": True,
+                "member_data": member,
+                "strava_name": binding.get("member_name", "")
+            }
         
         # 有綁定記錄但找不到對應會員（異常情況）
-        logger.warning(f"Binding exists but no member found for email: {tcu_member_email}")
+        logger.warning(f"Binding exists but no member found. Account: {tcu_account}, Email: {tcu_member_email}")
         return {
             "isBound": True,
             "member_data": None,

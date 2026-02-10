@@ -20,10 +20,11 @@ import {
     Line, Area, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, ReferenceLine, ComposedChart, BarChart, Bar, Cell, LabelList
 } from 'recharts';
-import { Activity, Dumbbell, Zap, TrendingUp, Scale, Info, Loader2, ArrowLeft, Thermometer, RotateCw, Timer, Heart } from 'lucide-react';
+import { Activity, Dumbbell, Zap, TrendingUp, Scale, Info, Loader2, ArrowLeft, Thermometer, RotateCw, Timer, Heart, Clock, Gauge, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { fitMorton3P, calculateMMP, calculateNP } from '../../utils/power-models';
+import { GaugeChart } from './GaugeChart';
 
 // ============================================
 // W' Balance Algorithm (Skiba 2012 / GoldenCheetah Style)
@@ -289,10 +290,11 @@ export const GoldenCheetahPage = () => {
                 timeLabel: new Date(i * 1000).toISOString().substr(11, 8),
                 power: activityStream[i],
                 wBal: wPrimeBalance[i] ? Math.round(wPrimeBalance[i] / 1000 * 10) / 10 : 0,
+                hr: hrStream[i] || null,
             });
         }
         return data;
-    }, [activityStream, wPrimeBalance]);
+    }, [activityStream, wPrimeBalance, hrStream]);
 
     // Metrics
     const summary = useMemo(() => {
@@ -429,6 +431,9 @@ export const GoldenCheetahPage = () => {
         const timeAboveCPPct = Math.round((timeAboveCPCount / duration) * 100);
         const timeAboveCPFraction = timeAboveCPCount > 0 ? Math.round(timeAboveCPCount / 60) : 0; // Convert to minutes for display
 
+        // W' Work = 超過 CP 的總作功量 (kJ)
+        const wPrimeWork = hasPower ? Math.round(activityStream.reduce((sum, p) => sum + Math.max(0, p - calculatedCP), 0) / 1000) : 0;
+
         const zonesWithPct = zonesHistogram.map(z => ({ ...z, pct: Math.round((z.count / duration) * 1000) / 10 }));
 
         return {
@@ -450,9 +455,47 @@ export const GoldenCheetahPage = () => {
             cadence: { avg: cadAvg, max: cadMax, total: cadTotal },
             temp: { avg: tempAvg, min: tempMin, max: tempMax },
             hrZones: hrZonesWithPct,
-            isOfficialHrZones
+            isOfficialHrZones,
+            wPrimeWork,
         };
     }, [activityStream, cadenceStream, tempStream, hrStream, athleteFTP, calculatedCP, athleteMaxHR, latestActivity, stravaZonesFromStream]);
+
+    // ============================================
+    // Fatigue Zones (W' Balance 疲勞分區 - GoldenCheetah 核心功能)
+    // ============================================
+    const fatigueZones = useMemo(() => {
+        if (wPrimeBalance.length === 0 || calculatedWPrime <= 0) return [];
+        const zones = [
+            { name: 'W1', label: '恢復', description: 'Recovered', minPct: 0.75, maxPct: 1.0, color: '#34D399', count: 0, minJ: 0, maxJ: 0 },
+            { name: 'W2', label: '中度疲勞', description: 'Moderate Fatigue', minPct: 0.50, maxPct: 0.75, color: '#FBBF24', count: 0, minJ: 0, maxJ: 0 },
+            { name: 'W3', label: '重度疲勞', description: 'Heavy Fatigue', minPct: 0.25, maxPct: 0.50, color: '#F97316', count: 0, minJ: 0, maxJ: 0 },
+            { name: 'W4', label: '嚴重疲勞', description: 'Severe Fatigue', minPct: 0.0, maxPct: 0.25, color: '#EF4444', count: 0, minJ: 0, maxJ: 0 },
+        ];
+        zones.forEach(z => {
+            z.maxJ = Math.round(calculatedWPrime * z.maxPct);
+            z.minJ = Math.round(calculatedWPrime * z.minPct);
+        });
+        wPrimeBalance.forEach(wBal => {
+            const pct = wBal / calculatedWPrime;
+            if (pct >= 0.75) zones[0].count++;
+            else if (pct >= 0.50) zones[1].count++;
+            else if (pct >= 0.25) zones[2].count++;
+            else zones[3].count++;
+        });
+        const total = wPrimeBalance.length;
+        return zones.map(z => ({
+            ...z,
+            pct: total > 0 ? Math.round((z.count / total) * 1000) / 10 : 0,
+            timeStr: new Date(z.count * 1000).toISOString().substr(11, 8),
+        }));
+    }, [wPrimeBalance, calculatedWPrime]);
+
+    // Max W' Expended Percentage
+    const maxWExpendedPct = useMemo(() => {
+        if (wPrimeBalance.length === 0 || calculatedWPrime <= 0) return 0;
+        const minWBal = Math.min(...wPrimeBalance);
+        return Math.round((1 - minWBal / calculatedWPrime) * 100);
+    }, [wPrimeBalance, calculatedWPrime]);
 
     // ============================================
     // Rendering
@@ -562,6 +605,66 @@ export const GoldenCheetahPage = () => {
                     />
                 </div>
 
+                {/* Totals / Averages / Maximum (GoldenCheetah Style) */}
+                <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Totals */}
+                    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
+                        <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
+                            <Clock className="w-3.5 h-3.5" /> Totals
+                        </h4>
+                        <div className="space-y-1.5 text-sm">
+                            <div className="flex justify-between"><span className="text-slate-400">Duration</span><span className="font-mono font-bold">{summary.durationStr}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-400">Time Moving</span><span className="font-mono font-bold">{latestActivity.moving_time ? new Date(latestActivity.moving_time * 1000).toISOString().substr(11, 8) : '–'}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-400">Distance (km)</span><span className="font-mono font-bold">{latestActivity.distance ? (latestActivity.distance / 1000).toFixed(1) : '–'}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-400">Work (kJ)</span><span className="font-mono font-bold">{summary.work}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-400">W' Work (kJ)</span><span className="font-mono font-bold text-purple-400">{summary.wPrimeWork}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-400">Elevation (m)</span><span className="font-mono font-bold">{latestActivity.total_elevation_gain ? Math.round(latestActivity.total_elevation_gain) : '–'}</span></div>
+                        </div>
+                    </div>
+                    {/* Averages */}
+                    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
+                        <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
+                            <Activity className="w-3.5 h-3.5" /> Averages
+                        </h4>
+                        <div className="space-y-1.5 text-sm">
+                            <div className="flex justify-between"><span className="text-slate-400">Athlete Weight (kg)</span><span className="font-mono font-bold">{athleteWeight}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-400">Avg Speed (kph)</span><span className="font-mono font-bold">{latestActivity.average_speed ? (latestActivity.average_speed * 3.6).toFixed(1) : '–'}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-400">Avg Power (W)</span><span className="font-mono font-bold">{summary.avgPower}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-400">Avg Heart Rate (bpm)</span><span className="font-mono font-bold">{latestActivity.average_heartrate ? Math.round(latestActivity.average_heartrate) : '–'}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-400">Avg Cadence (rpm)</span><span className="font-mono font-bold">{latestActivity.average_cadence ? Math.round(latestActivity.average_cadence) : '–'}</span></div>
+                        </div>
+                    </div>
+                    {/* Maximum */}
+                    <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
+                        <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
+                            <TrendingUp className="w-3.5 h-3.5" /> Maximum
+                        </h4>
+                        <div className="space-y-1.5 text-sm">
+                            <div className="flex justify-between"><span className="text-slate-400">Max Speed (kph)</span><span className="font-mono font-bold">{latestActivity.max_speed ? (latestActivity.max_speed * 3.6).toFixed(1) : '–'}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-400">Max Power (W)</span><span className="font-mono font-bold">{summary.maxPower}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-400">Max Heart Rate (bpm)</span><span className="font-mono font-bold">{latestActivity.max_heartrate ? Math.round(latestActivity.max_heartrate) : '–'}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-400">Max Cadence (rpm)</span><span className="font-mono font-bold">{summary.cadence.max}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-400">Max W' Expended (%)</span><span className="font-mono font-bold text-red-400">{maxWExpendedPct}%</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* CP / W' / Weight / Suffer Score Gauges */}
+                <div className="md:col-span-12 grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-xl p-3 shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                        <GaugeChart value={calculatedCP} min={100} max={400} label="CP Estimate" unit="watts" color="#EAB308" subLabel={`${(calculatedCP / athleteWeight).toFixed(1)} W/kg`} />
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 rounded-xl p-3 shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                        <GaugeChart value={calculatedWPrime / 1000} min={5} max={45} label="W' Estimate" unit="kJ" color="#A855F7" decimals={1} />
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 rounded-xl p-3 shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                        <GaugeChart value={athleteWeight} min={50} max={120} label="Weight" unit="kg" color="#3B82F6" decimals={1} />
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 rounded-xl p-3 shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                        <GaugeChart value={latestActivity.suffer_score || 0} min={0} max={300} label="Suffer Score" unit="points" color="#EF4444" subLabel={latestActivity.suffer_score ? (latestActivity.suffer_score > 150 ? 'Hard' : latestActivity.suffer_score > 50 ? 'Moderate' : 'Easy') : 'N/A'} />
+                    </div>
+                </div>
+
                 {/* 2. Main Chart: Power & W' Balance */}
                 <div className="md:col-span-12 bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 min-h-[400px] flex flex-col">
                     <div className="flex justify-between items-center mb-4">
@@ -578,6 +681,12 @@ export const GoldenCheetahPage = () => {
                                 <span className="w-3 h-0.5 bg-purple-500"></span>
                                 W' Bal (kJ)
                             </div>
+                            {hrStream.length > 0 && (
+                                <div className="flex items-center gap-1">
+                                    <span className="w-3 h-0.5 bg-red-400"></span>
+                                    HR (bpm)
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -612,11 +721,14 @@ export const GoldenCheetahPage = () => {
                                     domain={[0, Math.ceil(calculatedWPrime / 1000)]}
                                     label={{ value: "W' (kJ)", angle: 90, position: 'insideRight', fill: '#a855f7', fontSize: 10 }}
                                 />
+                                {/* 心率軸（隱藏刻度） */}
+                                <YAxis yAxisId="hr" orientation="right" hide domain={[60, 220]} />
                                 <Tooltip
                                     contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '12px' }}
                                     formatter={(value: any, name: string) => {
                                         if (name === 'power') return [`${value} W`, 'Power'];
                                         if (name === 'wBal') return [`${value} kJ`, "W' Bal"];
+                                        if (name === 'hr') return [`${value} bpm`, 'Heart Rate'];
                                         return [value, name];
                                     }}
                                     labelStyle={{ color: '#94a3b8' }}
@@ -642,6 +754,19 @@ export const GoldenCheetahPage = () => {
                                     dot={false}
                                     isAnimationActive={false}
                                 />
+                                {/* 心率曲線疊加 */}
+                                {hrStream.length > 0 && (
+                                    <Line
+                                        yAxisId="hr"
+                                        type="monotone"
+                                        dataKey="hr"
+                                        stroke="#F87171"
+                                        strokeWidth={1}
+                                        dot={false}
+                                        isAnimationActive={false}
+                                        opacity={0.4}
+                                    />
+                                )}
                             </ComposedChart>
                         </ResponsiveContainer>
                     </div>
@@ -791,6 +916,86 @@ export const GoldenCheetahPage = () => {
                         )}
                     </div>
                 </div>
+
+                {/* 4. Fatigue Zones (W' Balance Distribution) - GoldenCheetah 核心功能 */}
+                {fatigueZones.length > 0 && (
+                    <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Fatigue Zones Bar Chart */}
+                        <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
+                            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-2">
+                                <Gauge className="w-4 h-4 text-orange-500" />
+                                W' Fatigue Zones
+                            </h3>
+                            <p className="text-xs text-slate-400 mb-3">
+                                根據 W' Balance 剩餘量分析疲勞分佈，數值越低代表疲勞程度越高。
+                            </p>
+                            <div className="h-[200px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={fatigueZones} layout="vertical">
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} horizontal={false} />
+                                        <XAxis type="number" stroke="#64748b" tick={{ fontSize: 10 }} unit="%" />
+                                        <YAxis type="category" dataKey="name" stroke="#64748b" tick={{ fontSize: 11 }} width={30} />
+                                        <Tooltip
+                                            cursor={{ fill: 'transparent' }}
+                                            contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', fontSize: '12px' }}
+                                            formatter={(val: number, _: string, props: any) => [`${val}% (${props.payload.timeStr})`, props.payload.label]}
+                                        />
+                                        <Bar dataKey="pct" radius={[0, 4, 4, 0]}>
+                                            <LabelList dataKey="pct" position="right" formatter={(val: number) => val > 0 ? `${val}%` : ''} fill="#94a3b8" fontSize={10} />
+                                            {fatigueZones.map((entry, index) => (
+                                                <Cell key={`fatigue-${index}`} fill={entry.color} />
+                                            ))}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+
+                        {/* Fatigue Zones Table + Notes */}
+                        <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
+                            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-2">
+                                <Info className="w-4 h-4 text-blue-500" />
+                                Fatigue Zone Details
+                            </h3>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="text-slate-400 text-xs uppercase border-b border-slate-700">
+                                            <th className="py-2 text-left">Zone</th>
+                                            <th className="py-2 text-left">Description</th>
+                                            <th className="py-2 text-right">Low (J)</th>
+                                            <th className="py-2 text-right">High (J)</th>
+                                            <th className="py-2 text-right">Time</th>
+                                            <th className="py-2 text-right">%</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {fatigueZones.map((z) => (
+                                            <tr key={z.name} className="border-b border-slate-800/50 hover:bg-slate-700/20 transition-colors">
+                                                <td className="py-2 font-bold" style={{ color: z.color }}>{z.name}</td>
+                                                <td className="py-2 text-slate-300">{z.label}</td>
+                                                <td className="py-2 text-right font-mono text-slate-400">{z.minJ}</td>
+                                                <td className="py-2 text-right font-mono text-slate-400">{z.maxJ}</td>
+                                                <td className="py-2 text-right font-mono">{z.timeStr}</td>
+                                                <td className="py-2 text-right font-mono font-bold">{z.pct}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Notes / 活動描述 */}
+                            {latestActivity.description && (
+                                <div className="mt-4 pt-4 border-t border-slate-700">
+                                    <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-2 flex items-center gap-2">
+                                        <FileText className="w-3 h-3" /> Notes
+                                    </h4>
+                                    <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{latestActivity.description}</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
 
             </div>
 

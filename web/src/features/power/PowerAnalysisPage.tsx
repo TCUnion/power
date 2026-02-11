@@ -131,7 +131,8 @@ const PowerAnalysisPage: React.FC = () => {
                 .eq('athlete_id', athlete.id)
                 .gte('start_date', cutoffDate.toISOString())
                 .in('sport_type', ['Ride', 'VirtualRide', 'MountainBikeRide', 'GravelRide'])
-                .order('start_date', { ascending: false });
+                .order('start_date', { ascending: false })
+                .limit(1000);
 
             if (actError) throw actError;
             const acts = activityData || [];
@@ -146,6 +147,24 @@ const PowerAnalysisPage: React.FC = () => {
             const allPowerArrays: number[][] = [];
             const ftpHist: typeof ftpHistory = [];
             const dailyTSS: Record<string, { tss: number; count: number }> = {};
+
+            // 預先填充所有活動，確保計數正確（即使沒有 Streams）
+            acts.forEach(act => {
+                const dateKey = new Date(act.start_date).toISOString().split('T')[0];
+                if (!dailyTSS[dateKey]) {
+                    dailyTSS[dateKey] = { tss: 0, count: 0 };
+                }
+                dailyTSS[dateKey].count += 1;
+
+                // 如果有平均功率但沒處理到 Streams，先做一個初步 TSS 估算
+                // 後續若有 Streams 資料會被精確計算覆蓋或疊加
+                if (act.average_watts && act.average_watts > 0 && ftp > 0) {
+                    const intensity = act.average_watts / ftp;
+                    const duration = act.elapsed_time || act.moving_time;
+                    const estimatedTSS = (duration * act.average_watts * intensity) / (ftp * 3600) * 100;
+                    dailyTSS[dateKey].tss += estimatedTSS;
+                }
+            });
 
             const batchSize = 20;
             const totalBatches = Math.ceil(acts.length / batchSize);
@@ -181,7 +200,6 @@ const PowerAnalysisPage: React.FC = () => {
                             }
 
                             // 計算每日 TSS
-                            const act = batchActs.find(a => a.id === stream.activity_id);
                             if (act) {
                                 const effectiveFtp = stream.ftp || ftp;
                                 if (effectiveFtp > 0) {
@@ -190,11 +208,17 @@ const PowerAnalysisPage: React.FC = () => {
                                     const tss = await calculateTSSViaDB(np, effectiveFtp, duration);
 
                                     const dateKey = new Date(act.start_date).toISOString().split('T')[0];
-                                    if (!dailyTSS[dateKey]) {
-                                        dailyTSS[dateKey] = { tss: 0, count: 0 };
+
+                                    // 扣除預先估算的 TSS，替換為精確計算值
+                                    let baseTSS = 0;
+                                    if (act.average_watts && act.average_watts > 0) {
+                                        const intensity = act.average_watts / effectiveFtp;
+                                        baseTSS = (duration * act.average_watts * intensity) / (effectiveFtp * 3600) * 100;
                                     }
-                                    dailyTSS[dateKey].tss += tss;
-                                    dailyTSS[dateKey].count += 1;
+
+                                    if (dailyTSS[dateKey]) {
+                                        dailyTSS[dateKey].tss = Math.max(0, dailyTSS[dateKey].tss - baseTSS + tss);
+                                    }
                                 }
                             }
                         }

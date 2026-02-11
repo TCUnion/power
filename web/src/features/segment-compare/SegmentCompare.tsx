@@ -97,7 +97,34 @@ const SegmentCompare = () => {
         if (selectedEffortIds.length > 0) {
             loadStreams();
         }
-    }, [selectedEffortIds, efforts, fetchStreamsForEffort]); // streams dependency removed to avoid infinite loop if logic flaw, though logic seems safe
+    }, [selectedEffortIds, efforts, fetchStreamsForEffort]);
+
+    // Auto-fetch streams when sync is successful
+    useEffect(() => {
+        const successfulSyncs = Object.entries(syncStatus)
+            .filter(([_, status]) => status === 'success')
+            .map(([id]) => Number(id));
+
+        if (successfulSyncs.length > 0) {
+            successfulSyncs.forEach(activityId => {
+                // Only fetch if we don't have streams yet
+                // And ensure we have the effort details to slice the stream correctly
+                if (!streams[activityId]) {
+                    const effort = efforts.find(e => e.activity_id === activityId);
+                    if (effort) {
+                        fetchStreamsForEffort(activityId, effort.start_index, effort.end_index).then(newStreams => {
+                            if (newStreams) {
+                                setStreams(prev => ({
+                                    ...prev,
+                                    [activityId]: newStreams
+                                }));
+                            }
+                        });
+                    }
+                }
+            });
+        }
+    }, [syncStatus, streams, fetchStreamsForEffort, efforts]);
 
     const handleToggleEffort = (effortId: number) => {
         setSelectedEffortIds(prev => {

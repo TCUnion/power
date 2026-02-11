@@ -95,8 +95,8 @@ def get_supabase_config():
 
 @app.get("/")
 def read_root():
-    logger.info("Root endpoint called v1.4")
-    return {"status": "online", "message": "TCU Power API is running v1.4"}
+    logger.info("Root endpoint called v1.5-FIX")
+    return {"status": "online", "message": "TCU Power API is running v1.5-FIX"}
 
 @app.get("/health")
 def health_check():

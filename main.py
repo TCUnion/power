@@ -117,12 +117,7 @@ async def get_binding_status(athlete_id: int):
         url, key = get_supabase_config()
         
         if not url or not key:
-            return {
-                "isBound": False,
-                "member_data": None,
-                "strava_name": "",
-                "error": "Configuration error: Missing SUPABASE_URL or KEY (v1.4)"
-            }
+            raise HTTPException(status_code=500, detail="Configuration error: Missing SUPABASE_URL or KEY (v1.5.2)")
             
         supabase: Client = create_client(url, key)
         

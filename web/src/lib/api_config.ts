@@ -13,10 +13,24 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}): Pro
         const primaryUrl = `${API_BASE_URL}${endpoint}`;
         const response = await fetch(primaryUrl, options);
 
-        // 若主伺服器回應 5xx (伺服器錯誤)，則視為失敗，嘗試備援
-        if (response.status >= 500 && API_BACKUP_URL) {
+        // 複製回應物件以便多次讀取 (因為 .json() 會消耗 stream)
+        const responseClone = response.clone();
+
+        // 若主伺服器回應 5xx (伺服器錯誤) 或 401/403 (憑證問題)，嘗試備援
+        if ((response.status >= 500 || response.status === 401 || response.status === 403) && API_BACKUP_URL) {
             console.warn(`[API] Primary server error (${response.status}), trying backup...`);
             throw new Error(`Primary server error: ${response.status}`);
+        }
+
+        // 額外檢查：如果回應是 200 但內容包含 "error" 欄位（後端 try-except 捕捉的情況）
+        try {
+            const data = await responseClone.json();
+            if (data && data.error && (data.error.includes('401') || data.error.includes('credentials')) && API_BACKUP_URL) {
+                console.warn('[API] Primary reported auth error in payload, trying backup...');
+                throw new Error('Primary auth error in payload');
+            }
+        } catch (e) {
+            // 解析 JSON 失敗則忽略，交由後續處理
         }
 
         return response;

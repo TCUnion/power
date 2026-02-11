@@ -61,14 +61,55 @@ class ConfirmBindingRequest(BaseModel):
     member_name: str
     user_id: Optional[str] = None
 
+def get_supabase_config():
+    """取得並清理 Supabase 設定，確保沒有多餘空格"""
+    url = (os.environ.get("SUPABASE_URL") or os.environ.get("VITE_SUPABASE_URL", "")).strip()
+    
+    # 優先順序：SERVICE_KEY > SERVICE_ROLE_KEY > KEY > VITE_ 分身
+    key = (
+        os.environ.get("SUPABASE_SERVICE_KEY") or 
+        os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or 
+        os.environ.get("SUPABASE_KEY") or
+        os.environ.get("VITE_SUPABASE_SERVICE_ROLE_KEY") or 
+        os.environ.get("VITE_SUPABASE_ANON_KEY", "")
+    ).strip()
+    
+    # 診斷資訊（不記錄內容）
+    sources = []
+    if os.environ.get("SUPABASE_URL"): sources.append("SUPABASE_URL")
+    elif os.environ.get("VITE_SUPABASE_URL"): sources.append("VITE_SUPABASE_URL")
+    
+    key_source = "None"
+    for k in ["SUPABASE_SERVICE_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_KEY", "VITE_SUPABASE_SERVICE_ROLE_KEY", "VITE_SUPABASE_ANON_KEY"]:
+        if os.environ.get(k):
+            key_source = k
+            break
+            
+    if not url or not key:
+        available = [k for k in os.environ.keys() if "SUPABASE" in k]
+        logger.error(f"Missing config. URL source: {sources}, Key source: {key_source}. Available keys: {available}")
+    else:
+        logger.info(f"Supabase Config Loaded. URL source: {sources}, Key source: {key_source}")
+        
+    return url, key
+
 @app.get("/")
 def read_root():
-    logger.info("Root endpoint called")
-    return {"status": "online", "message": "TCU Power API is running v1.3"}
+    logger.info("Root endpoint called v1.4")
+    return {"status": "online", "message": "TCU Power API is running v1.4"}
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok"}
+    url, key = get_supabase_config()
+    return {
+        "status": "ok", 
+        "version": "1.4",
+        "config_check": {
+            "has_url": bool(url),
+            "has_key": bool(key),
+            "key_length": len(key) if key else 0
+        }
+    }
 
 from datetime import datetime
 
@@ -78,24 +119,14 @@ async def get_binding_status(athlete_id: int):
     logger.info(f"Checking binding status for athlete: {athlete_id}")
     
     try:
-        url: str = os.environ.get("SUPABASE_URL")
-        key: str = os.environ.get("SUPABASE_SERVICE_KEY") or \
-                   os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or \
-                   os.environ.get("SUPABASE_KEY")
+        url, key = get_supabase_config()
         
         if not url or not key:
-            url = url or os.environ.get("VITE_SUPABASE_URL")
-            key = key or os.environ.get("VITE_SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("VITE_SUPABASE_ANON_KEY")
-
-        if not url or not key:
-            available_keys = [k for k in os.environ.keys() if "SUPABASE" in k]
-            logger.error(f"Missing Supabase credentials (v1.3). Available keys: {available_keys}")
-            
             return {
                 "isBound": False,
                 "member_data": None,
                 "strava_name": "",
-                "error": "Configuration error: Missing SUPABASE_URL or KEY"
+                "error": "Configuration error: Missing SUPABASE_URL or KEY (v1.4)"
             }
             
         supabase: Client = create_client(url, key)
@@ -164,22 +195,13 @@ async def member_binding(req: BindingRequest):
 
 @app.post("/api/auth/confirm-binding")
 async def confirm_binding(req: ConfirmBindingRequest):
-    logger.info(f"Confirming binding for athlete {req.stravaId}")
+    logger.info(f"Confirming binding for athlete {req.stravaId} v1.4")
     
     try:
-        url: str = os.environ.get("SUPABASE_URL")
-        key: str = os.environ.get("SUPABASE_SERVICE_KEY") or \
-                   os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or \
-                   os.environ.get("SUPABASE_KEY")
+        url, key = get_supabase_config()
         
         if not url or not key:
-            # 嘗試讀取 VITE_ 開頭的變數（前端環境變數）
-            url = url or os.environ.get("VITE_SUPABASE_URL")
-            key = key or os.environ.get("VITE_SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("VITE_SUPABASE_ANON_KEY")
-            
-            available_keys = [k for k in os.environ.keys() if "SUPABASE" in k]
-            logger.error(f"Missing Supabase credentials in confirm_binding. Available: {available_keys}")
-            raise HTTPException(status_code=500, detail="Missing Supabase credentials")
+            raise HTTPException(status_code=500, detail="Missing Supabase credentials (v1.4)")
             
         supabase: Client = create_client(url, key)
         

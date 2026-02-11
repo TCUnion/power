@@ -84,7 +84,13 @@ const SegmentCompare = () => {
                 const effort = efforts.find(e => e.activity_id === id);
                 if (!effort) return;
 
-                const streamData = await fetchStreamsForEffort(id, effort.start_index, effort.end_index);
+                const dateInfo = effort.activity_start_date ? {
+                    activityStartDate: effort.activity_start_date,
+                    effortStartDate: effort.effort_start_date,
+                    elapsedTime: effort.elapsed_time
+                } : undefined;
+
+                const streamData = await fetchStreamsForEffort(id, effort.start_index, effort.end_index, dateInfo);
                 if (streamData) {
                     newStreams[id] = streamData;
                 }
@@ -112,7 +118,13 @@ const SegmentCompare = () => {
                 if (!streams[activityId]) {
                     const effort = efforts.find(e => e.activity_id === activityId);
                     if (effort) {
-                        fetchStreamsForEffort(activityId, effort.start_index, effort.end_index).then(newStreams => {
+                        const dateInfo = effort.activity_start_date ? {
+                            activityStartDate: effort.activity_start_date,
+                            effortStartDate: effort.effort_start_date,
+                            elapsedTime: effort.elapsed_time
+                        } : undefined;
+
+                        fetchStreamsForEffort(activityId, effort.start_index, effort.end_index, dateInfo).then(newStreams => {
                             if (newStreams) {
                                 setStreams(prev => ({
                                     ...prev,

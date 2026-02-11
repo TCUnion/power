@@ -514,6 +514,7 @@ export interface SegmentEffort {
     profile?: string;
     start_index?: number;
     end_index?: number;
+    activity_start_date?: string;
 }
 
 export interface SegmentCompareResult {

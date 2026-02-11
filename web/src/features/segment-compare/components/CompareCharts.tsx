@@ -468,7 +468,7 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                                         <span className="font-medium text-slate-600">路段:</span> {segment.name}
                                     </span>
                                     <span className="flex items-center gap-1">
-                                        <span className="font-medium text-slate-600">長度:</span> {(segment.distance / 1000).toFixed(2)} km
+                                        <span className="font-medium text-slate-600">距離:</span> {(segment.distance / 1000).toFixed(2)} km
                                     </span>
                                     <span className="flex items-center gap-1">
                                         <span className="font-medium text-slate-600">爬升:</span> {segment.total_elevation_gain} m

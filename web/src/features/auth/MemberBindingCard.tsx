@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { API_BASE_URL } from '../../lib/api_config';
+import { apiFetch } from '../../lib/api_config';
 import { useAuth } from '../../hooks/useAuth';
 import type { TCUMember } from '../../types';
 import {
@@ -172,7 +172,7 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
                 const { data: { user } } = await supabase.auth.getUser();
 
                 // 呼叫 confirm-binding API 寫入 strava_member_bindings 表格
-                const response = await fetch(`${API_BASE_URL}/api/auth/confirm-binding`, {
+                const response = await apiFetch('/api/auth/confirm-binding', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
-import { API_BASE_URL } from '../lib/api_config';
+import { apiFetch } from '../lib/api_config';
 import type { TCUMember } from '../types';
 
 export interface StravaAthlete {
@@ -68,7 +68,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (athleteData.access_token && !isNaN(numericId) && numericId !== 0) {
             try {
                 const { data: { user } } = await supabase.auth.getUser();
-                await fetch(`${API_BASE_URL}/api/auth/strava-token`, {
+                await apiFetch('/api/auth/strava-token', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -96,7 +96,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         lastBindingCheckTime.current = now;
 
         try {
-            const apiRes = await fetch(`${API_BASE_URL}/api/auth/binding-status/${athleteId}`);
+            const apiRes = await apiFetch(`/api/auth/binding-status/${athleteId}`);
             if (!apiRes.ok) throw new Error('API request failed');
 
             const data = await apiRes.json();

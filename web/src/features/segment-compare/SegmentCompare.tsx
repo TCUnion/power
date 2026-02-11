@@ -248,7 +248,6 @@ const SegmentCompare = () => {
                             onSync={syncActivity}
                             syncStatus={syncStatus}
                             onToggleEffort={handleToggleEffort}
-                            onRefresh={handleRefresh}
                         />
                     </div>
                 )}

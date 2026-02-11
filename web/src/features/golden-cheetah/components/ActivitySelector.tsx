@@ -1,5 +1,5 @@
 import { useRef, useState, useMemo, useEffect } from 'react';
-import { ChevronDown, Search, Info, RefreshCw, ChevronLeft, ChevronRight, Lock } from 'lucide-react';
+import { ChevronDown, Search, Info, RefreshCw, ChevronLeft, ChevronRight, Lock, Crown } from 'lucide-react';
 import { format } from 'date-fns';
 import React from 'react';
 
@@ -115,9 +115,9 @@ const ActivitySelector = React.memo(({
                                     const isSelected = act.id === selectedActivityId;
                                     const currentSyncStatus = syncStatus[act.id];
 
-                                    // Feature Gating: Only latest activity (first in allActivities) is accessible for non-bound users
-                                    const isLatestReal = allActivities.length > 0 && act.id === allActivities[0].id;
-                                    const isLocked = !isBound && !isLatestReal;
+                                    // Feature Gating: Only latest 1 activity is accessible for non-bound users
+                                    const activityIndex = allActivities.findIndex(a => a.id === act.id);
+                                    const isLocked = !isBound && activityIndex >= 1;
 
                                     return (
                                         <button
@@ -131,11 +131,11 @@ const ActivitySelector = React.memo(({
                                             className={`w-full text-left px-3 py-2.5 flex items-center gap-3 transition cursor-pointer border-b border-slate-800/50 last:border-0 ${isSelected
                                                 ? 'bg-yellow-500/10 border-l-2 border-l-yellow-500'
                                                 : isLocked
-                                                    ? 'bg-slate-900/50 opacity-50 cursor-not-allowed hover:bg-slate-900/50'
+                                                    ? 'bg-slate-900/50 opacity-40 cursor-not-allowed hover:bg-slate-900/50'
                                                     : 'hover:bg-slate-800/60'
                                                 }`}
                                         >
-                                            <div className="text-xs text-slate-500 font-mono w-[80px] flex-shrink-0 flex flex-col">
+                                            <div className={`text-xs font-mono w-[80px] flex-shrink-0 flex flex-col ${isLocked ? 'text-slate-600' : 'text-slate-500'}`}>
                                                 <span>{format(new Date(act.start_date), 'MM/dd')}</span>
                                                 <span className="text-[10px]">{format(new Date(act.start_date), 'HH:mm')}</span>
                                             </div>
@@ -160,8 +160,9 @@ const ActivitySelector = React.memo(({
                                                         </span>
                                                     )}
                                                     {isLocked && (
-                                                        <span className="text-slate-600 ml-auto text-[10px] border border-slate-700 px-1 rounded">
-                                                            會員限定
+                                                        <span className="text-amber-500/70 ml-auto text-[10px] border border-amber-500/30 px-1.5 py-0.5 rounded bg-amber-500/5 flex items-center gap-1">
+                                                            <Crown className="w-2.5 h-2.5" />
+                                                            綁定會員專用
                                                         </span>
                                                     )}
                                                 </div>
@@ -191,14 +192,14 @@ const ActivitySelector = React.memo(({
             <div className="flex items-center gap-1 bg-slate-800 rounded-lg p-1 border border-slate-700/50 hidden sm:flex">
                 <button
                     onClick={() => handleNavigateActivity('prev')}
-                    disabled={findIndex(selectedActivityId) >= filteredActivities.length - 1 || (!isBound && selectedActivityId === latestActivity.id)}
+                    disabled={findIndex(selectedActivityId) >= filteredActivities.length - 1 || (!isBound && findIndex(selectedActivityId) >= 0)}
                     className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 >
                     <ChevronLeft className="w-4 h-4" />
                 </button>
                 <button
                     onClick={() => handleNavigateActivity('next')}
-                    disabled={findIndex(selectedActivityId) <= 0 || !isBound}
+                    disabled={findIndex(selectedActivityId) <= 0}
                     className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 >
                     <ChevronRight className="w-4 h-4" />

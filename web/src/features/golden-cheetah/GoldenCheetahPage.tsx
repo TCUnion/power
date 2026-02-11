@@ -815,14 +815,7 @@ export const GoldenCheetahPage = () => {
             {/* Header Area */}
             <header className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6">
                 <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => selectAdjacentActivity('prev')}
-                        disabled={!isBound && selectedActivityId === latestActivity?.id} // Disable if not bound and at latest
-                        className={`p-2 rounded-lg transition-colors border border-slate-800 ${(!isBound && selectedActivityId === latestActivity?.id) ? 'text-slate-600 cursor-not-allowed' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
-                        title="Previous Activity"
-                    >
-                        <ChevronLeft className="w-5 h-5" />
-                    </button>
+
                     <ActivitySelector
                         latestActivity={latestActivity}
                         allActivities={allActivities}
@@ -837,14 +830,7 @@ export const GoldenCheetahPage = () => {
                         hasData={hasData}
                         isBound={isBound}
                     />
-                    <button
-                        onClick={() => selectAdjacentActivity('next')}
-                        disabled={!isBound} // Always disable next if not bound (since they can only be on latest)
-                        className={`p-2 rounded-lg transition-colors border border-slate-800 ${!isBound ? 'text-slate-600 cursor-not-allowed' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
-                        title="Next Activity"
-                    >
-                        <RefreshCw className="w-5 h-5" />
-                    </button>
+
                 </div>
 
                 {/* Header Actions */}

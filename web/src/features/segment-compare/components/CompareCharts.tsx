@@ -16,7 +16,7 @@ import type { SegmentEffort } from '../../../types';
 import type { Segment } from '../hooks/useSegmentCompare';
 import type { SyncStatus } from '../hooks/useActivitySync';
 import { format } from 'date-fns';
-import { ChevronsDown, ChevronsUp, Activity, RefreshCw, CheckCircle } from 'lucide-react';
+import { ChevronsDown, ChevronsUp, Activity, RefreshCw, CheckCircle, Info } from 'lucide-react';
 
 interface CompareChartsProps {
     allEfforts: SegmentEffort[];
@@ -44,7 +44,8 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
 }) => {
 
     const [chartsExpanded, setChartsExpanded] = useState(true);
-    const xAxisType = 'distance';
+    // Explicitly defining unused variable to keep linter happy or removing it if not needed.
+    // const xAxisType = 'distance'; 
     const [visibleSeries, setVisibleSeries] = useState({
         power: false,
         heartrate: false,
@@ -70,80 +71,137 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
     }, [allEfforts]);
 
 
-    // 2. Detailed Comparison Data
-    const comparisonData = useMemo(() => {
+    // 2. Interpolation Helper
+    const interpolate = (x: number, xArray: number[], yArray: number[]) => {
+        if (!xArray || !yArray || xArray.length === 0 || yArray.length === 0) return 0;
+
+        // Binary search or find index
+        if (x <= xArray[0]) return yArray[0];
+        if (x >= xArray[xArray.length - 1]) return yArray[yArray.length - 1];
+
+        // Find index i where xArray[i] <= x < xArray[i+1]
+        let i = 0;
+        let j = xArray.length - 1;
+
+        while (i < j) {
+            const mid = Math.floor((i + j) / 2);
+            if (xArray[mid] < x) {
+                if (xArray[mid + 1] >= x) {
+                    i = mid;
+                    break;
+                }
+                i = mid + 1;
+            } else {
+                j = mid;
+            }
+        }
+
+        const x0 = xArray[i];
+        const x1 = xArray[i + 1];
+        const y0 = yArray[i];
+        const y1 = yArray[i + 1];
+
+        if (x1 === x0) return y0;
+
+        return y0 + (y1 - y0) * (x - x0) / (x1 - x0);
+    };
+
+
+    // 3. Unified Comparison Data
+    const unifiedData = useMemo(() => {
         if (selectedEfforts.length === 0) return [];
 
-        // Find the "longest" effort (distance-wise) to normalize X-axis if needed, 
-        // or just map everything. Recharts handles multiple lines well.
-        // We need a unified X-axis for the tooltip to work nicely across multiple lines?
-        // Actually, for multiple efforts with different sampling, it's tricky.
-        // Best approach: Flatten all data into a single array? No, Recharts expects one array of objects with keys for each series.
-        // But our series have different X resolutions and lengths.
-        // Solution: Use the 'distance' stream of the first selected effort as the "master" X-axis? 
-        // No, that's brittle.
-        // Better: Find the effort with the most data points and map others to it?
-        // OR: Just allow loosely coupled data if X-axis is "type: number".
+        // Identify available streams and determining domain
+        const validEfforts = selectedEfforts.filter(e => streams[e.activity_id]);
+        if (validEfforts.length === 0) return [];
 
-        // Simplified approach for now:
-        // Create a merged dataset. We iterate through the longest stream and interpolate/find nearest points from others?
-        // Or simpler: Just prepare individual series and pass them to Recharts? 
-        // Recharts <Line> can take `data` prop directly since v2.x! 
-        // Let's try passing individual data to each Line.
+        let maxDistance = 0;
 
-        return selectedEfforts.map((effort, index) => {
-            const stream = streams[effort.activity_id];
-            if (!stream) return null;
 
-            const dist = stream.distance || [];
-            const time = stream.time || [];
-            const watts = stream.watts || [];
-            const hr = stream.heartrate || [];
-            const alt = stream.altitude || [];
-            const vel = stream.velocity_smooth || [];
-            const cad = stream.cadence || [];
+        // Pre-process streams to normalize distance and find max
+        const processedStreams: any[] = validEfforts.map(effort => {
 
-            // Normalize distance and time to start from 0 for the segment
-            const startDist = dist.length > 0 ? dist[0] : 0;
+            const s = streams[effort.activity_id];
+            // Safe access w/ defaulting
+            const dist = s && s.distance ? s.distance : [];
+            const time = s && s.time ? s.time : [];
+
+            if (dist.length === 0) {
+                return null;
+            }
+
+            const startDist = dist[0];
             const startTime = time.length > 0 ? time[0] : 0;
 
             const normalizedDist = dist.map((d: number) => d - startDist);
             const normalizedTime = time.map((t: number) => t - startTime);
 
-            const points = [];
-            // Use distance or time as X
-            const xStream = xAxisType === 'distance' ? normalizedDist : normalizedTime;
+            const lastDist = normalizedDist[normalizedDist.length - 1] || 0;
+            if (lastDist > maxDistance) maxDistance = lastDist;
 
-            // Safe guard: Stop if distance exceeds segment distance by 5% (to handle GPS drift/slicing errors)
-            const maxDistance = segment ? segment.distance * 1.05 : Infinity;
-
-            for (let i = 0; i < xStream.length; i++) {
-                // Downsample for performance if needed
-                if (xStream.length > 2000 && i % 2 !== 0) continue;
-
-                // Stop adding points if we exceed the segment distance (plus tolerance)
-                if (normalizedDist[i] > maxDistance) break;
-
-                points.push({
-                    x: xStream[i],
-                    power: watts[i],
-                    hr: hr[i],
-                    alt: alt[i],
-                    speed: vel[i] ? vel[i] * 3.6 : 0, // m/s to km/h
-                    cad: cad[i],
-                    time: normalizedTime[i]
-                });
-            }
+            // Use watts_calc if watts is missing (common in some Strava activities)
+            const powerStream = s.watts || s.watts_calc || [];
 
             return {
                 id: effort.activity_id,
-                name: format(new Date(effort.start_date), 'yyyy-MM-dd'),
-                color: COLORS[index % COLORS.length],
-                data: points
+                dist: normalizedDist,
+                time: normalizedTime,
+                power: powerStream,
+                hr: s.heartrate || [],
+                alt: s.altitude || [],
+                speed: s.velocity_smooth || [],
+                cad: s.cadence || []
             };
-        }).filter(Boolean);
+        }).filter(Boolean) as NonNullable<typeof processedStreams[0]>[];
 
-    }, [selectedEfforts, streams, xAxisType]);
+        if (processedStreams.length === 0) return [];
+
+        // Limit max distance to segment distance + 5% if segment is defined
+        if (segment) {
+            const segMax = segment.distance * 1.05;
+            maxDistance = Math.min(maxDistance, segMax);
+        }
+
+        // Sampling Rate
+        // If we generate too many points, performance suffers. target ~500 points
+        const SAMPLE_POINTS = 500;
+        const step = maxDistance / SAMPLE_POINTS;
+
+        const result = [];
+        for (let x = 0; x <= maxDistance; x += step) {
+            const point: any = { x: Math.round(x) }; // X is Distance
+
+            // For each effort, interpolate values at distance X
+            processedStreams.forEach(stream => {
+                // Check if X is within this effort's range (or close enough)
+                const lastEffortDist = stream.dist[stream.dist.length - 1];
+                if (x > lastEffortDist) {
+                    return;
+                }
+
+                // Only interpolate if stream has data
+                if (stream.power.length > 0) point[`power_${stream.id}`] = Math.round(interpolate(x, stream.dist, stream.power));
+                if (stream.hr.length > 0) point[`hr_${stream.id}`] = Math.round(interpolate(x, stream.dist, stream.hr));
+                if (stream.alt.length > 0) point[`alt_${stream.id}`] = interpolate(x, stream.dist, stream.alt);
+                if (stream.speed.length > 0) point[`speed_${stream.id}`] = Math.round(interpolate(x, stream.dist, stream.speed) * 3.6 * 10) / 10; // m/s to km/h
+                if (stream.time.length > 0) point[`time_${stream.id}`] = Math.round(interpolate(x, stream.dist, stream.time));
+            });
+
+            // For shared background elevation, take the average of all available altitudes or the first one
+            // Ideally use the official segment altitude if available, but we don't have it as a stream
+            // Use the first effort's altitude as reference
+            if (processedStreams.length > 0 && processedStreams[0].alt.length > 0) {
+                point.alt_ref = point[`alt_${processedStreams[0].id}`];
+            } else if (processedStreams.length > 1 && processedStreams[1].alt.length > 0) {
+                point.alt_ref = point[`alt_${processedStreams[1].id}`];
+            }
+
+            result.push(point);
+        }
+
+        return result;
+
+    }, [selectedEfforts, streams, segment]);
 
 
     if (allEfforts.length === 0) return null;
@@ -188,7 +246,7 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
 
             {chartsExpanded && (
                 <div className="p-4 space-y-8">
-                    {/* 1. Historical Trend */}
+                    {/* 1. Historical Trend (Unchanged) */}
                     <div className="h-[300px]">
                         <h4 className="text-sm font-semibold text-slate-600 mb-2">歷史趨勢 (時間 & 功率)</h4>
                         <ResponsiveContainer width="100%" height="100%">
@@ -322,15 +380,13 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                                 </div>
                             </div>
 
-
-
                             {/* Warning for missing data */}
-                            {!loading && selectedEfforts.length > comparisonData.length && (
+                            {!loading && selectedEfforts.length > unifiedData.length && selectedEfforts.length > 0 && (
                                 <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex flex-col gap-2 text-amber-500 text-sm">
                                     <div className="flex items-center gap-2">
-                                        <span className="font-bold">⚠️ 注意：</span>
+                                        <Info size={16} />
                                         <span>
-                                            有 {selectedEfforts.length - comparisonData.length} 筆活動因缺少詳細串流數據而無法顯示在圖表中。
+                                            部分活動因缺少詳細串流數據而隱藏。
                                         </span>
                                     </div>
                                     <div className="flex flex-wrap gap-2 ml-6">
@@ -369,21 +425,20 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                                 <div className="h-[400px] flex items-center justify-center text-slate-400">
                                     載入數據中...
                                 </div>
-                            ) : comparisonData.length === 0 ? (
+                            ) : unifiedData.length === 0 ? (
                                 <div className="h-[400px] flex items-center justify-center text-slate-400">
-                                    無串流數據可供顯示
+                                    無有效數據可供顯示
                                 </div>
                             ) : (
                                 <div className="h-[400px]">
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <ComposedChart>
+                                        <ComposedChart data={unifiedData}>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                             <XAxis
                                                 dataKey="x"
                                                 type="number"
-                                                unit={xAxisType === 'distance' ? 'm' : 's'}
+                                                unit="m"
                                                 domain={['dataMin', 'dataMax']}
-                                                allowDataOverflow
                                                 tickFormatter={(value) => Math.round(value).toString()}
                                             />
                                             {visibleSeries.elevation && (
@@ -408,17 +463,17 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                                                 domain={[0, 'auto']}
                                             />
                                             <Tooltip
+                                                labelFormatter={(value) => `距離: ${Math.round(value)}m`}
                                                 contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                             />
                                             <Legend verticalAlign="top" height={36} />
 
-                                            {/* Background Elevation Area (using the first effort for context) */}
-                                            {visibleSeries.elevation && comparisonData[0] && (
+                                            {/* Background Elevation Area (Shared Reference) */}
+                                            {visibleSeries.elevation && (
                                                 <Area
                                                     yAxisId="alt"
-                                                    data={comparisonData[0].data}
-                                                    dataKey="alt"
-                                                    name="海拔"
+                                                    dataKey="alt_ref"
+                                                    name="海拔 (參考)"
                                                     fill="#e2e8f0"
                                                     stroke="none"
                                                     fillOpacity={0.3}
@@ -427,72 +482,77 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                                             )}
 
                                             {/* Lines for each selected effort */}
-                                            {comparisonData.map((series: any) => (
-                                                <React.Fragment key={series.id}>
-                                                    {visibleSeries.power && (
-                                                        <Line
-                                                            yAxisId="main"
-                                                            data={series.data}
-                                                            dataKey="power"
-                                                            name={`${series.name} (W)`}
-                                                            stroke={series.color}
-                                                            strokeWidth={2}
-                                                            dot={false}
-                                                            isAnimationActive={false}
-                                                        />
-                                                    )}
-                                                    {visibleSeries.heartrate && (
-                                                        <Line
-                                                            yAxisId="main"
-                                                            data={series.data}
-                                                            dataKey="hr"
-                                                            name={`${series.name} (BPM)`}
-                                                            stroke={series.color}
-                                                            strokeWidth={1}
-                                                            strokeDasharray="3 3"
-                                                            dot={false}
-                                                            isAnimationActive={false}
-                                                        />
-                                                    )}
-                                                    {visibleSeries.speed && (
-                                                        <Line
-                                                            yAxisId="main"
-                                                            data={series.data}
-                                                            dataKey="speed"
-                                                            name={`${series.name} (km/h)`}
-                                                            stroke={series.color}
-                                                            strokeWidth={1}
-                                                            strokeDasharray="5 5"
-                                                            dot={false}
-                                                            isAnimationActive={false}
-                                                        />
-                                                    )}
-                                                    {visibleSeries.time && (
-                                                        <Line
-                                                            yAxisId="time"
-                                                            data={series.data}
-                                                            dataKey="time"
-                                                            name={`${series.name} (時間)`}
-                                                            stroke={series.color}
-                                                            strokeWidth={1}
-                                                            strokeDasharray="4 2"
-                                                            dot={false}
-                                                            isAnimationActive={false}
-                                                        />
-                                                    )}
-                                                </React.Fragment>
-                                            ))}
+                                            {selectedEfforts
+                                                .filter(e => streams[e.activity_id])
+                                                .map((effort, index) => {
+                                                    const color = COLORS[index % COLORS.length];
+                                                    const dateLabel = format(new Date(effort.start_date), 'yyyy-MM-dd');
 
-                                            <Brush height={30} stroke="#cbd5e1" />
+                                                    return (
+                                                        <React.Fragment key={effort.activity_id}>
+                                                            {visibleSeries.power && (
+                                                                <Line
+                                                                    yAxisId="main"
+                                                                    dataKey={`power_${effort.activity_id}`}
+                                                                    name={`${dateLabel} (W)`}
+                                                                    stroke={color}
+                                                                    strokeWidth={2}
+                                                                    dot={false}
+                                                                    isAnimationActive={false}
+                                                                    connectNulls
+                                                                />
+                                                            )}
+                                                            {visibleSeries.heartrate && (
+                                                                <Line
+                                                                    yAxisId="main"
+                                                                    dataKey={`hr_${effort.activity_id}`}
+                                                                    name={`${dateLabel} (BPM)`}
+                                                                    stroke={color}
+                                                                    strokeWidth={1}
+                                                                    strokeDasharray="3 3"
+                                                                    dot={false}
+                                                                    isAnimationActive={false}
+                                                                    connectNulls
+                                                                />
+                                                            )}
+                                                            {visibleSeries.speed && (
+                                                                <Line
+                                                                    yAxisId="main"
+                                                                    dataKey={`speed_${effort.activity_id}`}
+                                                                    name={`${dateLabel} (km/h)`}
+                                                                    stroke={color}
+                                                                    strokeWidth={1}
+                                                                    strokeDasharray="5 5"
+                                                                    dot={false}
+                                                                    isAnimationActive={false}
+                                                                    connectNulls
+                                                                />
+                                                            )}
+                                                            {visibleSeries.time && (
+                                                                <Line
+                                                                    yAxisId="time"
+                                                                    dataKey={`time_${effort.activity_id}`}
+                                                                    name={`${dateLabel} (時間)`}
+                                                                    stroke={color}
+                                                                    strokeWidth={1}
+                                                                    strokeDasharray="4 2"
+                                                                    dot={false}
+                                                                    isAnimationActive={false}
+                                                                    connectNulls
+                                                                />
+                                                            )}
+                                                        </React.Fragment>
+                                                    );
+                                                })}
+
+                                            <Brush height={30} stroke="#cbd5e1" dataKey="x" tickFormatter={(v) => `${Math.round(v)}m`} />
                                         </ComposedChart>
                                     </ResponsiveContainer>
                                 </div>
 
                             )}
 
-
-
-                            {/* Segment Info at the bottom */}
+                            {/* Segment Info at the bottom (Unchanged) */}
                             {segment && (
                                 <div className="mt-4 flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs text-slate-500 border-t border-slate-100 pt-4">
                                     <span className="flex items-center gap-1">
@@ -521,5 +581,3 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
         </div >
     );
 };
-
-

@@ -50,11 +50,11 @@ const PowerAnalysisPage: React.FC = () => {
 
     // 數據狀態
     const [activities, setActivities] = useState<StravaActivity[]>([]);
-    const [powerArrays, setPowerArrays] = useState<number[][]>([]);
     const [currentFTP, setCurrentFTP] = useState(0);
     const [athleteWeight, setAthleteWeight] = useState(0);
     const [streamLoadProgress, setStreamLoadProgress] = useState({ loaded: 0, total: 0 });
     const [analyzedActivityIds, setAnalyzedActivityIds] = useState<Set<number>>(new Set());
+    const [activityPowerData, setActivityPowerData] = useState<{ date: string; data: number[] }[]>([]);
     const [displayProgress, setDisplayProgress] = useState(0);
 
     // 平滑進度動畫
@@ -152,7 +152,7 @@ const PowerAnalysisPage: React.FC = () => {
             }
 
             // 批量取得所有 Streams（分批處理避免超時）
-            const allPowerArrays: number[][] = [];
+            const allPowerData: { date: string; data: number[] }[] = [];
             const ftpHist: typeof ftpHistory = [];
             const analyzedIds = new Set<number>();
             const dailyTSS: Record<string, { tss: number; count: number }> = {};
@@ -197,7 +197,8 @@ const PowerAnalysisPage: React.FC = () => {
                         const wattsData = wattsStream?.data;
 
                         if (wattsData && wattsData.length > 0) {
-                            allPowerArrays.push(wattsData);
+                            allPowerData.push({ date: act.start_date, data: wattsData });
+
 
                             if (stream.ftp && stream.ftp > 0) {
                                 ftpHist.push({
@@ -232,7 +233,7 @@ const PowerAnalysisPage: React.FC = () => {
                 setStreamLoadProgress({ loaded: Math.min((batch + 1) * batchSize, acts.length), total: acts.length });
             }
 
-            setPowerArrays(allPowerArrays);
+            setActivityPowerData(allPowerData);
             setFtpHistory(ftpHist);
             setAnalyzedActivityIds(analyzedIds);
             setDailyTSSData(
@@ -274,6 +275,23 @@ const PowerAnalysisPage: React.FC = () => {
             avgPower: Math.round(avgPower),
         };
     }, [activities, analysisRange, analyzedActivityIds]);
+
+    // MMP 視圖所需的數據：當前區間 vs 參考區間 (365D)
+    const mmpViewData = useMemo(() => {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - analysisRange);
+
+        const currentPowerArrays = activityPowerData
+            .filter(ap => new Date(ap.date) >= cutoff)
+            .map(ap => ap.data);
+
+        const referencePowerArrays = activityPowerData.map(ap => ap.data);
+
+        return {
+            current: currentPowerArrays,
+            reference: referencePowerArrays
+        };
+    }, [activityPowerData, analysisRange]);
 
     // 格式化騎乘總時間
     const formatTotalTime = (seconds: number): string => {
@@ -485,11 +503,13 @@ const PowerAnalysisPage: React.FC = () => {
 
                             {/* MMP / CP 模型 */}
                             {activeTab === 'mmp' && (
-                                powerArrays.length > 0 ? (
+                                mmpViewData.current.length > 0 || mmpViewData.reference.length > 0 ? (
                                     <MMPChart
-                                        powerArrays={powerArrays}
+                                        powerArrays={mmpViewData.current}
+                                        referencePowerArrays={mmpViewData.reference}
                                         ftp={currentFTP}
                                         weight={athleteWeight}
+                                        rangeLabel={`${analysisRange}D`}
                                     />
                                 ) : (
                                     <EmptyState

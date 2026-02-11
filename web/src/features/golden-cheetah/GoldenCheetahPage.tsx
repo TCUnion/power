@@ -27,7 +27,7 @@ import {
     Cell,
     LabelList
 } from 'recharts';
-import { Activity, Info, Loader2, ArrowLeft, Thermometer, RotateCw, Heart, Clock, Gauge, FileText, ChevronLeft, RefreshCw, TrendingUp, Lock } from 'lucide-react';
+import { Activity, Info, Loader2, ArrowLeft, Thermometer, RotateCw, Heart, Clock, Gauge, FileText, RefreshCw, TrendingUp, Lock } from 'lucide-react';
 import { fitMorton3P, calculateMMP, calculateNP } from '../../utils/power-models';
 import { GaugeChart } from './GaugeChart';
 import ActivitySelector from './components/ActivitySelector';

@@ -63,16 +63,20 @@ const getPowerLevel = (wpk: number, durationKey: string): { level: string; color
 };
 
 interface MMPChartProps {
-    powerArrays: number[][];
+    powerArrays: number[][]; // 當前區間的數據
+    referencePowerArrays?: number[][]; // 全賽季 (365D) 數據
     ftp: number;
     weight?: number;
+    rangeLabel?: string;
 }
 
-export const MMPChart: React.FC<MMPChartProps> = ({ powerArrays, ftp, weight = 70 }) => {
+export const MMPChart: React.FC<MMPChartProps> = ({ powerArrays, referencePowerArrays = [], ftp, weight = 70, rangeLabel = '當前區間' }) => {
     const [showFitted, setShowFitted] = useState(true);
-    const [modelType, setModelType] = useState<CPModelType>('cycling_analytics'); // Default to Cycling Analytics
+    const [showComparison, setShowComparison] = useState(true);
+    const [modelType, setModelType] = useState<CPModelType>('cycling_analytics');
 
     const mmpCurve = useMemo(() => calculateMMP(powerArrays), [powerArrays]);
+    const refCurve = useMemo(() => calculateMMP(referencePowerArrays), [referencePowerArrays]);
 
     const cpModel = useMemo(() => {
         switch (modelType) {
@@ -84,17 +88,29 @@ export const MMPChart: React.FC<MMPChartProps> = ({ powerArrays, ftp, weight = 7
     }, [mmpCurve, modelType]);
 
     const chartData = useMemo(() => {
-        if (mmpCurve.length === 0) return [];
+        if (mmpCurve.length === 0 && refCurve.length === 0) return [];
         const fittedMap = new Map<number, number>();
         if (cpModel?.fittedCurve) cpModel.fittedCurve.forEach(p => fittedMap.set(p.duration, p.power));
-        return mmpCurve.map(p => ({
-            duration: p.duration,
-            durationLabel: formatDurationLabel(p.duration),
-            power: p.power,
-            fitted: fittedMap.get(p.duration) || null,
-            wpk: weight > 0 ? Math.round((p.power / weight) * 100) / 100 : null,
-        }));
-    }, [mmpCurve, cpModel, weight]);
+
+        const refMap = new Map<number, number>();
+        refCurve.forEach(p => refMap.set(p.duration, p.power));
+
+        // 合併所有時間點進行顯示
+        const allDurations = Array.from(new Set([...mmpCurve.map(p => p.duration), ...refCurve.map(p => p.duration)])).sort((a, b) => a - b);
+
+        return allDurations.map(duration => {
+            const mmpPoint = mmpCurve.find(p => p.duration === duration);
+            const power = mmpPoint?.power || null;
+            return {
+                duration,
+                durationLabel: formatDurationLabel(duration),
+                power,
+                reference: refMap.get(duration) || null,
+                fitted: fittedMap.get(duration) || null,
+                wpk: weight > 0 && power ? Math.round((power / weight) * 100) / 100 : null,
+            };
+        });
+    }, [mmpCurve, refCurve, cpModel, weight]);
 
     const powerProfile = useMemo(() => {
         return POWER_PROFILE_DURATIONS.map(pp => {
@@ -124,7 +140,15 @@ export const MMPChart: React.FC<MMPChartProps> = ({ powerArrays, ftp, weight = 7
                     <h3 className="text-lg font-bold text-white">MMP / CP 模型分析</h3>
                 </div>
 
-                <div className="flex bg-slate-800 p-1 rounded-lg">
+                <div className="flex bg-slate-800 p-1 rounded-lg gap-2">
+                    <button
+                        onClick={() => setShowComparison(!showComparison)}
+                        className={`text-[10px] md:text-xs font-bold px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${showComparison ? 'bg-slate-700 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'
+                            }`}
+                    >
+                        {showComparison ? '隱藏參考' : '顯示全賽季比較'}
+                    </button>
+                    <div className="w-px h-4 bg-slate-700 self-center mx-1" />
                     <button
                         onClick={() => setModelType('morton3p')}
                         className={`text-[10px] md:text-xs font-bold px-3 py-1.5 rounded-md transition-all ${modelType === 'morton3p' ? 'bg-indigo-500 text-white shadow-lg' : 'text-slate-400 hover:text-white'
@@ -248,11 +272,24 @@ export const MMPChart: React.FC<MMPChartProps> = ({ powerArrays, ftp, weight = 7
                                     fontSize: '12px',
                                 }}
                                 formatter={(value: number | string, name: string) => {
-                                    if (name === 'power') return [`${value} W`, '實際最大功率'];
+                                    if (name === 'power') return [`${value} W`, `目前區間 (${rangeLabel})`];
+                                    if (name === 'reference') return [`${value} W`, '全賽季 (365D) 最高'];
                                     if (name === 'fitted') return [`${value} W`, `CP 模型 (${cpModel?.modelName})`];
                                     return [value, name];
                                 }}
                             />
+                            {showComparison && (
+                                <Area
+                                    type="monotone"
+                                    dataKey="reference"
+                                    stroke="#475569"
+                                    strokeWidth={1.5}
+                                    strokeDasharray="4 4"
+                                    fill="transparent"
+                                    dot={false}
+                                    activeDot={{ r: 4, fill: '#475569' }}
+                                />
+                            )}
                             <Area
                                 type="monotone"
                                 dataKey="power"
@@ -261,6 +298,7 @@ export const MMPChart: React.FC<MMPChartProps> = ({ powerArrays, ftp, weight = 7
                                 fill="url(#mmpGradient)"
                                 dot={{ r: 3, fill: '#EAB308', strokeWidth: 0 }}
                                 activeDot={{ r: 5, fill: '#EAB308', stroke: '#fff', strokeWidth: 2 }}
+                                connectNulls
                             />
                             {showFitted && (
                                 <Line

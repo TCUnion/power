@@ -63,52 +63,46 @@ class ConfirmBindingRequest(BaseModel):
     user_id: Optional[str] = None
 
 def get_supabase_config():
-    """取得並清理 Supabase 設定，確保沒有多餘空格"""
-    url = (os.environ.get("SUPABASE_URL") or os.environ.get("VITE_SUPABASE_URL", "")).strip()
+    """取得並清理 Supabase 設定，確保沒有多餘空格、引號或結尾斜線"""
+    url = (os.environ.get("SUPABASE_URL") or os.environ.get("VITE_SUPABASE_URL", "")).strip().strip('"').strip("'").rstrip('/')
     
     # 優先順序：SERVICE_KEY > SERVICE_ROLE_KEY > KEY > VITE_ 分身
-    key = (
-        os.environ.get("SUPABASE_SERVICE_KEY") or 
-        os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or 
-        os.environ.get("SUPABASE_KEY") or
-        os.environ.get("VITE_SUPABASE_SERVICE_ROLE_KEY") or 
-        os.environ.get("VITE_SUPABASE_ANON_KEY", "")
-    ).strip()
-    
-    # 診斷資訊（不記錄內容）
-    sources = []
-    if os.environ.get("SUPABASE_URL"): sources.append("SUPABASE_URL")
-    elif os.environ.get("VITE_SUPABASE_URL"): sources.append("VITE_SUPABASE_URL")
-    
+    key = ""
     key_source = "None"
     for k in ["SUPABASE_SERVICE_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_KEY", "VITE_SUPABASE_SERVICE_ROLE_KEY", "VITE_SUPABASE_ANON_KEY"]:
-        if os.environ.get(k):
+        val = (os.environ.get(k) or "").strip().strip('"').strip("'")
+        if val:
+            key = val
             key_source = k
             break
             
     if not url or not key:
         available = [k for k in os.environ.keys() if "SUPABASE" in k]
-        logger.error(f"Missing config. URL source: {sources}, Key source: {key_source}. Available keys: {available}")
+        logger.error(f"Missing config. URL: {url}, Key source: {key_source}. Available: {available}")
     else:
-        logger.info(f"Supabase Config Loaded. URL source: {sources}, Key source: {key_source}")
+        # 安全診斷：記錄長度與前後字元以供核對
+        masked_key = f"{key[:4]}...{key[-4:]}" if len(key) > 8 else "too_short"
+        logger.info(f"Supabase v1.5.1 Loaded. Source: {key_source}, Len: {len(key)}, Masked: {masked_key}")
         
     return url, key
 
 @app.get("/")
 def read_root():
-    logger.info("Root endpoint called v1.5-FORCE")
-    return {"status": "online", "message": "TCU Power API is running v1.5-FORCE"}
+    logger.info("Root endpoint called v1.5.1")
+    return {"status": "online", "message": "TCU Power API is running v1.5.1"}
 
 @app.get("/health")
 def health_check():
     url, key = get_supabase_config()
     return {
         "status": "ok", 
-        "version": "1.4",
+        "version": "1.5.1",
         "config_check": {
             "has_url": bool(url),
+            "url_clean": url,
             "has_key": bool(key),
-            "key_length": len(key) if key else 0
+            "key_length": len(key) if key else 0,
+            "key_masked": f"{key[:4]}...{key[-4:]}" if key and len(key) > 8 else "N/A"
         }
     }
 

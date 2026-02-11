@@ -17,6 +17,7 @@ import { supabase } from '../../lib/supabase';
 import { Link } from 'react-router-dom';
 import type { StravaActivity, StravaStreams, StreamData, StravaZoneBucket } from '../../types';
 import AerolabView from './components/AerolabView';
+import CompareView from './components/CompareView';
 import {
     ResponsiveContainer,
     BarChart,
@@ -1279,12 +1280,11 @@ export const GoldenCheetahPage = () => {
             )}
 
             {activeView === 'compare' && (
-                <div className="flex flex-col items-center justify-center min-h-[400px] text-slate-400">
-                    <div className="bg-slate-800 p-8 rounded-2xl text-center border border-slate-700">
-                        <h3 className="text-xl font-bold text-white mb-2">Compare Mode Coming Soon</h3>
-                        <p>Activity comparison features are under development.</p>
-                    </div>
-                </div>
+                <CompareView
+                    allActivities={allActivities}
+                    allStreamsData={allStreamsData}
+                    athleteWeight={athleteWeight}
+                />
             )}
 
 

@@ -34,7 +34,8 @@ origins = [
     "http://localhost:5173",
     "https://stravapower.zeabur.app",
     "https://www.criterium.tw",
-    "https://strava.criterium.tw"
+    "https://strava.criterium.tw",
+    "https://power.criterium.tw"
 ]
 
 app.add_middleware(

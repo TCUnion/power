@@ -28,7 +28,9 @@ interface CompareChartsProps {
     segment?: Segment;
     onSync?: (activityId: number) => void;
     syncStatus?: Record<number, SyncStatus>;
+    onToggleEffort?: (activityId: number) => void;
 }
+
 
 const COLORS = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1'];
 
@@ -39,8 +41,10 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
     loading,
     segment,
     onSync,
-    syncStatus = {}
+    syncStatus = {},
+    onToggleEffort
 }) => {
+
     const [chartsExpanded, setChartsExpanded] = useState(true);
     const xAxisType = 'distance';
     const [visibleSeries, setVisibleSeries] = useState({
@@ -61,10 +65,12 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                 timestamp: new Date(effort.start_date).getTime(),
                 time: effort.elapsed_time,
                 watts: effort.average_watts,
-                dateStr: format(new Date(effort.start_date), 'yyyy-MM-dd')
+                dateStr: format(new Date(effort.start_date), 'yyyy-MM-dd'),
+                activityName: effort.activity_name
             }))
             .sort((a, b) => a.timestamp - b.timestamp);
     }, [allEfforts]);
+
 
     // 2. Detailed Comparison Data
     const comparisonData = useMemo(() => {
@@ -162,7 +168,15 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                     <div className="h-[300px]">
                         <h4 className="text-sm font-semibold text-slate-600 mb-2">歷史趨勢 (時間 & 功率)</h4>
                         <ResponsiveContainer width="100%" height="100%">
-                            <ComposedChart data={trendData}>
+                            <ComposedChart
+                                data={trendData}
+                                onClick={(state: any) => {
+                                    if (state && state.activePayload && state.activePayload.length > 0) {
+                                        const payload = state.activePayload[0].payload;
+                                        if (onToggleEffort) onToggleEffort(payload.id);
+                                    }
+                                }}
+                            >
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                 <XAxis
                                     dataKey="dateStr"
@@ -181,8 +195,25 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                                     domain={['auto', 'auto']}
                                 />
                                 <Tooltip
-                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                    labelStyle={{ fontWeight: 'bold', color: '#64748b' }}
+                                    content={({ active, payload, label }) => {
+                                        if (active && payload && payload.length) {
+                                            const data = payload[0].payload;
+                                            return (
+                                                <div className="bg-white p-3 border border-slate-200 shadow-lg rounded-lg text-sm z-50">
+                                                    <p className="font-bold text-slate-700 mb-1">{data.dateStr}</p>
+                                                    <p className="font-medium text-slate-900 mb-2 truncate max-w-[200px]">{data.activityName}</p>
+                                                    <div className="space-y-1">
+                                                        <p className="text-blue-500">時間: {data.time} s</p>
+                                                        {data.watts && <p className="text-amber-500">功率: {data.watts} W</p>}
+                                                    </div>
+                                                    <div className="mt-2 pt-2 border-t border-slate-100 text-xs text-slate-400">
+                                                        點擊切換選取狀態
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    }}
                                 />
                                 <Legend />
                                 <Line
@@ -193,7 +224,7 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                                     stroke="#3b82f6"
                                     strokeWidth={2}
                                     dot={{ r: 4 }}
-                                    activeDot={{ r: 6 }}
+                                    activeDot={{ r: 6, cursor: 'pointer' }}
                                 />
                                 <Line
                                     yAxisId="right"
@@ -204,6 +235,7 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                                     strokeWidth={2}
                                     connectNulls
                                     dot={{ r: 4 }}
+                                    activeDot={{ r: 6, cursor: 'pointer' }}
                                 />
                             </ComposedChart>
                         </ResponsiveContainer>

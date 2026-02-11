@@ -205,6 +205,7 @@ const SegmentCompare = () => {
                             segment={segments.find(s => s.id === selectedSegmentId)}
                             onSync={syncActivity}
                             syncStatus={syncStatus}
+                            onToggleEffort={handleToggleEffort}
                         />
                     </div>
                 )}

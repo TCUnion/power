@@ -12,6 +12,7 @@ export const ViewType = {
     TEAM_DASHBOARD: 'TEAM_DASHBOARD',
     MANAGER_DASHBOARD: 'MANAGER_DASHBOARD',
     SETTINGS: 'SETTINGS',
+    SEGMENT_COMPARE: 'SEGMENT_COMPARE',
 } as const;
 export type ViewType = typeof ViewType[keyof typeof ViewType];
 
@@ -496,4 +497,31 @@ export interface AthletePowerProfile {
     atl: number;
     tsb: number;
     recentActivities: ActivityPowerAnalysis[];
+}
+
+export interface SegmentEffort {
+    athlete_id: number;
+    activity_id: number;
+    activity_name: string;
+    start_date: string;
+    segment_id: number;
+    segment_name: string;
+    elapsed_time: number;
+    moving_time: number;
+    average_watts: number | null;
+    effort_start_date: string;
+    athlete_name?: string;
+    profile?: string;
+    start_index?: number;
+    end_index?: number;
+}
+
+export interface SegmentCompareResult {
+    segmentEfforts: SegmentEffort[];
+    polylines: {
+        activity_id: number;
+        polyline: string;
+        color: string;
+        label: string;
+    }[];
 }

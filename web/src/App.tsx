@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
@@ -6,11 +5,13 @@ import StravaConnect from './features/auth/StravaConnect';
 
 import PowerAnalysisPage from './features/power/PowerAnalysisPage';
 import { Link as RouterLink, NavLink } from 'react-router-dom';
-import { Zap, LogOut, LayoutDashboard, Activity, ShieldCheck } from 'lucide-react';
+import { Zap, LogOut, LayoutDashboard, Activity, ShieldCheck, ArrowLeftRight } from 'lucide-react';
 import MemberBindingCard from './features/auth/MemberBindingCard';
 import PowerDashboard from './features/power/PowerDashboard';
 import GoldenCheetahPage from './features/golden-cheetah/GoldenCheetahPage';
 import tcuLogo from './assets/tcu-logo.png';
+
+const SegmentCompare = React.lazy(() => import('./features/segment-compare/SegmentCompare'));
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { athlete, isBound, logout } = useAuth();
@@ -67,6 +68,19 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               >
                 <Activity className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">GoldenCheetah</span>
+              </NavLink>
+
+              <NavLink
+                to="/compare"
+                className={({ isActive }) =>
+                  `px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${isActive
+                    ? 'bg-white dark:bg-slate-700 text-purple-500 shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/30'
+                  }`
+                }
+              >
+                <ArrowLeftRight className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">比較</span>
               </NavLink>
             </nav>
           )}
@@ -238,6 +252,14 @@ const App: React.FC = () => {
           <Route path="/power" element={<PowerDashboard />} />
           <Route path="/analysis" element={<PowerAnalysisPage />} />
           <Route path="/goldencheetah" element={<GoldenCheetahPage />} />
+          <Route
+            path="/compare"
+            element={
+              <React.Suspense fallback={<div className="p-8 text-center">Loading...</div>}>
+                <SegmentCompare />
+              </React.Suspense>
+            }
+          />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

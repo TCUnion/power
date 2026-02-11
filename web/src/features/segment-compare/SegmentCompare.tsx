@@ -8,8 +8,12 @@ import { format } from 'date-fns';
 import { useAuth } from '../../hooks/useAuth';
 import { CompareCharts } from './components/CompareCharts';
 
+import { useAuthContext } from '../../contexts/AuthContext';
+import { MemberBindingCard } from '../auth/MemberBindingCard';
+
 const SegmentCompare = () => {
-    const { athlete } = useAuth();
+    const { athlete, isBound, isLoading: authLoading } = useAuthContext();
+    const athleteName = athlete ? `${athlete.firstname} ${athlete.lastname}`.trim() : '未登入';
 
     const {
         loading,
@@ -154,7 +158,30 @@ const SegmentCompare = () => {
     const selectedEffortsSorted = efforts.filter(e => selectedEffortIds.includes(e.activity_id));
     selectedEffortsSorted.sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
 
-    const athleteName = athlete ? `${athlete.firstname} ${athlete.lastname}`.trim() : '未登入';
+    if (authLoading) {
+        return (
+            <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+            </div>
+        );
+    }
+
+    if (!isBound) {
+        return (
+            <div className="min-h-screen bg-slate-950 p-6 flex items-center justify-center">
+                <div className="max-w-md w-full space-y-6 text-center">
+                    <div className="p-6 bg-slate-900 rounded-2xl border border-slate-800 shadow-xl">
+                        <ArrowLeftRight className="w-12 h-12 text-blue-500 mx-auto mb-4 opacity-50" />
+                        <h2 className="text-xl font-bold text-white mb-2">需要會員綁定</h2>
+                        <p className="text-slate-400 text-sm mb-6">
+                            「活動比較」功能僅限已綁定 TCU 會員的用戶使用。請先完成 Strava 帳號與會員資料的綁定。
+                        </p>
+                        <MemberBindingCard />
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
 
 

@@ -2,6 +2,10 @@ import os
 import logging
 from dotenv import load_dotenv
 
+# 設定日誌
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("tcu-power-api")
+
 # 嘗試載入環境變數（支援多種路徑）
 load_dotenv()
 env_paths = [
@@ -11,7 +15,7 @@ env_paths = [
     os.path.join(os.path.dirname(__file__), ".env")
 ]
 for p in env_paths:
-        if os.path.exists(p):
+    if os.path.exists(p):
         load_dotenv(p)
         logger.info(f"Loaded environment variables from {p}")
 
@@ -21,17 +25,22 @@ from pydantic import BaseModel
 from typing import Optional, List
 from supabase import create_client, Client
 
-# 設定日誌
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("tcu-power-api")
+
 
 app = FastAPI(title="TCU Power API")
 
-# 設定更寬容的 CORS 以解決目前的攔截問題
+# 設定 CORS
+origins = [
+    "http://localhost:5173",
+    "https://stravapower.zeabur.app",
+    "https://www.criterium.tw",
+    "https://strava.criterium.tw"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -97,7 +106,7 @@ async def get_binding_status(athlete_id: int):
             
         supabase: Client = create_client(url, key)
         
-        binding_res = supabase.table("strava_bindings") \
+        binding_res = supabase.table("strava_member_bindings") \
             .select("*") \
             .eq("strava_id", str(athlete_id)) \
             .execute()
@@ -170,19 +179,14 @@ async def confirm_binding(req: ConfirmBindingRequest):
                    os.environ.get("SUPABASE_KEY")
         
         if not url or not key:
-<<<<<<< HEAD
-=======
+
             # 嘗試讀取 VITE_ 開頭的變數（前端環境變數）
->>>>>>> d444661 (修正: 後端 Supabase 憑證載入邏輯與前端同步)
             url = url or os.environ.get("VITE_SUPABASE_URL")
             key = key or os.environ.get("VITE_SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("VITE_SUPABASE_ANON_KEY")
             
         if not url or not key:
-<<<<<<< HEAD
-=======
             available_keys = [k for k in os.environ.keys() if "SUPABASE" in k]
             logger.error(f"Missing Supabase credentials in confirm_binding. Available: {available_keys}")
->>>>>>> d444661 (修正: 後端 Supabase 憑證載入邏輯與前端同步)
             raise HTTPException(status_code=500, detail="Missing Supabase credentials")
             
         supabase: Client = create_client(url, key)
@@ -197,7 +201,7 @@ async def confirm_binding(req: ConfirmBindingRequest):
             "user_id": req.user_id
         }
         
-        res = supabase.table("strava_bindings").upsert(binding_data).execute()
+        res = supabase.table("strava_member_bindings").upsert(binding_data).execute()
         
         if len(res.data) > 0:
             return {
@@ -219,5 +223,5 @@ async def confirm_binding(req: ConfirmBindingRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 8000))
+    port = int(os.environ.get("PORT") or 8000)
     uvicorn.run(app, host="0.0.0.0", port=port)

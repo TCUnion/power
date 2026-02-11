@@ -171,7 +171,7 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
                 // 取得當前 Supabase Auth User ID (若有的話)
                 const { data: { user } } = await supabase.auth.getUser();
 
-                // 呼叫 confirm-binding API 寫入 strava_bindings 表格
+                // 呼叫 confirm-binding API 寫入 strava_member_bindings 表格
                 const response = await fetch(`${API_BASE_URL}/api/auth/confirm-binding`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

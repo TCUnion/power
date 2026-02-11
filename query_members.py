@@ -42,7 +42,7 @@ def run():
 
     print("\n--- Bindings ---")
     try:
-        bindings = query_supabase(f"/rest/v1/strava_bindings?tcu_member_email=eq.{email}&select=*")
+        bindings = query_supabase(f"/rest/v1/strava_member_bindings?tcu_member_email=eq.{email}&select=*")
         print(json.dumps(bindings, indent=2, ensure_ascii=False))
     except Exception as e:
         print(f"Error querying bindings: {e}")

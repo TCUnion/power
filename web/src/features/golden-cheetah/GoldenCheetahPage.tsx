@@ -90,7 +90,28 @@ export const GoldenCheetahPage = () => {
     // State
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [statusMessage, setStatusMessage] = useState("Initializing...");
+    const [statusMessage, setStatusMessage] = useState("正在載入...");
+    const [streamLoadProgress, setStreamLoadProgress] = useState({ loaded: 0, total: 0 });
+    const [displayProgress, setDisplayProgress] = useState(0);
+
+    // 平滑進度動畫
+    useEffect(() => {
+        if (!loading) {
+            setDisplayProgress(0);
+            return;
+        }
+
+        const targetProgress = streamLoadProgress.total > 0
+            ? (streamLoadProgress.loaded / streamLoadProgress.total) * 100
+            : 0;
+
+        if (displayProgress < targetProgress) {
+            const timer = setTimeout(() => {
+                setDisplayProgress(prev => Math.min(prev + 1, targetProgress));
+            }, 10);
+            return () => clearTimeout(timer);
+        }
+    }, [streamLoadProgress, loading, displayProgress]);
     const [searchQuery, setSearchQuery] = useState('');
 
     // Data
@@ -337,35 +358,45 @@ export const GoldenCheetahPage = () => {
             setSelectedActivityId(latest.id);
 
             // 3. 取得活動 Streams（前 20 筆用於 CP 模型計算）
-
             const activitiesToFetch = activityData.slice(0, 20);
-            const activityIds = activitiesToFetch.map(a => a.id);
+            const totalToFetch = activitiesToFetch.length;
+            setStreamLoadProgress({ loaded: 0, total: totalToFetch });
 
-            const { data: streamsData, error: streamsError } = await supabase
-                .from('strava_streams')
-                .select('activity_id, streams, max_heartrate, strava_zones')
-                .in('activity_id', activityIds);
+            const allFetchedStreams: any[] = [];
+            const batchSize = 5;
 
-            if (streamsError) throw streamsError;
-            if (!streamsData) {
-                setLoading(false);
-                setStatusMessage("No Stream Data Found");
-                return;
+            for (let i = 0; i < activitiesToFetch.length; i += batchSize) {
+                const batchIds = activitiesToFetch.slice(i, i + batchSize).map(a => a.id);
+
+                const { data: streamsData, error: streamsError } = await supabase
+                    .from('strava_streams')
+                    .select('activity_id, streams, max_heartrate, strava_zones')
+                    .in('activity_id', batchIds);
+
+                if (streamsError) throw streamsError;
+                if (streamsData) {
+                    allFetchedStreams.push(...streamsData);
+                }
+
+                setStreamLoadProgress(prev => ({
+                    ...prev,
+                    loaded: Math.min(i + batchSize, totalToFetch)
+                }));
             }
 
             // 快取所有 streams 供後續切換使用
-            setAllStreamsData(streamsData);
+            setAllStreamsData(allFetchedStreams);
 
             // 提取 Power Streams 計算 CP 模型
             const powerArrays: number[][] = [];
-            streamsData.forEach((row: Partial<StravaStreams>) => {
+            allFetchedStreams.forEach((row: Partial<StravaStreams>) => {
                 const streams = row.streams as StreamData[] || [];
                 const watts = streams.find((s) => s.type === 'watts')?.data;
                 if (watts && watts.length > 0) powerArrays.push(watts);
             });
 
-            // 使用 updateLocalActivityStreams 載入最新活動的 streams（傳入剛抓取的區域數據，避免參考循環）
-            updateLocalActivityStreams(latest.id, activityData, streamsData);
+            // 使用 updateLocalActivityStreams 載入最新活動的 streams
+            updateLocalActivityStreams(latest.id, activityData, allFetchedStreams);
 
             // 4. Calculate CP / W'
             if (powerArrays.length >= 3) {
@@ -767,9 +798,44 @@ export const GoldenCheetahPage = () => {
 
     if (loading) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-white">
-                <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-4" />
-                <p className="text-slate-400 font-mono tracking-widest uppercase text-sm">{statusMessage}</p>
+            <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-white">
+                <div className="bg-slate-900/50 rounded-2xl border border-slate-800 p-12 text-center overflow-hidden relative max-w-sm w-full mx-4">
+                    {/* 背景裝飾光暈 */}
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-yellow-500/10 blur-[100px] rounded-full pointer-events-none" />
+
+                    <div className="relative z-10">
+                        <div className="relative w-16 h-16 mx-auto mb-6">
+                            <Loader2 className="w-16 h-16 animate-spin text-yellow-500/20 absolute inset-0" strokeWidth={1} />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <span className="text-xl font-black text-yellow-400">
+                                    {Math.round(displayProgress)}%
+                                </span>
+                            </div>
+                        </div>
+
+                        <p className="text-sm font-bold text-white mb-2 uppercase tracking-widest italic">{statusMessage}</p>
+                        <p className="text-[10px] text-slate-500 mb-6 uppercase tracking-[0.2em]">GOLDENCHEETAH ENGINE INITIALIZING</p>
+
+                        {streamLoadProgress.total > 0 && (
+                            <div className="max-w-xs mx-auto">
+                                <div className="flex justify-between text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-tight">
+                                    <span className="flex items-center gap-1.5 text-yellow-400/80">
+                                        <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                                        STREAMS PROCESSING
+                                    </span>
+                                    <span>{streamLoadProgress.loaded} / {streamLoadProgress.total}</span>
+                                </div>
+                                <div className="h-1 bg-slate-800 rounded-full overflow-hidden border border-slate-700/30">
+                                    <div
+                                        className="h-full bg-gradient-to-r from-yellow-600 to-yellow-400 rounded-full transition-all duration-300 ease-out shadow-[0_0_10px_rgba(234,179,8,0.3)]"
+                                        style={{ width: `${displayProgress}%` }}
+                                    />
+                                </div>
+                                <p className="text-[9px] text-slate-600 mt-2 italic font-medium">Batch processing power metrics...</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
             </div>
         );
     }

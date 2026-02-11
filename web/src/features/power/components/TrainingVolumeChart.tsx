@@ -41,7 +41,7 @@ const getTSSLabel = (weeklyTSS: number): string => {
 };
 
 export const TrainingVolumeChart: React.FC<TrainingVolChartProps> = ({ dailyTSSData }) => {
-    const [weekCount, setWeekCount] = useState<8 | 12 | 24>(12);
+    const [weekCount, setWeekCount] = useState<8 | 12 | 24 | 52>(12);
 
     const weeklyData = useMemo(() => {
         if (dailyTSSData.length === 0) return [];
@@ -123,7 +123,7 @@ export const TrainingVolumeChart: React.FC<TrainingVolChartProps> = ({ dailyTSSD
                     )}
                 </div>
                 <div className="flex gap-1">
-                    {([8, 12, 24] as const).map(n => (
+                    {([8, 12, 24, 52] as const).map(n => (
                         <button
                             key={n}
                             onClick={() => setWeekCount(n)}
@@ -147,7 +147,7 @@ export const TrainingVolumeChart: React.FC<TrainingVolChartProps> = ({ dailyTSSD
                             dataKey="week"
                             stroke="#94a3b8"
                             tick={{ fontSize: 9, fontWeight: 600 }}
-                            interval={0}
+                            interval={weekCount > 24 ? 3 : (weekCount > 12 ? 1 : 0)}
                             angle={-45}
                             textAnchor="end"
                             height={50}

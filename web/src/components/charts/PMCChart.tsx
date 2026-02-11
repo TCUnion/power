@@ -17,12 +17,14 @@ interface PMCChartProps {
 
 // 週期選項定義
 // 週期選項定義
-type PeriodOption = 14 | 28 | 42 | 90;
+type PeriodOption = 14 | 28 | 42 | 90 | 180 | 365;
 const PERIOD_OPTIONS: { value: PeriodOption; label: string }[] = [
     { value: 14, label: '14天' },
     { value: 28, label: '28天' },
     { value: 42, label: '42天' },
     { value: 90, label: '90天' },
+    { value: 180, label: '180天' },
+    { value: 365, label: '365天' },
 ];
 
 // 體能管理圖表 (Performance Management Chart)
@@ -134,7 +136,7 @@ export const PMCChart: React.FC<PMCChartProps> = ({ activities, ftp }) => {
 
     // 響應式參數
     const chartHeight = isMobile ? 220 : 300;
-    const tickInterval = isMobile ? Math.ceil(displayDays / 5) : Math.ceil(displayDays / 8);
+    const tickInterval = isMobile ? Math.ceil(displayDays / 5) : Math.ceil(displayDays / 10); // 增加密度調整
     const barSize = isMobile ? 4 : 6;
     const strokeWidth = isMobile ? 2 : 3;
 

@@ -54,6 +54,26 @@ const PowerAnalysisPage: React.FC = () => {
     const [currentFTP, setCurrentFTP] = useState(0);
     const [athleteWeight, setAthleteWeight] = useState(0);
     const [streamLoadProgress, setStreamLoadProgress] = useState({ loaded: 0, total: 0 });
+    const [displayProgress, setDisplayProgress] = useState(0);
+
+    // 平滑進度動畫
+    useEffect(() => {
+        if (!loading) {
+            setDisplayProgress(0);
+            return;
+        }
+
+        const targetProgress = streamLoadProgress.total > 0
+            ? (streamLoadProgress.loaded / streamLoadProgress.total) * 100
+            : 0;
+
+        if (displayProgress < targetProgress) {
+            const timer = setTimeout(() => {
+                setDisplayProgress(prev => Math.min(prev + 1, targetProgress));
+            }, 10);
+            return () => clearTimeout(timer);
+        }
+    }, [streamLoadProgress, loading, displayProgress]);
 
     // FTP 歷史數據
     const [ftpHistory, setFtpHistory] = useState<{ date: string; ftp: number; source: 'recorded' | 'estimated' }[]>([]);
@@ -61,9 +81,16 @@ const PowerAnalysisPage: React.FC = () => {
     // 每日 TSS 數據
     const [dailyTSSData, setDailyTSSData] = useState<{ date: string; tss: number; activityCount: number }[]>([]);
 
-    // 設定面板已移除，改為固定顯示
-    // 未綁定會員限制 30 天，綁定會員 42 天
-    const analysisRange = isBound ? 42 : 30;
+    // 分析區間控制 (42, 84, 180, 365)
+    // 非認證會員僅能使用 42 天
+    const [analysisRange, setAnalysisRange] = useState<number>(42);
+
+    // 權限變動時重置
+    useEffect(() => {
+        if (!isBound && analysisRange !== 42) {
+            setAnalysisRange(42);
+        }
+    }, [isBound]);
 
     /**
      * 載入活動數據與 Streams
@@ -260,12 +287,38 @@ const PowerAnalysisPage: React.FC = () => {
                 <div className="bg-slate-900/40 rounded-2xl border border-slate-800 p-4">
                     <div className="flex items-center gap-6">
                         <div>
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">分析區間</label>
-                            <div className="text-lg font-black text-white flex items-center gap-2">
-                                {analysisRange}天
-                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${isBound ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
-                                    {isBound ? 'TCU 會員完整版' : '一般使用者 (限制 30 天)'}
-                                </span>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-2">分析區間</label>
+                            <div className="flex items-center gap-1.5">
+                                {[42, 84, 180, 365].map(range => {
+                                    const isLocked = !isBound && range !== 42;
+                                    const isActive = analysisRange === range;
+
+                                    return (
+                                        <button
+                                            key={range}
+                                            disabled={isLocked || loading}
+                                            onClick={() => setAnalysisRange(range)}
+                                            className={`
+                                                relative px-3 py-1.5 rounded-lg text-xs font-black transition-all group
+                                                ${isActive
+                                                    ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20'
+                                                    : 'bg-slate-800 text-slate-500 hover:text-slate-300'}
+                                                ${isLocked ? 'opacity-40 cursor-not-allowed grayscale' : ''}
+                                            `}
+                                        >
+                                            <span className="flex items-center gap-1">
+                                                {range}D
+                                                {isLocked && <Lock className="w-2.5 h-2.5" />}
+                                            </span>
+
+                                            {isLocked && (
+                                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-[10px] text-slate-300 rounded border border-slate-700 whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">
+                                                    僅限認證會員
+                                                </div>
+                                            )}
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
                         <div className="w-px h-8 bg-slate-800" />
@@ -311,23 +364,42 @@ const PowerAnalysisPage: React.FC = () => {
 
                 {/* ====== Loading 狀態 ====== */}
                 {loading && (
-                    <div className="bg-slate-900/50 rounded-2xl border border-slate-800 p-12 text-center">
-                        <Loader2 className="w-8 h-8 animate-spin text-blue-400 mx-auto mb-4" />
-                        <p className="text-sm font-bold text-slate-300 mb-2">正在載入分析數據...</p>
-                        {streamLoadProgress.total > 0 && (
-                            <div className="max-w-xs mx-auto">
-                                <div className="flex justify-between text-[10px] text-slate-500 mb-1">
-                                    <span>Streams 載入進度</span>
-                                    <span>{streamLoadProgress.loaded}/{streamLoadProgress.total}</span>
-                                </div>
-                                <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                                    <div
-                                        className="h-full bg-blue-500 rounded-full transition-all duration-300"
-                                        style={{ width: `${(streamLoadProgress.loaded / streamLoadProgress.total) * 100}%` }}
-                                    />
+                    <div className="bg-slate-900/50 rounded-2xl border border-slate-800 p-12 text-center overflow-hidden relative">
+                        {/* 背景裝飾光暈 */}
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-blue-500/10 blur-[100px] rounded-full pointer-events-none" />
+
+                        <div className="relative z-10">
+                            <div className="relative w-16 h-16 mx-auto mb-6">
+                                <Loader2 className="w-16 h-16 animate-spin text-blue-500/20 absolute inset-0" strokeWidth={1} />
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <span className="text-xl font-black text-blue-400">
+                                        {Math.round(displayProgress)}%
+                                    </span>
                                 </div>
                             </div>
-                        )}
+
+                            <p className="text-sm font-bold text-white mb-2 uppercase tracking-widest italic">正在分析數據</p>
+                            <p className="text-[10px] text-slate-500 mb-6 uppercase tracking-[0.2em]">POWER ANALYSIS ENGINE INITIALIZING</p>
+
+                            {streamLoadProgress.total > 0 && (
+                                <div className="max-w-xs mx-auto">
+                                    <div className="flex justify-between text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-tight">
+                                        <span className="flex items-center gap-1.5 text-blue-400/80">
+                                            <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                                            STREAMS PROCESSING
+                                        </span>
+                                        <span>{streamLoadProgress.loaded} / {streamLoadProgress.total}</span>
+                                    </div>
+                                    <div className="h-1 bg-slate-800 rounded-full overflow-hidden border border-slate-700/30">
+                                        <div
+                                            className="h-full bg-gradient-to-r from-blue-600 to-blue-400 rounded-full transition-all duration-300 ease-out shadow-[0_0_10px_rgba(59,130,246,0.5)]"
+                                            style={{ width: `${displayProgress}%` }}
+                                        />
+                                    </div>
+                                    <p className="text-[9px] text-slate-600 mt-2 italic font-medium">批量執行功率矩陣運算中...</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
 

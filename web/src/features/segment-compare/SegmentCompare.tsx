@@ -199,7 +199,7 @@ const SegmentCompare = () => {
                 </div>
 
                 {/* Controls */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-900/50 p-4 rounded-xl border border-slate-800">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-900/50 p-4 rounded-xl border border-slate-800">
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-slate-400">當前選手</label>
                         <div className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg p-2.5 text-sm text-slate-300 flex items-center gap-2">
@@ -211,34 +211,40 @@ const SegmentCompare = () => {
                     </div>
 
                     <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-400">當前路段</label>
+                        <div className="h-[42px] bg-slate-800/50 border border-slate-700/50 rounded-lg px-4 flex items-center gap-2">
+                            {selectedSegmentId && efforts.length > 0 ? (
+                                <>
+                                    <Check className="w-4 h-4 text-green-500" />
+                                    <span className="text-sm text-slate-200 truncate">{efforts[0].segment_name}</span>
+                                </>
+                            ) : (
+                                <span className="text-sm text-slate-500 italic">尚未選擇路段</span>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
                         <label className="text-sm font-medium text-slate-400">輸入路段 ID</label>
                         <div className="flex gap-2">
-                            <div className="flex-1">
-                                <input
-                                    type="text"
-                                    placeholder="輸入 Strava 路段 ID (例如: 1234567)"
-                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                    value={manualInput}
-                                    onChange={(e) => setManualInput(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            const val = Number(manualInput);
-                                            if (val > 0) setSelectedSegmentId(val);
-                                        }
-                                    }}
-                                    onBlur={() => {
+                            <input
+                                type="text"
+                                placeholder="例如: 1234567"
+                                className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                value={manualInput}
+                                onChange={(e) => setManualInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
                                         const val = Number(manualInput);
-                                        if (val > 0 && val !== selectedSegmentId) setSelectedSegmentId(val);
-                                    }}
-                                    disabled={!selectedAthleteId}
-                                />
-                            </div>
-                            {selectedSegmentId && efforts.length > 0 && (
-                                <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg px-4 py-2 flex items-center gap-2">
-                                    <span className="text-sm font-medium text-blue-400">當前路段:</span>
-                                    <span className="text-sm text-slate-200">{efforts[0].segment_name}</span>
-                                </div>
-                            )}
+                                        if (val > 0) setSelectedSegmentId(val);
+                                    }
+                                }}
+                                onBlur={() => {
+                                    const val = Number(manualInput);
+                                    if (val > 0 && val !== selectedSegmentId) setSelectedSegmentId(val);
+                                }}
+                                disabled={!selectedAthleteId}
+                            />
                         </div>
                     </div>
                 </div>

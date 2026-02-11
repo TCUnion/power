@@ -157,7 +157,7 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
         if (isSelected) {
             const color = COLORS[selectedIndex % COLORS.length];
             return (
-                <circle cx={cx} cy={cy} r={6} stroke={color} strokeWidth={3} fill="white" />
+                <circle cx={cx} cy={cy} r={6} stroke={color} strokeWidth={3} fill={color} />
             );
         }
         return (

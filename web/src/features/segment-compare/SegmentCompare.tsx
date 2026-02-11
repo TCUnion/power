@@ -5,11 +5,10 @@ import { useSegmentCompare } from './hooks/useSegmentCompare';
 import { useActivitySync } from './hooks/useActivitySync';
 import type { SegmentEffort } from '../../types';
 import { format } from 'date-fns';
-import { useAuth } from '../../hooks/useAuth';
 import { CompareCharts } from './components/CompareCharts';
 
 import { useAuthContext } from '../../contexts/AuthContext';
-import { MemberBindingCard } from '../auth/MemberBindingCard';
+import MemberBindingCard from '../auth/MemberBindingCard';
 
 const SegmentCompare = () => {
     const { athlete, isBound, isLoading: authLoading } = useAuthContext();
@@ -176,7 +175,7 @@ const SegmentCompare = () => {
                         <p className="text-slate-400 text-sm mb-6">
                             「活動比較」功能僅限已綁定 TCU 會員的用戶使用。請先完成 Strava 帳號與會員資料的綁定。
                         </p>
-                        <MemberBindingCard />
+                        <MemberBindingCard onBindingSuccess={() => { }} />
                     </div>
                 </div>
             </div>

@@ -195,7 +195,7 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                                     domain={['auto', 'auto']}
                                 />
                                 <Tooltip
-                                    content={({ active, payload, label }) => {
+                                    content={({ active, payload }) => {
                                         if (active && payload && payload.length) {
                                             const data = payload[0].payload;
                                             return (
@@ -318,7 +318,6 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                                                             </span>
                                                         ) : (
                                                             <button
-                                                                onClick={() => onSync?.(effort.activity_id)}
                                                                 onClick={() => onSync?.(effort.activity_id)}
                                                                 className="flex items-center gap-1 text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 px-1.5 py-0.5 rounded transition-colors"
                                                             >

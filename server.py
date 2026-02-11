@@ -2,7 +2,6 @@ import os
 import logging
 from dotenv import load_dotenv
 
-print("--- DEBUG: TCU POWER API STARTING v1.5-FORCE ---")
 # 設定日誌
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("tcu-power-api")
@@ -88,15 +87,15 @@ def get_supabase_config():
 
 @app.get("/")
 def read_root():
-    logger.info("Root endpoint called v1.5.1")
-    return {"status": "online", "message": "TCU Power API is running v1.5.1"}
+    logger.info("Root endpoint called v1.6")
+    return {"status": "online", "message": "TCU Power API is running v1.6"}
 
 @app.get("/health")
 def health_check():
     url, key = get_supabase_config()
     return {
         "status": "ok", 
-        "version": "1.5.1",
+        "version": "1.6",
         "config_check": {
             "has_url": bool(url),
             "url_clean": url,

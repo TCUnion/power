@@ -23,14 +23,19 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}): Pro
         }
 
         // 額外檢查：如果回應是 200 但內容包含 "error" 欄位（後端 try-except 捕捉的情況）
+        let shouldFailover = false;
         try {
             const data = await responseClone.json();
             if (data && data.error && (data.error.includes('401') || data.error.includes('credentials')) && API_BACKUP_URL) {
                 console.warn('[API] Primary reported auth error in payload, trying backup...');
-                throw new Error('Primary auth error in payload');
+                shouldFailover = true;
             }
         } catch (e) {
             // 解析 JSON 失敗則忽略，交由後續處理
+        }
+
+        if (shouldFailover) {
+            throw new Error('Primary auth error in payload');
         }
 
         return response;

@@ -185,30 +185,12 @@ const SegmentCompare = () => {
                     </div>
 
                     <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-400">選擇路段</label>
+                        <label className="text-sm font-medium text-slate-400">輸入路段 ID</label>
                         <div className="flex gap-2">
                             <div className="flex-1">
-                                <select
-                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                    value={selectedSegmentId || ''}
-                                    onChange={e => setSelectedSegmentId(Number(e.target.value) || null)}
-                                    disabled={!selectedAthleteId}
-                                >
-                                    <option value="">請選擇路段...</option>
-                                    {segments.map(s => (
-                                        <option key={s.id} value={s.id}>{s.name}</option>
-                                    ))}
-                                    {selectedSegmentId && !segments.find(s => s.id === selectedSegmentId) && (
-                                        <option value={selectedSegmentId}>
-                                            {efforts.length > 0 ? efforts[0].segment_name : `Segment ${selectedSegmentId}`}
-                                        </option>
-                                    )}
-                                </select>
-                            </div>
-                            <div className="w-32">
                                 <input
                                     type="text"
-                                    placeholder="路段 ID"
+                                    placeholder="輸入 Strava 路段 ID (例如: 1234567)"
                                     className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                     value={manualInput}
                                     onChange={(e) => setManualInput(e.target.value)}
@@ -225,6 +207,12 @@ const SegmentCompare = () => {
                                     disabled={!selectedAthleteId}
                                 />
                             </div>
+                            {selectedSegmentId && efforts.length > 0 && (
+                                <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg px-4 py-2 flex items-center gap-2">
+                                    <span className="text-sm font-medium text-blue-400">當前路段:</span>
+                                    <span className="text-sm text-slate-200">{efforts[0].segment_name}</span>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

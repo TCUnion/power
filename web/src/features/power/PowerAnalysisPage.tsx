@@ -82,8 +82,8 @@ const PowerAnalysisPage: React.FC = () => {
     const [dailyTSSData, setDailyTSSData] = useState<{ date: string; tss: number; activityCount: number }[]>([]);
 
     // 分析區間控制 (42, 84, 180, 365)
-    // 非認證會員僅能使用 42 天
-    const [analysisRange, setAnalysisRange] = useState<number>(42);
+    // 預設對認證會員使用 365 天以確保圖表數據完整，非認證限制為 42 天
+    const [analysisRange, setAnalysisRange] = useState<number>(isBound ? 365 : 42);
 
     // 權限變動時重置
     useEffect(() => {
@@ -174,7 +174,6 @@ const PowerAnalysisPage: React.FC = () => {
                 const batchActs = acts.slice(batch * batchSize, (batch + 1) * batchSize);
                 const batchIds = batchActs.map(a => a.id);
 
-                // 批量查詢 Streams: 僅抓取必要欄位以大幅降低傳輸量 (解決 17MB payload 問題)
                 const { data: streamsData } = await supabase
                     .from('strava_streams')
                     .select('activity_id, streams, ftp')
@@ -182,49 +181,44 @@ const PowerAnalysisPage: React.FC = () => {
 
                 if (streamsData) {
                     for (const stream of streamsData) {
-                        // 提取功率數據
-                        const wattsStream = stream.streams?.find((s: { type: string; data: number[] }) => s.type === 'watts');
-                        if (wattsStream?.data && wattsStream.data.length > 0) {
-                            allPowerArrays.push(wattsStream.data);
+                        const act = batchActs.find(a => a.id === stream.activity_id);
+                        if (!act) continue;
 
-                            // 紀錄 FTP 歷史快照
+                        const wattsStream = stream.streams?.find((s: { type: string; data: number[] }) => s.type === 'watts');
+                        const wattsData = wattsStream?.data;
+
+                        if (wattsData && wattsData.length > 0) {
+                            allPowerArrays.push(wattsData);
+
                             if (stream.ftp && stream.ftp > 0) {
-                                const act = batchActs.find(a => a.id === stream.activity_id);
-                                if (act) {
-                                    ftpHist.push({
-                                        date: act.start_date,
-                                        ftp: stream.ftp,
-                                        source: 'recorded',
-                                    });
-                                }
+                                ftpHist.push({
+                                    date: act.start_date,
+                                    ftp: stream.ftp,
+                                    source: 'recorded',
+                                });
                             }
 
-                            // 計算每日 TSS
-                            if (act) {
-                                const effectiveFtp = stream.ftp || ftp;
-                                if (effectiveFtp > 0) {
-                                    const np = await calculateNPViaDB(wattsStream.data);
-                                    const duration = act.elapsed_time || act.moving_time;
-                                    const tss = await calculateTSSViaDB(np, effectiveFtp, duration);
+                            const effectiveFtp = stream.ftp || ftp;
+                            if (effectiveFtp > 0) {
+                                const np = await calculateNPViaDB(wattsData);
+                                const duration = act.elapsed_time || act.moving_time;
+                                const tss = await calculateTSSViaDB(np, effectiveFtp, duration);
 
-                                    const dateKey = new Date(act.start_date).toISOString().split('T')[0];
+                                const dateKey = new Date(act.start_date).toISOString().split('T')[0];
 
-                                    // 扣除預先估算的 TSS，替換為精確計算值
-                                    let baseTSS = 0;
-                                    if (act.average_watts && act.average_watts > 0) {
-                                        const intensity = act.average_watts / effectiveFtp;
-                                        baseTSS = (duration * act.average_watts * intensity) / (effectiveFtp * 3600) * 100;
-                                    }
+                                let baseTSS = 0;
+                                if (act.average_watts && act.average_watts > 0) {
+                                    const intensity = act.average_watts / effectiveFtp;
+                                    baseTSS = (duration * act.average_watts * intensity) / (effectiveFtp * 3600) * 100;
+                                }
 
-                                    if (dailyTSS[dateKey]) {
-                                        dailyTSS[dateKey].tss = Math.max(0, dailyTSS[dateKey].tss - baseTSS + tss);
-                                    }
+                                if (dailyTSS[dateKey]) {
+                                    dailyTSS[dateKey].tss = Math.max(0, dailyTSS[dateKey].tss - baseTSS + tss);
                                 }
                             }
                         }
                     }
                 }
-
                 setStreamLoadProgress({ loaded: Math.min((batch + 1) * batchSize, acts.length), total: acts.length });
             }
 

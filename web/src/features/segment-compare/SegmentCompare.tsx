@@ -86,6 +86,7 @@ const SegmentCompare = () => {
 
                 const dateInfo = effort.activity_start_date ? {
                     activityStartDate: effort.activity_start_date,
+                    activityStartDateLocal: effort.activity_start_date_local,
                     effortStartDate: effort.effort_start_date,
                     elapsedTime: effort.elapsed_time
                 } : undefined;

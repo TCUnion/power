@@ -91,13 +91,20 @@ export const useSegmentCompare = () => {
                 const activityIds = Array.from(new Set(efforts.map(e => e.activity_id)));
                 const { data: activities, error: actError } = await supabase
                     .from('strava_activities')
-                    .select('id, start_date')
+                    .select('id, start_date, start_date_local')
                     .in('id', activityIds);
 
                 if (!actError && activities) {
-                    const activityMap = new Map(activities.map(a => [a.id, a.start_date]));
+                    const activityMap = new Map(activities.map(a => [a.id, {
+                        utc: a.start_date,
+                        local: a.start_date_local
+                    }]));
                     efforts.forEach(e => {
-                        e.activity_start_date = activityMap.get(e.activity_id);
+                        const dates = activityMap.get(e.activity_id);
+                        if (dates) {
+                            e.activity_start_date = dates.utc;
+                            e.activity_start_date_local = dates.local;
+                        }
                     });
                 }
             }
@@ -121,7 +128,7 @@ export const useSegmentCompare = () => {
         activityId: number,
         startIndex?: number,
         endIndex?: number,
-        dateInfo?: { activityStartDate: string, effortStartDate: string, elapsedTime: number }
+        dateInfo?: { activityStartDate?: string, activityStartDateLocal?: string, effortStartDate: string, elapsedTime: number }
     ): Promise<any> => {
         try {
             const { data, error } = await supabase
@@ -143,39 +150,62 @@ export const useSegmentCompare = () => {
             // If explicit indices are missing but we have date info, calculate them
             if ((typeof finalStart !== 'number' || typeof finalEnd !== 'number') && dateInfo) {
                 const timeStream = streams.find(s => s.type === 'time');
+                // Ensure timeStream has data array
                 if (timeStream && Array.isArray(timeStream.data)) {
-                    const activityStart = new Date(dateInfo.activityStartDate).getTime();
-                    const effortStart = new Date(dateInfo.effortStartDate).getTime();
-                    // Calculate offset in seconds
-                    // strava_activities start_date is usually UTC ISO string
-                    // effort_start_date from view is also UTC ISO string
-                    const offsetSeconds = (effortStart - activityStart) / 1000;
-
-                    // Allow some tolerance, e.g. 1 second
-                    const targetStart = Math.max(0, offsetSeconds);
-                    const targetEnd = targetStart + dateInfo.elapsedTime;
 
                     const times = timeStream.data as number[];
+                    const lastStreamTime = times.length > 0 ? times[times.length - 1] : 0;
+                    let offsetSeconds = -1;
 
-                    // Find indices
-                    // Assuming sorted time stream
-                    finalStart = times.findIndex(t => t >= targetStart);
-                    // If exact match not found, findIndex returns first element >= target. 
-                    // If -1, it means all times are smaller than targetStart (unlikely if data is valid)
+                    // Strategy 1: UTC Slicing
+                    if (dateInfo.activityStartDate) {
+                        const activityStart = new Date(dateInfo.activityStartDate).getTime();
+                        const effortStart = new Date(dateInfo.effortStartDate).getTime();
+                        const offset = (effortStart - activityStart) / 1000;
+                        // Check if offset is within reasonable bounds
+                        if (offset >= -5 && offset <= lastStreamTime + 100) {
+                            offsetSeconds = offset;
+                            console.log(`[StreamSlicing] Used UTC offset: ${offset}s for activity ${activityId}`);
+                        }
+                    }
 
-                    if (finalStart !== -1) {
-                        // Find end index
-                        const endIdx = times.findIndex(t => t > targetEnd);
-                        finalEnd = endIdx === -1 ? times.length - 1 : endIdx - 1;
+                    // Strategy 2: Local Time Slicing (if UTC failed)
+                    if (offsetSeconds < 0 && dateInfo.activityStartDateLocal) {
+                        const activityStartLocal = new Date(dateInfo.activityStartDateLocal).getTime();
+                        const effortStart = new Date(dateInfo.effortStartDate).getTime();
+
+                        const diff = (effortStart - activityStartLocal) / 1000;
+                        if (diff >= -5 && diff <= lastStreamTime + 100) {
+                            offsetSeconds = diff;
+                            console.log(`[StreamSlicing] Used Local offset (Direct Diff): ${diff}s for activity ${activityId}`);
+                        }
+                    }
+
+                    // STRICT SLICING:
+                    // Only apply slicing if we found a valid offset
+                    if (offsetSeconds >= -5) {
+                        const targetStart = Math.max(0, offsetSeconds);
+                        const targetEnd = targetStart + dateInfo.elapsedTime;
+
+                        // Find start index
+                        finalStart = times.findIndex(t => t >= targetStart);
+
+                        if (finalStart !== -1) {
+                            // Find end index
+                            const endIdx = times.findIndex(t => t > targetEnd);
+                            // If targetEnd is beyond the last point, take the last point
+                            finalEnd = endIdx === -1 ? times.length - 1 : endIdx - 1;
+
+                            // Safety check: ensure we capture at least some points if duration is short
+                            if (finalEnd < finalStart) finalEnd = finalStart;
+                        }
                     } else {
-                        // Fallback to 0 if something is wrong
-                        finalStart = 0;
-                        finalEnd = times.length - 1;
+                        console.warn(`[StreamSlicing] Failed to calculate valid offset for activity ${activityId}.`);
                     }
                 }
             }
 
-            // Slice the streams if we have valid indices
+            // Slice the streams if we have VALID indices
             if (typeof finalStart === 'number' && typeof finalEnd === 'number' && finalStart <= finalEnd) {
                 const slicedStreams: any = {};
                 streams.forEach(stream => {
@@ -186,12 +216,11 @@ export const useSegmentCompare = () => {
                 return slicedStreams;
             }
 
-            // Return all streams mapped by type if no slicing possible
-            const allStreams: any = {};
-            streams.forEach(stream => {
-                allStreams[stream.type] = stream.data;
-            });
-            return allStreams;
+            // CRITICAL CHANGE: 
+            // If we couldn't slice, return null or empty to avoid showing WRONG (full) data
+            console.warn(`[StreamSlicing] Could not slice streams for activity ${activityId}. Missing valid indices.`);
+            return null;
+
         } catch (err) {
             console.error('Error fetching/parsing streams:', err);
             return null;

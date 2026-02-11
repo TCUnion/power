@@ -292,7 +292,7 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                             </div>
 
                             {/* Warning for missing data */}
-                            {selectedEfforts.length > comparisonData.length && (
+                            {!loading && selectedEfforts.length > comparisonData.length && (
                                 <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex flex-col gap-2 text-amber-500 text-sm">
                                     <div className="flex items-center gap-2">
                                         <span className="font-bold">⚠️ 注意：</span>

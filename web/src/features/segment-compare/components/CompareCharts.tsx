@@ -351,6 +351,7 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                                                 unit={xAxisType === 'distance' ? 'm' : 's'}
                                                 domain={['dataMin', 'dataMax']}
                                                 allowDataOverflow
+                                                tickFormatter={(value) => Math.round(value).toString()}
                                             />
                                             {visibleSeries.elevation && (
                                                 <YAxis
@@ -472,6 +473,9 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                                     </span>
                                     <span className="flex items-center gap-1">
                                         <span className="font-medium text-slate-600">爬升:</span> {segment.total_elevation_gain} m
+                                    </span>
+                                    <span className="flex items-center gap-1 font-semibold text-slate-400">
+                                        Powered by TCU
                                     </span>
                                 </div>
                             )}

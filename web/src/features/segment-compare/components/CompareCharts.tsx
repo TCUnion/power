@@ -116,9 +116,15 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
             // Use distance or time as X
             const xStream = xAxisType === 'distance' ? normalizedDist : normalizedTime;
 
+            // Safe guard: Stop if distance exceeds segment distance by 5% (to handle GPS drift/slicing errors)
+            const maxDistance = segment ? segment.distance * 1.05 : Infinity;
+
             for (let i = 0; i < xStream.length; i++) {
                 // Downsample for performance if needed
                 if (xStream.length > 2000 && i % 2 !== 0) continue;
+
+                // Stop adding points if we exceed the segment distance (plus tolerance)
+                if (normalizedDist[i] > maxDistance) break;
 
                 points.push({
                     x: xStream[i],

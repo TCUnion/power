@@ -16,7 +16,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
     ArrowLeft, Zap, TrendingUp, BarChart3, Target,
-    Activity, Loader2, AlertCircle, RefreshCw
+    Activity, Loader2, AlertCircle, RefreshCw, Lock
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
@@ -40,7 +40,7 @@ const TABS: { key: TabKey; label: string; icon: React.ReactNode; description: st
 ];
 
 const PowerAnalysisPage: React.FC = () => {
-    const { athlete } = useAuth();
+    const { athlete, isBound } = useAuth();
     const { calculateNPViaDB, calculateTSSViaDB } = usePowerAnalysis();
 
     // 頁面狀態
@@ -62,7 +62,8 @@ const PowerAnalysisPage: React.FC = () => {
     const [dailyTSSData, setDailyTSSData] = useState<{ date: string; tss: number; activityCount: number }[]>([]);
 
     // 設定面板已移除，改為固定顯示
-    const [analysisRange] = useState<number>(42);
+    // 未綁定會員限制 30 天，綁定會員 42 天
+    const analysisRange = isBound ? 42 : 30;
 
     /**
      * 載入活動數據與 Streams
@@ -261,8 +262,10 @@ const PowerAnalysisPage: React.FC = () => {
                         <div>
                             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block mb-1">分析區間</label>
                             <div className="text-lg font-black text-white flex items-center gap-2">
-                                42天
-                                <span className="text-[10px] font-bold bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700">固定</span>
+                                {analysisRange}天
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${isBound ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
+                                    {isBound ? 'TCU 會員完整版' : '一般使用者 (限制 30 天)'}
+                                </span>
                             </div>
                         </div>
                         <div className="w-px h-8 bg-slate-800" />
@@ -394,11 +397,23 @@ const PowerAnalysisPage: React.FC = () => {
 
                             {/* FTP 趨勢 */}
                             {activeTab === 'ftp' && (
-                                <FTPTrendChart
-                                    data={ftpHistory}
-                                    activities={activities}
-                                    currentFtp={currentFTP}
-                                />
+                                <div className="relative">
+                                    <FTPTrendChart
+                                        data={ftpHistory}
+                                        activities={activities}
+                                        currentFtp={currentFTP}
+                                    />
+                                    {!isBound && (
+                                        <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] flex items-center justify-center rounded-xl border border-dashed border-slate-700/50">
+                                            <div className="bg-slate-900/90 p-4 rounded-xl border border-slate-700 shadow-2xl text-center max-w-xs animate-in fade-in zoom-in duration-300">
+                                                <Lock className="w-8 h-8 text-orange-500 mx-auto mb-2" />
+                                                <p className="text-sm font-bold text-white uppercase tracking-wider mb-1">長期趨勢未解鎖</p>
+                                                <p className="text-[10px] text-slate-400 leading-relaxed capitalize">綁定 TCU 會員即可查看完整的 FTP 進階趨勢追蹤與分析</p>
+                                                <Link to="/" className="inline-block mt-3 text-[10px] font-black text-blue-400 hover:text-blue-300 underline underline-offset-4">立即綁定會員</Link>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             )}
 
                             {/* 訓練量 */}
@@ -409,7 +424,17 @@ const PowerAnalysisPage: React.FC = () => {
                             {/* 體能管理 (PMC) */}
                             {activeTab === 'pmc' && (
                                 activities.length > 0 ? (
-                                    <PMCChart activities={activities} ftp={currentFTP} />
+                                    <div className="relative">
+                                        <PMCChart activities={activities} ftp={currentFTP} />
+                                        {!isBound && (
+                                            <div className="absolute top-2 right-2">
+                                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-orange-500/10 border border-orange-500/20 text-orange-500 text-[10px] font-bold shadow-lg">
+                                                    <Lock className="w-3 h-3" />
+                                                    <span>綁定會員解鎖 90 天/1 年完整趨勢</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
                                 ) : (
                                     <EmptyState
                                         icon={<Activity className="w-8 h-8" />}

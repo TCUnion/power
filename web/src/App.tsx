@@ -6,14 +6,14 @@ import StravaConnect from './features/auth/StravaConnect';
 
 import PowerAnalysisPage from './features/power/PowerAnalysisPage';
 import { Link as RouterLink, NavLink } from 'react-router-dom';
-import { Zap, LogOut, LayoutDashboard, Activity } from 'lucide-react';
+import { Zap, LogOut, LayoutDashboard, Activity, ShieldCheck } from 'lucide-react';
 import MemberBindingCard from './features/auth/MemberBindingCard';
 import PowerDashboard from './features/power/PowerDashboard';
 import GoldenCheetahPage from './features/golden-cheetah/GoldenCheetahPage';
 import tcuLogo from './assets/tcu-logo.png';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { athlete, logout } = useAuth();
+  const { athlete, isBound, logout } = useAuth();
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-tcu-blue/20">
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
@@ -79,8 +79,14 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </div>
           )}
 
-          {/* 右側：登出 */}
-          <div className="flex items-center shrink-0 w-12 justify-end">
+          {/* 右側：會員狀態與登出 */}
+          <div className="flex items-center shrink-0 gap-3">
+            {athlete && isBound && (
+              <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-500">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span className="text-[10px] font-black uppercase tracking-wider">TCU 認證會員</span>
+              </div>
+            )}
             {athlete && (
               <button
                 onClick={logout}

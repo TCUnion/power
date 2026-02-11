@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
-    AlertCircle, User, RefreshCw, CheckCircle, Activity, ChevronDown, ChevronUp, Zap, Heart, Target, TrendingUp
+    AlertCircle, User, RefreshCw, CheckCircle, Activity, ChevronDown, ChevronUp, Zap, Heart, Target, TrendingUp, Lock
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
@@ -22,7 +22,7 @@ import { ActivityCharts } from './components/ActivityCharts';
 import { formatDuration } from '../../utils/formatters';
 
 const PowerDashboard: React.FC = () => {
-    const { athlete } = useAuth();
+    const { athlete, isBound } = useAuth();
     const [recentActivities, setRecentActivities] = useState<StravaActivity[]>([]);
     const [chartActivities, setChartActivities] = useState<StravaActivity[]>([]); // For charts (non-paginated)
     const [loadingActivities, setLoadingActivities] = useState(true);
@@ -528,23 +528,36 @@ const PowerDashboard: React.FC = () => {
                         </div>
 
                         <div className="flex flex-col items-end gap-1">
-                            <button
-                                onClick={handleSyncAllActivities}
-                                disabled={isSyncingAll || syncStats.pending === 0}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all
-                                    ${(isSyncingAll || syncStats.pending === 0)
-                                        ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
-                                        : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-lg shadow-blue-500/20 active:scale-95'
-                                    }`}
-                            >
-                                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingAll ? 'animate-spin' : ''}`} />
-                                <span className="hidden sm:inline">
-                                    {isSyncingAll ? '同步中...' : syncStats.pending === 0 ? '已全部同步' : '同步全部'}
-                                </span>
-                                <span className="sm:hidden">
-                                    {isSyncingAll ? '...' : syncStats.pending === 0 ? '✓' : '同步'}
-                                </span>
-                            </button>
+                            <div className="relative group">
+                                <button
+                                    onClick={handleSyncAllActivities}
+                                    disabled={isSyncingAll || syncStats.pending === 0 || !isBound}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all
+                                        ${(isSyncingAll || syncStats.pending === 0 || !isBound)
+                                            ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+                                            : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-lg shadow-blue-500/20 active:scale-95'
+                                        }`}
+                                >
+                                    {isBound ? (
+                                        <RefreshCw className={`w-3.5 h-3.5 ${isSyncingAll ? 'animate-spin' : ''}`} />
+                                    ) : (
+                                        <Lock className="w-3.5 h-3.5" />
+                                    )}
+                                    <span className="hidden sm:inline">
+                                        {isBound
+                                            ? (isSyncingAll ? '同步中...' : syncStats.pending === 0 ? '已全部同步' : '同步全部')
+                                            : '同步功能已鎖定'}
+                                    </span>
+                                    <span className="sm:hidden">
+                                        {isBound ? (isSyncingAll ? '...' : syncStats.pending === 0 ? '✓' : '同步') : '🔒'}
+                                    </span>
+                                </button>
+                                {!isBound && (
+                                    <div className="absolute bottom-full right-0 mb-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded shadow-lg pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                                        綁定 TCU 會員解鎖歷史數據全量同步
+                                    </div>
+                                )}
+                            </div>
                             {syncAllMessage && (
                                 <span className="text-[10px] text-blue-400 animate-pulse font-medium max-w-[150px] truncate">
                                     {syncAllMessage}

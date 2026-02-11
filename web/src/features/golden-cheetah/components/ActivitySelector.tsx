@@ -1,5 +1,5 @@
 import { useRef, useState, useMemo, useEffect } from 'react';
-import { ChevronDown, Search, Info, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronDown, Search, Info, RefreshCw, ChevronLeft, ChevronRight, Lock } from 'lucide-react';
 import { format } from 'date-fns';
 import React from 'react';
 
@@ -22,6 +22,7 @@ interface ActivitySelectorProps {
     handleSyncActivity: (id: number) => void;
     syncStatus: Record<number, 'idle' | 'syncing' | 'success' | 'error'>;
     hasData: boolean;
+    isBound: boolean;
 }
 
 const ActivitySelector = React.memo(({
@@ -35,7 +36,8 @@ const ActivitySelector = React.memo(({
     handleNavigateActivity,
     handleSyncActivity,
     syncStatus,
-    hasData
+    hasData,
+    isBound
 }: ActivitySelectorProps) => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -88,8 +90,8 @@ const ActivitySelector = React.memo(({
 
                 {isDropdownOpen && (
                     <div className="absolute top-full left-0 mt-2 w-full sm:w-[500px] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 max-h-[600px] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
-                        <div className="p-3 border-b border-slate-800 bg-slate-900/95 backdrop-blur sticky top-0 z-10">
-                            <div className="relative">
+                        <div className="p-3 border-b border-slate-800 bg-slate-900/95 backdrop-blur sticky top-0 z-10 w-full rounded-t-xl">
+                            <div className="relative w-full">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                                 <input
                                     type="text"
@@ -112,29 +114,42 @@ const ActivitySelector = React.memo(({
                                     const hasStream = allStreamsData.some((s) => s.activity_id === act.id);
                                     const isSelected = act.id === selectedActivityId;
                                     const currentSyncStatus = syncStatus[act.id];
+
+                                    // Feature Gating: Only latest activity (first in allActivities) is accessible for non-bound users
+                                    const isLatestReal = allActivities.length > 0 && act.id === allActivities[0].id;
+                                    const isLocked = !isBound && !isLatestReal;
+
                                     return (
                                         <button
                                             key={act.id}
                                             onClick={() => {
+                                                if (isLocked) return;
                                                 selectActivity(act.id);
                                                 setIsDropdownOpen(false);
                                             }}
+                                            disabled={isLocked}
                                             className={`w-full text-left px-3 py-2.5 flex items-center gap-3 transition cursor-pointer border-b border-slate-800/50 last:border-0 ${isSelected
                                                 ? 'bg-yellow-500/10 border-l-2 border-l-yellow-500'
-                                                : 'hover:bg-slate-800/60'
+                                                : isLocked
+                                                    ? 'bg-slate-900/50 opacity-50 cursor-not-allowed hover:bg-slate-900/50'
+                                                    : 'hover:bg-slate-800/60'
                                                 }`}
                                         >
-                                            <div className="text-xs text-slate-500 font-mono w-[80px] flex-shrink-0">
-                                                {format(new Date(act.start_date), 'MM/dd HH:mm')}
+                                            <div className="text-xs text-slate-500 font-mono w-[80px] flex-shrink-0 flex flex-col">
+                                                <span>{format(new Date(act.start_date), 'MM/dd')}</span>
+                                                <span className="text-[10px]">{format(new Date(act.start_date), 'HH:mm')}</span>
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <div className={`text-sm truncate ${isSelected ? 'text-yellow-400 font-bold' : 'text-slate-200'}`}>
-                                                    {act.name}
+                                                <div className="flex items-center gap-2">
+                                                    {isLocked && <Lock className="w-3 h-3 text-slate-500" />}
+                                                    <div className={`text-sm truncate ${isSelected ? 'text-yellow-400 font-bold' : isLocked ? 'text-slate-500' : 'text-slate-200'}`}>
+                                                        {act.name}
+                                                    </div>
                                                 </div>
                                                 <div className="text-[10px] text-slate-500 flex gap-3 mt-0.5 items-center">
                                                     <span>{(act.distance / 1000).toFixed(1)} km</span>
                                                     <span>{new Date(act.moving_time * 1000).toISOString().substr(11, 8)}</span>
-                                                    {!hasStream && (
+                                                    {!hasStream && !isLocked && (
                                                         <span className="text-orange-400 flex items-center gap-1 ml-auto">
                                                             {currentSyncStatus === 'syncing' ? (
                                                                 <RefreshCw className="w-3 h-3 animate-spin" />
@@ -144,9 +159,14 @@ const ActivitySelector = React.memo(({
                                                             {currentSyncStatus === 'syncing' ? '同步中' : '無數據'}
                                                         </span>
                                                     )}
+                                                    {isLocked && (
+                                                        <span className="text-slate-600 ml-auto text-[10px] border border-slate-700 px-1 rounded">
+                                                            會員限定
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
-                                            {isSelected && !hasStream && currentSyncStatus !== 'syncing' && (
+                                            {isSelected && !hasStream && currentSyncStatus !== 'syncing' && !isLocked && (
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
@@ -171,14 +191,14 @@ const ActivitySelector = React.memo(({
             <div className="flex items-center gap-1 bg-slate-800 rounded-lg p-1 border border-slate-700/50 hidden sm:flex">
                 <button
                     onClick={() => handleNavigateActivity('prev')}
-                    disabled={findIndex(selectedActivityId) >= filteredActivities.length - 1}
+                    disabled={findIndex(selectedActivityId) >= filteredActivities.length - 1 || (!isBound && selectedActivityId === latestActivity.id)}
                     className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 >
                     <ChevronLeft className="w-4 h-4" />
                 </button>
                 <button
                     onClick={() => handleNavigateActivity('next')}
-                    disabled={findIndex(selectedActivityId) <= 0}
+                    disabled={findIndex(selectedActivityId) <= 0 || !isBound}
                     className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 >
                     <ChevronRight className="w-4 h-4" />

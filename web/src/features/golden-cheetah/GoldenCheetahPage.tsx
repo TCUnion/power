@@ -27,7 +27,7 @@ import {
     Cell,
     LabelList
 } from 'recharts';
-import { Activity, Info, Loader2, ArrowLeft, Thermometer, RotateCw, Heart, Clock, Gauge, FileText, ChevronLeft, RefreshCw, TrendingUp } from 'lucide-react';
+import { Activity, Info, Loader2, ArrowLeft, Thermometer, RotateCw, Heart, Clock, Gauge, FileText, ChevronLeft, RefreshCw, TrendingUp, Lock } from 'lucide-react';
 import { fitMorton3P, calculateMMP, calculateNP } from '../../utils/power-models';
 import { GaugeChart } from './GaugeChart';
 import ActivitySelector from './components/ActivitySelector';
@@ -83,7 +83,7 @@ const ZONES = [
 ];
 
 export const GoldenCheetahPage = () => {
-    const { athlete } = useAuth();
+    const { athlete, isBound } = useAuth();
 
     const [stravaZonesFromStream, setStravaZonesFromStream] = useState<StravaZoneBucket[] | null>(null);
 
@@ -465,6 +465,7 @@ export const GoldenCheetahPage = () => {
         timeAboveCP: number;
         timeAboveCPPct: number;
         zones: ZoneBucket[];
+        zoneSource?: string;
         mmp20m: number;
         cadence: { avg: number; max: number; total: number };
         temp: { avg: number; min: number; max: number };
@@ -536,12 +537,56 @@ export const GoldenCheetahPage = () => {
         const vi = avgPower > 0 ? normPower / avgPower : 0;
 
         // Power Zones
-        const zonesHistogram = ZONES.map(z => ({ ...z, count: 0 }));
-        activityStream.forEach(p => {
-            const pct = athleteFTP > 0 ? p / athleteFTP : 0;
-            const zoneIdx = ZONES.findIndex(z => pct >= z.min && pct < z.max);
-            if (zoneIdx !== -1) zonesHistogram[zoneIdx].count += 1;
-        });
+        let powerZones: ZoneBucket[] = [];
+        let powerZoneSource = '';
+
+        const stravaActivityZones = latestActivity?.zones;
+
+        // 1. Check for Standard Strava Zones Object (Activity Level)
+        const stravaPowerZone = Array.isArray(stravaActivityZones)
+            ? stravaActivityZones.find(z => z.type === 'power')
+            : null;
+
+        if (stravaPowerZone && stravaPowerZone.distribution_buckets) {
+            // Use Strava Official Zones
+            powerZoneSource = 'Strava Official';
+            const totalPowerTime = stravaPowerZone.distribution_buckets.reduce((acc, b) => acc + (b.time || 0), 0);
+
+            powerZones = stravaPowerZone.distribution_buckets.map((b, i) => {
+                const timeValue = b.time || 0;
+                // Safe access to ZONES[i] in case Strava has more/fewer buckets, though usually 7
+                const zoneDef = ZONES[i] || { name: `Zone ${i + 1}`, color: '#cbd5e1', label: `Z${i + 1}` };
+
+                return {
+                    name: zoneDef.name,
+                    min: b.min,
+                    max: b.max,
+                    color: zoneDef.color,
+                    label: zoneDef.label,
+                    value: timeValue,
+                    pct: totalPowerTime > 0 ? Math.round((timeValue / totalPowerTime) * 1000) / 10 : 0,
+                    range: `${b.min}-${b.max == -1 ? '+' : b.max} W`,
+                    seconds: timeValue
+                };
+            });
+        } else {
+            // Fallback: Local Calculation
+            powerZoneSource = `Based on MMP 20min (${mmp20m}W)`;
+            const zonesHistogram = ZONES.map(z => ({ ...z, count: 0 }));
+            activityStream.forEach(p => {
+                const pct = athleteFTP > 0 ? p / athleteFTP : 0;
+                const zoneIdx = ZONES.findIndex(z => pct >= z.min && pct < z.max);
+                if (zoneIdx !== -1) zonesHistogram[zoneIdx].count += 1;
+            });
+
+            powerZones = zonesHistogram.map(z => ({
+                ...z,
+                value: z.count,
+                pct: duration > 0 ? Math.round((z.count / duration) * 1000) / 10 : 0,
+                range: `${Math.round(z.min * athleteFTP)}-${Math.round(z.max * athleteFTP)} W`,
+                seconds: z.count
+            }));
+        }
 
         // Heart Rate Zones
         // Priority: Strava Official Zones (from Activity Response OR Stream Buckets) > Calculation by Max HR
@@ -550,7 +595,7 @@ export const GoldenCheetahPage = () => {
         let isOfficialHrZones = false;
 
         let targetBuckets: StravaZoneBucket[] | null = null;
-        const stravaActivityZones = latestActivity?.zones;
+
 
         // 1. Check for Standard Strava Zones Object (Activity Level)
         const officialHrZone = Array.isArray(stravaActivityZones)
@@ -626,13 +671,7 @@ export const GoldenCheetahPage = () => {
         // W' Work = 超過 CP 的總作功量 (kJ)
         const wPrimeWork = hasPower ? Math.round(activityStream.reduce((sum, p) => sum + Math.max(0, p - calculatedCP), 0) / 1000) : 0;
 
-        const zonesWithPct = zonesHistogram.map(z => ({
-            ...z,
-            value: z.count,
-            pct: Math.round((z.count / duration) * 1000) / 10,
-            range: `${Math.round(z.min * athleteFTP)}-${Math.round(z.max * athleteFTP)} W`,
-            seconds: z.count,
-        }));
+
 
         const avgHR = Math.round(hrStream.length > 0 ? hrStream.reduce((a, b) => a + b, 0) / hrStream.length : 0);
         const maxHR = hrStream.length > 0 ? Math.max(...hrStream) : 0;
@@ -652,7 +691,8 @@ export const GoldenCheetahPage = () => {
             timeAboveCP: timeAboveCPCount,
             timeAboveCPPct,
 
-            zones: zonesWithPct,
+            zones: powerZones,
+            zoneSource: powerZoneSource,
             mmp20m,
             cadence: { avg: cadAvg, max: cadMax, total: cadTotal },
             temp: { avg: tempAvg, min: tempMin, max: tempMax },
@@ -777,7 +817,8 @@ export const GoldenCheetahPage = () => {
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => selectAdjacentActivity('prev')}
-                        className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-800"
+                        disabled={!isBound && selectedActivityId === latestActivity?.id} // Disable if not bound and at latest
+                        className={`p-2 rounded-lg transition-colors border border-slate-800 ${(!isBound && selectedActivityId === latestActivity?.id) ? 'text-slate-600 cursor-not-allowed' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
                         title="Previous Activity"
                     >
                         <ChevronLeft className="w-5 h-5" />
@@ -794,10 +835,12 @@ export const GoldenCheetahPage = () => {
                         handleSyncActivity={handleSyncActivity}
                         syncStatus={syncStatus}
                         hasData={hasData}
+                        isBound={isBound}
                     />
                     <button
                         onClick={() => selectAdjacentActivity('next')}
-                        className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-800"
+                        disabled={!isBound} // Always disable next if not bound (since they can only be on latest)
+                        className={`p-2 rounded-lg transition-colors border border-slate-800 ${!isBound ? 'text-slate-600 cursor-not-allowed' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
                         title="Next Activity"
                     >
                         <RefreshCw className="w-5 h-5" />
@@ -831,24 +874,50 @@ export const GoldenCheetahPage = () => {
                             >
                                 Dashboard
                             </button>
-                            <button
-                                onClick={() => setActiveView('aerolab')}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeView === 'aerolab'
-                                    ? "bg-yellow-500 text-slate-900 shadow-lg shadow-yellow-500/20"
-                                    : "text-slate-400 hover:text-slate-200"
-                                    }`}
-                            >
-                                Aerolab
-                            </button>
-                            <button
-                                onClick={() => setActiveView('compare')}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${activeView === 'compare'
-                                    ? "bg-yellow-500 text-slate-900 shadow-lg shadow-yellow-500/20"
-                                    : "text-slate-400 hover:text-slate-200"
-                                    }`}
-                            >
-                                Compare
-                            </button>
+
+                            {/* Aerolab Tab - Gated */}
+                            <div className="relative group">
+                                <button
+                                    onClick={() => isBound && setActiveView('aerolab')}
+                                    disabled={!isBound}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${activeView === 'aerolab'
+                                        ? "bg-yellow-500 text-slate-900 shadow-lg shadow-yellow-500/20"
+                                        : !isBound
+                                            ? "text-slate-600 cursor-not-allowed"
+                                            : "text-slate-400 hover:text-slate-200"
+                                        }`}
+                                >
+                                    Aerolab
+                                    {!isBound && <Lock className="w-3 h-3" />}
+                                </button>
+                                {!isBound && (
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded shadow-lg pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                                        僅限綁定會員
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Compare Tab - Gated */}
+                            <div className="relative group">
+                                <button
+                                    onClick={() => isBound && setActiveView('compare')}
+                                    disabled={!isBound}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${activeView === 'compare'
+                                        ? "bg-yellow-500 text-slate-900 shadow-lg shadow-yellow-500/20"
+                                        : !isBound
+                                            ? "text-slate-600 cursor-not-allowed"
+                                            : "text-slate-400 hover:text-slate-200"
+                                        }`}
+                                >
+                                    Compare
+                                    {!isBound && <Lock className="w-3 h-3" />}
+                                </button>
+                                {!isBound && (
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-slate-800 text-white text-[10px] rounded shadow-lg pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                                        僅限綁定會員
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -940,7 +1009,7 @@ export const GoldenCheetahPage = () => {
 
                     {/* 5. Distribution Row */}
                     <div className="md:col-span-6 bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col">
-                        <ZoneDistribution zones={summary.zones} mmp20m={summary.mmp20m} />
+                        <ZoneDistribution zones={summary.zones} mmp20m={summary.mmp20m} source={summary.zoneSource} />
 
                         <div className="flex-1 flex flex-col border-t border-slate-800 pt-6 mt-4 min-h-[220px]">
                             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-2">

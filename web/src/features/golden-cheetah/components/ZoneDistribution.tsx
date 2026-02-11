@@ -18,9 +18,10 @@ interface ZoneDistributionProps {
         seconds: number;
     }[];
     mmp20m: number;
+    source?: string;
 }
 
-const ZoneDistribution = React.memo(({ zones, mmp20m }: ZoneDistributionProps) => {
+const ZoneDistribution = React.memo(({ zones, mmp20m, source }: ZoneDistributionProps) => {
     return (
         <div className="md:col-span-12 bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-700">
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500 mb-4 flex items-center gap-2">
@@ -51,7 +52,7 @@ const ZoneDistribution = React.memo(({ zones, mmp20m }: ZoneDistributionProps) =
             </div>
             <div className="mt-4 pt-4 border-t border-slate-700/50">
                 <div className="flex justify-between items-center text-[10px] text-slate-500 uppercase font-bold tracking-tighter">
-                    <span>Power Zones based on MMP 20min ({mmp20m}W)</span>
+                    <span>{source || `Power Zones based on MMP 20min (${mmp20m}W)`}</span>
                     <span className="text-slate-400">Golden Cheetah Standards</span>
                 </div>
             </div>

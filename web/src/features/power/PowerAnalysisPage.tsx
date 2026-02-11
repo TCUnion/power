@@ -41,7 +41,7 @@ const TABS: { key: TabKey; label: string; icon: React.ReactNode; description: st
 
 const PowerAnalysisPage: React.FC = () => {
     const { athlete, isBound } = useAuth();
-    const { calculateNPViaDB, calculateTSSViaDB } = usePowerAnalysis();
+    const { calculateNP, calculateTSS } = usePowerAnalysis();
 
     // 頁面狀態
     const [activeTab, setActiveTab] = useState<TabKey>('mmp');
@@ -200,9 +200,9 @@ const PowerAnalysisPage: React.FC = () => {
 
                             const effectiveFtp = stream.ftp || ftp;
                             if (effectiveFtp > 0) {
-                                const np = await calculateNPViaDB(wattsData);
+                                const np = calculateNP(wattsData);
                                 const duration = act.elapsed_time || act.moving_time;
-                                const tss = await calculateTSSViaDB(np, effectiveFtp, duration);
+                                const tss = calculateTSS(np, effectiveFtp, duration);
 
                                 const dateKey = new Date(act.start_date).toISOString().split('T')[0];
 
@@ -235,7 +235,7 @@ const PowerAnalysisPage: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [athlete?.id, analysisRange, calculateNPViaDB, calculateTSSViaDB]);
+    }, [athlete?.id, analysisRange, calculateNP, calculateTSS]);
 
     useEffect(() => {
         loadAnalysisData();

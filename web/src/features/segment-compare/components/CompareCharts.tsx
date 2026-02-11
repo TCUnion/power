@@ -16,9 +16,7 @@ import type { SegmentEffort } from '../../../types';
 import type { Segment } from '../hooks/useSegmentCompare';
 import type { SyncStatus } from '../hooks/useActivitySync';
 import { format } from 'date-fns';
-import { ChevronsDown, ChevronsUp, Activity } from 'lucide-react';
-
-import { RefreshCw, CheckCircle } from 'lucide-react';
+import { ChevronsDown, ChevronsUp, Activity, RefreshCw, CheckCircle } from 'lucide-react';
 
 interface CompareChartsProps {
     allEfforts: SegmentEffort[];
@@ -150,21 +148,41 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
 
     if (allEfforts.length === 0) return null;
 
+    // Custom Dot for Trend Chart
+    const CustomDot = (props: any) => {
+        const { cx, cy, payload, stroke } = props;
+        const selectedIndex = selectedEfforts.findIndex(e => e.activity_id === payload.id);
+        const isSelected = selectedIndex !== -1;
+
+        if (isSelected) {
+            const color = COLORS[selectedIndex % COLORS.length];
+            return (
+                <circle cx={cx} cy={cy} r={6} stroke={color} strokeWidth={3} fill="white" />
+            );
+        }
+        return (
+            <circle cx={cx} cy={cy} r={4} stroke={stroke} strokeWidth={1.5} fill="white" />
+        );
+    };
+
     return (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
             <div
                 className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center cursor-pointer hover:bg-slate-100 transition-colors"
                 onClick={() => setChartsExpanded(!chartsExpanded)}
             >
-                <h3 className="font-bold text-slate-700 flex items-center gap-2">
-                    <Activity size={18} />
-                    表現分析圖表
-                    {segment && (
-                        <span className="text-sm font-normal text-slate-500 ml-2">
-                            {segment.name} · {(segment.distance / 1000).toFixed(1)}km · {segment.total_elevation_gain}m
-                        </span>
-                    )}
-                </h3>
+                <div className="flex items-center gap-3">
+                    <h3 className="font-bold text-slate-700 flex items-center gap-2">
+                        <Activity size={18} />
+                        表現分析圖表
+                        {segment && (
+                            <span className="text-sm font-normal text-slate-500 ml-2">
+                                {segment.name} · {(segment.distance / 1000).toFixed(1)}km · {segment.total_elevation_gain}m
+                            </span>
+                        )}
+                    </h3>
+
+                </div>
                 {chartsExpanded ? <ChevronsUp size={18} /> : <ChevronsDown size={18} />}
             </div>
 
@@ -197,15 +215,25 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                                 <YAxis
                                     yAxisId="right"
                                     orientation="right"
-                                    label={{ value: '功率 (W)', angle: 90, position: 'insideRight' }}
+                                    label={{ value: '功率 (W)', angle: -90, position: 'insideRight' }}
                                     domain={['auto', 'auto']}
                                 />
                                 <Tooltip
                                     content={({ active, payload }) => {
                                         if (active && payload && payload.length) {
                                             const data = payload[0].payload;
+                                            const selectedIndex = selectedEfforts.findIndex(e => e.activity_id === data.id);
+                                            const isSelected = selectedIndex !== -1;
+                                            const color = isSelected ? COLORS[selectedIndex % COLORS.length] : undefined;
+
                                             return (
-                                                <div className="bg-white p-3 border border-slate-200 shadow-lg rounded-lg text-sm z-50">
+                                                <div
+                                                    className="bg-white p-3 shadow-lg rounded-lg text-sm z-50 border"
+                                                    style={{
+                                                        borderColor: color || '#e2e8f0',
+                                                        borderWidth: isSelected ? '2px' : '1px'
+                                                    }}
+                                                >
                                                     <p className="font-bold text-slate-700 mb-1">{data.dateStr}</p>
                                                     <p className="font-medium text-slate-900 mb-2 truncate max-w-[200px]">{data.activityName}</p>
                                                     <div className="space-y-1">
@@ -213,7 +241,7 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                                                         {data.watts && <p className="text-amber-500">功率: {data.watts} W</p>}
                                                     </div>
                                                     <div className="mt-2 pt-2 border-t border-slate-100 text-xs text-slate-400">
-                                                        點擊切換選取狀態
+                                                        {isSelected ? '點擊取消選取' : '點擊選取'}
                                                     </div>
                                                 </div>
                                             );
@@ -229,7 +257,7 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                                     name="時間"
                                     stroke="#3b82f6"
                                     strokeWidth={2}
-                                    dot={{ r: 4 }}
+                                    dot={<CustomDot />}
                                     activeDot={{ r: 6, cursor: 'pointer' }}
                                 />
                                 <Line
@@ -240,7 +268,7 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                                     stroke="#f59e0b"
                                     strokeWidth={2}
                                     connectNulls
-                                    dot={{ r: 4 }}
+                                    dot={<CustomDot />}
                                     activeDot={{ r: 6, cursor: 'pointer' }}
                                 />
                             </ComposedChart>
@@ -250,11 +278,9 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                     {/* 2. Detailed Comparison */}
                     {selectedEfforts.length > 0 && (
                         <div className="pt-6 border-t border-slate-200">
-                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
-                                <div>
-                                    <h4 className="text-sm font-semibold text-slate-600 mb-1">TCU詳細數據比較</h4>
-                                </div>
-                                <div className="flex items-center gap-4">
+                            <div className="relative flex flex-col md:flex-row items-center justify-center mb-4 w-full">
+                                <h4 className="text-sm font-bold text-slate-600">TCU詳細數據比較</h4>
+                                <div className="md:absolute md:right-0 flex items-center gap-4 mt-2 md:mt-0">
                                     <div className="flex gap-2 text-sm text-slate-500">
                                         <label className="flex items-center gap-1 cursor-pointer select-none">
                                             <input
@@ -293,9 +319,10 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                                             時間
                                         </label>
                                     </div>
-
                                 </div>
                             </div>
+
+
 
                             {/* Warning for missing data */}
                             {!loading && selectedEfforts.length > comparisonData.length && (
@@ -480,7 +507,7 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                                     <span className="flex items-center gap-1">
                                         <span className="font-medium text-slate-600">爬升:</span> {segment.total_elevation_gain} m
                                     </span>
-                                    <span className="flex items-center gap-1 font-semibold text-slate-400">
+                                    <span className="flex items-center gap-1 font-bold text-orange-500">
                                         Powered by TCU
                                     </span>
                                 </div>
@@ -489,8 +516,9 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                     )
                     }
                 </div>
-            )}
-        </div>
+            )
+            }
+        </div >
     );
 };
 

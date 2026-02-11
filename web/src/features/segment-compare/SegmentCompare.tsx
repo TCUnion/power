@@ -156,6 +156,8 @@ const SegmentCompare = () => {
 
     const athleteName = athlete ? `${athlete.firstname} ${athlete.lastname}`.trim() : '未登入';
 
+
+
     return (
         <div className="min-h-screen bg-slate-950 text-white p-6 pb-20">
             <div className="max-w-7xl mx-auto space-y-6">
@@ -246,6 +248,7 @@ const SegmentCompare = () => {
                             onSync={syncActivity}
                             syncStatus={syncStatus}
                             onToggleEffort={handleToggleEffort}
+                            onRefresh={handleRefresh}
                         />
                     </div>
                 )}

@@ -16,6 +16,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { Link } from 'react-router-dom';
 import type { StravaActivity, StravaStreams, StreamData, StravaZoneBucket } from '../../types';
+import AerolabView from './components/AerolabView';
 import {
     ResponsiveContainer,
     BarChart,
@@ -125,6 +126,8 @@ export const GoldenCheetahPage = () => {
     const [tempStream, setTempStream] = useState<number[]>([]);
     const [hrStream, setHrStream] = useState<number[]>([]);
     const [altitudeStream, setAltitudeStream] = useState<number[]>([]);
+    const [velocityStream, setVelocityStream] = useState<number[]>([]);
+    const [distanceStream, setDistanceStream] = useState<number[]>([]);
 
     const [athleteWeight, setAthleteWeight] = useState(70);
     const [athleteFTP, setAthleteFTP] = useState(250);
@@ -279,6 +282,8 @@ export const GoldenCheetahPage = () => {
             setTempStream([]);
             setHrStream([]);
             setAltitudeStream([]);
+            setVelocityStream([]);
+            setDistanceStream([]);
             return;
         }
 
@@ -291,12 +296,16 @@ export const GoldenCheetahPage = () => {
         const temp = activityStreams.find((s) => s.type === 'temp')?.data || [];
         const heartrate = activityStreams.find((s) => s.type === 'heartrate')?.data || [];
         const altitude = activityStreams.find((s) => s.type === 'altitude')?.data || [];
+        const velocity = activityStreams.find((s) => s.type === 'velocity_smooth')?.data || [];
+        const distance = activityStreams.find((s) => s.type === 'distance')?.data || [];
 
         setActivityStream(watts);
         setCadenceStream(cadence);
         setTempStream(temp);
         setHrStream(heartrate);
         setAltitudeStream(altitude);
+        setVelocityStream(velocity);
+        setDistanceStream(distance);
     }, []);
 
     /**
@@ -1259,12 +1268,14 @@ export const GoldenCheetahPage = () => {
             )}
 
             {activeView === 'aerolab' && (
-                <div className="flex flex-col items-center justify-center min-h-[400px] text-slate-400">
-                    <div className="bg-slate-800 p-8 rounded-2xl text-center border border-slate-700">
-                        <h3 className="text-xl font-bold text-white mb-2">Aerolab Coming Soon</h3>
-                        <p>Virtual Elevation analysis features are under development.</p>
-                    </div>
-                </div>
+                <AerolabView
+                    powerStream={activityStream}
+                    velocityStream={velocityStream}
+                    altitudeStream={altitudeStream}
+                    distanceStream={distanceStream}
+                    athleteWeight={athleteWeight}
+                    tempStream={tempStream.length > 0 ? tempStream : undefined}
+                />
             )}
 
             {activeView === 'compare' && (

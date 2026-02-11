@@ -42,14 +42,14 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
     syncStatus = {}
 }) => {
     const [chartsExpanded, setChartsExpanded] = useState(true);
-    const [xAxisType, setXAxisType] = useState<'distance' | 'time'>('distance');
+    const xAxisType = 'distance';
     const [visibleSeries, setVisibleSeries] = useState({
-        power: true,
-        heartrate: true,
+        power: false,
+        heartrate: false,
         speed: false,
         cadence: false,
         elevation: true,
-        time: false
+        time: true
     });
 
     // 1. Historical Trend Data
@@ -92,16 +92,23 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
             if (!stream) return null;
 
             const dist = stream.distance || [];
-            const time = stream.time || []; // relative time usually from 0
+            const time = stream.time || [];
             const watts = stream.watts || [];
             const hr = stream.heartrate || [];
             const alt = stream.altitude || [];
             const vel = stream.velocity_smooth || [];
             const cad = stream.cadence || [];
 
+            // Normalize distance and time to start from 0 for the segment
+            const startDist = dist.length > 0 ? dist[0] : 0;
+            const startTime = time.length > 0 ? time[0] : 0;
+
+            const normalizedDist = dist.map((d: number) => d - startDist);
+            const normalizedTime = time.map((t: number) => t - startTime);
+
             const points = [];
             // Use distance or time as X
-            const xStream = xAxisType === 'distance' ? dist : time;
+            const xStream = xAxisType === 'distance' ? normalizedDist : normalizedTime;
 
             for (let i = 0; i < xStream.length; i++) {
                 // Downsample for performance if needed
@@ -114,7 +121,7 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                     alt: alt[i],
                     speed: vel[i] ? vel[i] * 3.6 : 0, // m/s to km/h
                     cad: cad[i],
-                    time: time[i]
+                    time: normalizedTime[i]
                 });
             }
 
@@ -208,22 +215,6 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
                                 <div>
                                     <h4 className="text-sm font-semibold text-slate-600 mb-1">TCU詳細數據比較</h4>
-                                    {segment && (
-                                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                                            <span className="flex items-center gap-1">
-                                                <span className="font-medium text-slate-600">ID:</span> {segment.id}
-                                            </span>
-                                            <span className="flex items-center gap-1">
-                                                <span className="font-medium text-slate-600">路段:</span> {segment.name}
-                                            </span>
-                                            <span className="flex items-center gap-1">
-                                                <span className="font-medium text-slate-600">長度:</span> {(segment.distance / 1000).toFixed(2)} km
-                                            </span>
-                                            <span className="flex items-center gap-1">
-                                                <span className="font-medium text-slate-600">爬升:</span> {segment.total_elevation_gain} m
-                                            </span>
-                                        </div>
-                                    )}
                                 </div>
                                 <div className="flex items-center gap-4">
                                     <div className="flex gap-2 text-sm text-slate-500">
@@ -264,14 +255,7 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                                             時間
                                         </label>
                                     </div>
-                                    <select
-                                        value={xAxisType}
-                                        onChange={(e) => setXAxisType(e.target.value as 'distance' | 'time')}
-                                        className="text-sm border border-slate-300 rounded px-2 py-1 outline-none focus:border-blue-500"
-                                    >
-                                        <option value="distance">距離 (m)</option>
-                                        <option value="time">時間 (s)</option>
-                                    </select>
+
                                 </div>
                             </div>
 
@@ -303,7 +287,7 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                                                         ) : (
                                                             <button
                                                                 onClick={() => onSync?.(effort.activity_id)}
-                                                                disabled={status === 'syncing'}
+                                                                onClick={() => onSync?.(effort.activity_id)}
                                                                 className="flex items-center gap-1 text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 px-1.5 py-0.5 rounded transition-colors"
                                                             >
                                                                 <RefreshCw size={12} />
@@ -438,13 +422,35 @@ export const CompareCharts: React.FC<CompareChartsProps> = ({
                                         </ComposedChart>
                                     </ResponsiveContainer>
                                 </div>
+
+                            )}
+
+
+
+                            {/* Segment Info at the bottom */}
+                            {segment && (
+                                <div className="mt-4 flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs text-slate-500 border-t border-slate-100 pt-4">
+                                    <span className="flex items-center gap-1">
+                                        <span className="font-medium text-slate-600">ID:</span> {segment.id}
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                        <span className="font-medium text-slate-600">路段:</span> {segment.name}
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                        <span className="font-medium text-slate-600">長度:</span> {(segment.distance / 1000).toFixed(2)} km
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                        <span className="font-medium text-slate-600">爬升:</span> {segment.total_elevation_gain} m
+                                    </span>
+                                </div>
                             )}
                         </div>
-                    )}
+                    )
+                    }
                 </div>
-            )
-            }
+            )}
         </div>
     );
 };
+
 

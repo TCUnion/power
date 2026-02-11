@@ -54,6 +54,7 @@ const PowerAnalysisPage: React.FC = () => {
     const [currentFTP, setCurrentFTP] = useState(0);
     const [athleteWeight, setAthleteWeight] = useState(0);
     const [streamLoadProgress, setStreamLoadProgress] = useState({ loaded: 0, total: 0 });
+    const [analyzedActivityIds, setAnalyzedActivityIds] = useState<Set<number>>(new Set());
     const [displayProgress, setDisplayProgress] = useState(0);
 
     // 平滑進度動畫
@@ -85,9 +86,12 @@ const PowerAnalysisPage: React.FC = () => {
     // 預設對認證會員使用 365 天以確保圖表數據完整，非認證限制為 42 天
     const [analysisRange, setAnalysisRange] = useState<number>(isBound ? 365 : 42);
 
-    // 權限變動時重置
+    // 權限變動時自動調整分析區間
+    // 首次確認為認證會員時，自動將預設範圍擴展至 365D 以確保圖表完整
     useEffect(() => {
-        if (!isBound && analysisRange !== 42) {
+        if (isBound && analysisRange === 42) {
+            setAnalysisRange(365);
+        } else if (!isBound && analysisRange !== 42) {
             setAnalysisRange(42);
         }
     }, [isBound]);
@@ -109,8 +113,12 @@ const PowerAnalysisPage: React.FC = () => {
 
         try {
             const cutoffDate = new Date();
-            cutoffDate.setHours(0, 0, 0, 0); // 固定時間部分，避免毫秒漂移引發重複更新
-            cutoffDate.setDate(cutoffDate.getDate() - analysisRange);
+            cutoffDate.setHours(0, 0, 0, 0);
+
+            // 抓取範圍：認證會員一律抓取 365 天以確保圖表（52週訓練量）數據完整
+            // 非認證會員受限於 42 天
+            const fetchDays = isBound ? 365 : 42;
+            cutoffDate.setDate(cutoffDate.getDate() - fetchDays);
 
             // 取得選手資訊（FTP 與體重）
             const { data: athleteData } = await supabase
@@ -130,7 +138,7 @@ const PowerAnalysisPage: React.FC = () => {
                 .select('id, athlete_id, name, type, sport_type, start_date, elapsed_time, moving_time, average_watts, max_watts, distance, total_elevation_gain')
                 .eq('athlete_id', athlete.id)
                 .gte('start_date', cutoffDate.toISOString())
-                .in('sport_type', ['Ride', 'VirtualRide', 'MountainBikeRide', 'GravelRide'])
+                .in('sport_type', ['Ride', 'VirtualRide', 'MountainBikeRide', 'GravelRide', 'EBikeRide'])
                 .order('start_date', { ascending: false })
                 .limit(1000);
 
@@ -146,6 +154,7 @@ const PowerAnalysisPage: React.FC = () => {
             // 批量取得所有 Streams（分批處理避免超時）
             const allPowerArrays: number[][] = [];
             const ftpHist: typeof ftpHistory = [];
+            const analyzedIds = new Set<number>();
             const dailyTSS: Record<string, { tss: number; count: number }> = {};
 
             // 預先填充所有活動，確保計數正確（即使沒有 Streams）
@@ -215,6 +224,7 @@ const PowerAnalysisPage: React.FC = () => {
                                 if (dailyTSS[dateKey]) {
                                     dailyTSS[dateKey].tss = Math.max(0, dailyTSS[dateKey].tss - baseTSS + tss);
                                 }
+                                analyzedIds.add(act.id);
                             }
                         }
                     }
@@ -224,6 +234,7 @@ const PowerAnalysisPage: React.FC = () => {
 
             setPowerArrays(allPowerArrays);
             setFtpHistory(ftpHist);
+            setAnalyzedActivityIds(analyzedIds);
             setDailyTSSData(
                 Object.entries(dailyTSS)
                     .map(([date, data]) => ({ date, tss: Math.round(data.tss), activityCount: data.count }))
@@ -235,20 +246,24 @@ const PowerAnalysisPage: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [athlete?.id, analysisRange, calculateNP, calculateTSS]);
+    }, [athlete?.id, isBound, calculateNP, calculateTSS]);
 
     useEffect(() => {
         loadAnalysisData();
     }, [loadAnalysisData]);
 
-    // 統計摘要數據
+    // 統計摘要數據 (依據選定的分析區間過濾)
     const summaryStats = useMemo(() => {
-        const totalActivities = activities.length;
-        const activitiesWithStreams = powerArrays.length;
-        const totalDistance = activities.reduce((sum, a) => sum + (a.distance || 0), 0) / 1000;
-        const totalElevation = activities.reduce((sum, a) => sum + (a.total_elevation_gain || 0), 0);
-        const totalTime = activities.reduce((sum, a) => sum + (a.moving_time || 0), 0);
-        const avgPower = activities.reduce((sum, a) => sum + (a.average_watts || 0), 0) / (totalActivities || 1);
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - analysisRange);
+
+        const filteredActs = activities.filter(a => new Date(a.start_date) >= cutoff);
+        const totalActivities = filteredActs.length;
+        const activitiesWithStreams = filteredActs.filter(a => analyzedActivityIds.has(a.id)).length;
+        const totalDistance = filteredActs.reduce((sum, a) => sum + (a.distance || 0), 0) / 1000;
+        const totalElevation = filteredActs.reduce((sum, a) => sum + (a.total_elevation_gain || 0), 0);
+        const totalTime = filteredActs.reduce((sum, a) => sum + (a.moving_time || 0), 0);
+        const avgPower = filteredActs.reduce((sum, a) => sum + (a.average_watts || 0), 0) / (totalActivities || 1);
 
         return {
             totalActivities,
@@ -258,7 +273,7 @@ const PowerAnalysisPage: React.FC = () => {
             totalTime,
             avgPower: Math.round(avgPower),
         };
-    }, [activities, powerArrays]);
+    }, [activities, analysisRange, analyzedActivityIds]);
 
     // 格式化騎乘總時間
     const formatTotalTime = (seconds: number): string => {

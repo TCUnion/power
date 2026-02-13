@@ -1,5 +1,6 @@
 
 import { MessageSquare, Calendar, ChevronRight } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 interface DailySummaryMetrics {
     total_time_min: number;
@@ -42,8 +43,8 @@ export function DailySummaryCard({ summary, metrics, isLoading }: DailySummaryPr
                     </span>
                 </div>
 
-                <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">
-                    {summary}
+                <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-a:text-indigo-600 prose-a:font-bold prose-strong:font-bold">
+                    <ReactMarkdown>{summary}</ReactMarkdown>
                 </div>
             </div>
 

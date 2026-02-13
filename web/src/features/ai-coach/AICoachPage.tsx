@@ -58,7 +58,7 @@ export function AICoachPage() {
     }
 
     return (
-        <div className="container mx-auto px-4 py-8 max-w-6xl">
+        <div className="container mx-auto px-4 py-8 max-w-[1600px]">
             <header className="mb-8">
                 <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
                     <Sparkles className="w-8 h-8 text-indigo-600" />

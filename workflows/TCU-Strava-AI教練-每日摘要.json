@@ -15,7 +15,7 @@
             "type": "n8n-nodes-base.webhook",
             "typeVersion": 2.1,
             "position": [
-                0,
+                -240,
                 0
             ],
             "webhookId": "ai-coach-summary"
@@ -23,7 +23,62 @@
         {
             "parameters": {
                 "operation": "executeQuery",
-                "query": "SELECT \n  sa.name,\n  sa.start_date_local,\n  sa.distance,\n  sa.moving_time,\n  sa.elapsed_time,\n  sa.total_elevation_gain,\n  sa.average_speed,\n  sa.average_watts,\n  sa.max_watts,\n  sa.weighted_average_watts,\n  sa.kilojoules,\n  sa.average_heartrate,\n  sa.max_heartrate,\n  sa.type\nFROM strava_activities sa\nWHERE sa.athlete_id = {{ $json.body.athlete_id }}::bigint\nORDER BY sa.start_date_local DESC\nLIMIT 5",
+                "query": "SELECT ai_response, context_data, created_at\nFROM ai_coach_logs\nWHERE athlete_id = {{ $json.body.athlete_id }}::bigint\n  AND type = 'summary'\n  AND created_at >= CURRENT_DATE\nORDER BY created_at DESC\nLIMIT 1;",
+                "options": {}
+            },
+            "id": "check-existing-summary-001",
+            "name": "檢查今日摘要",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.5,
+            "position": [
+                40,
+                0
+            ],
+            "alwaysOutputData": true,
+            "credentials": {
+                "postgres": {
+                    "id": "EyymWfYG639Eg1jJ",
+                    "name": "Postgres account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "boolean": [
+                        {
+                            "value1": "={{ $json.ai_response ? true : false }}",
+                            "value2": true
+                        }
+                    ]
+                }
+            },
+            "id": "if-summary-exists-001",
+            "name": "判斷是否已生成",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [
+                300,
+                0
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// === 格式化現有摘要 ===\n// NOTE: 如果 DB 已有今日摘要，直接轉為前端格式回傳\n\nconst log = $input.first().json;\n\n// context_data 在 DB 中是 JSONB，N8N 讀出來可能是物件或字串，需確認\nlet metrics = {};\nif (typeof log.context_data === 'string') {\n  try { metrics = JSON.parse(log.context_data); } catch(e) {}\n} else {\n  metrics = log.context_data || {};\n}\n// 有時候 context_data 被多層 stringify，可能需要再 parse 一次\nif (typeof metrics === 'string') {\n  try { metrics = JSON.parse(metrics); } catch(e) {}\n}\n\nreturn [{\n  json: {\n    summary: log.ai_response,\n    metrics: metrics\n  }\n}];"
+            },
+            "id": "format-existing-summary-001",
+            "name": "格式化現有摘要",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                600,
+                -160
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "SELECT \n  sa.name,\n  sa.start_date_local,\n  sa.distance,\n  sa.moving_time,\n  sa.elapsed_time,\n  sa.total_elevation_gain,\n  sa.average_speed,\n  sa.average_watts,\n  sa.max_watts,\n  sa.weighted_average_watts,\n  sa.kilojoules,\n  sa.average_heartrate,\n  sa.max_heartrate,\n  sa.type\nFROM strava_activities sa\nWHERE sa.athlete_id = {{ $('接收摘要請求').first().json.body.athlete_id }}::bigint\nORDER BY sa.start_date_local DESC\nLIMIT 5",
                 "options": {}
             },
             "id": "92a6534f-42ec-4751-8e1b-7921fb014ffc",
@@ -31,22 +86,28 @@
             "type": "n8n-nodes-base.postgres",
             "typeVersion": 2.5,
             "position": [
-                280,
-                0
+                600,
+                160
             ],
-            "alwaysOutputData": true
+            "alwaysOutputData": true,
+            "credentials": {
+                "postgres": {
+                    "id": "EyymWfYG639Eg1jJ",
+                    "name": "Postgres account"
+                }
+            }
         },
         {
             "parameters": {
                 "jsCode": "// === 計算當日訓練指標 ===\n// NOTE: 彙整當日活動數據，計算 metrics 供前端 DailySummaryCard 使用\n\nconst items = $input.all();\nconst requestData = $('接收摘要請求').first().json.body;\nconst date = requestData.date || new Date().toISOString().split('T')[0];\n\nif (!items || items.length === 0 || !items[0].json.name) {\n  return [{\n    json: {\n      hasData: false,\n      date,\n      metrics: {\n        total_time_min: 0,\n        total_distance_km: 0,\n        activities_count: 0,\n        details: ['今天沒有騎乘紀錄']\n      }\n    }\n  }];\n}\n\nlet totalTime = 0;\nlet totalDistance = 0;\nconst details = [];\n\nfor (const item of items) {\n  const d = item.json;\n  const dist = parseFloat(d.distance) || 0;\n  const time = parseInt(d.moving_time) || 0;\n  const avgW = parseFloat(d.average_watts) || 0;\n  const np = parseFloat(d.weighted_average_watts) || 0;\n  const elev = parseFloat(d.total_elevation_gain) || 0;\n  const avgHR = parseFloat(d.average_heartrate) || 0;\n\n  totalTime += time;\n  totalDistance += dist;\n\n  let detail = `🚴 ${d.name}: ${(dist/1000).toFixed(1)}km, ${Math.round(time/60)}分鐘`;\n  if (avgW > 0) detail += `, 均功率${Math.round(avgW)}W`;\n  if (np > 0) detail += `, NP ${Math.round(np)}W`;\n  if (elev > 0) detail += `, 爬升${Math.round(elev)}m`;\n  if (avgHR > 0) detail += `, 均心率${Math.round(avgHR)}bpm`;\n  details.push(detail);\n}\n\nreturn [{\n  json: {\n    hasData: true,\n    date,\n    metrics: {\n      total_time_min: Math.round(totalTime / 60),\n      total_distance_km: parseFloat((totalDistance / 1000).toFixed(1)),\n      activities_count: items.length,\n      details\n    },\n    activitiesForAI: items.map(i => ({\n      name: i.json.name,\n      distance_km: (parseFloat(i.json.distance || 0) / 1000).toFixed(1),\n      time_min: Math.round(parseInt(i.json.moving_time || 0) / 60),\n      avg_watts: Math.round(parseFloat(i.json.average_watts || 0)),\n      np: Math.round(parseFloat(i.json.weighted_average_watts || 0)),\n      elevation: Math.round(parseFloat(i.json.total_elevation_gain || 0)),\n      avg_hr: Math.round(parseFloat(i.json.average_heartrate || 0))\n    }))\n  }\n}];"
             },
-            "id": "746235a3-cc7f-46d9-8073-8c09569bb9f0",
+            "id": "746235a3-cc7f-46d9-8073-8c0956bb9f0",
             "name": "計算當日指標",
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
             "position": [
-                560,
-                0
+                840,
+                160
             ]
         },
         {
@@ -60,10 +121,16 @@
             "type": "n8n-nodes-base.postgres",
             "typeVersion": 2.5,
             "position": [
-                840,
-                0
+                1080,
+                160
             ],
-            "alwaysOutputData": true
+            "alwaysOutputData": true,
+            "credentials": {
+                "postgres": {
+                    "id": "EyymWfYG639Eg1jJ",
+                    "name": "Postgres account"
+                }
+            }
         },
         {
             "parameters": {
@@ -76,8 +143,8 @@
             "type": "@n8n/n8n-nodes-langchain.agent",
             "typeVersion": 3.1,
             "position": [
-                1120,
-                0
+                1360,
+                160
             ],
             "id": "dd67c53a-a585-4b37-b1c4-202162e0bfe6",
             "name": "AI 日誌摘要"
@@ -95,11 +162,17 @@
             "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
             "typeVersion": 1.3,
             "position": [
-                1060,
-                240
+                1320,
+                400
             ],
             "id": "58b319eb-6a04-41ba-b900-00846fd6a797",
-            "name": "OpenAI Chat Model"
+            "name": "OpenAI Chat Model",
+            "credentials": {
+                "openAiApi": {
+                    "id": "K6aV6rRPPBUIjMxM",
+                    "name": "Zeabur AI hub"
+                }
+            }
         },
         {
             "parameters": {
@@ -110,8 +183,8 @@
             "type": "n8n-nodes-base.code",
             "typeVersion": 2,
             "position": [
-                1400,
-                0
+                1640,
+                160
             ]
         },
         {
@@ -125,16 +198,22 @@
             "type": "n8n-nodes-base.postgres",
             "typeVersion": 2.5,
             "position": [
-                1680,
-                0
+                1920,
+                160
             ],
             "alwaysOutputData": true,
+            "credentials": {
+                "postgres": {
+                    "id": "EyymWfYG639Eg1jJ",
+                    "name": "Postgres account"
+                }
+            },
             "onError": "continueRegularOutput"
         },
         {
             "parameters": {
                 "respondWith": "json",
-                "responseBody": "={{ JSON.stringify($('格式化摘要回應').first().json) }}",
+                "responseBody": "={{ JSON.stringify($input.first().json) }}",
                 "options": {
                     "responseHeaders": {
                         "entries": [
@@ -159,7 +238,7 @@
             "type": "n8n-nodes-base.respondToWebhook",
             "typeVersion": 1.1,
             "position": [
-                1960,
+                2200,
                 0
             ]
         }
@@ -169,7 +248,47 @@
             "main": [
                 [
                     {
+                        "node": "檢查今日摘要",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "檢查今日摘要": {
+            "main": [
+                [
+                    {
+                        "node": "判斷是否已生成",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "判斷是否已生成": {
+            "main": [
+                [
+                    {
+                        "node": "格式化現有摘要",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
                         "node": "查詢當日活動",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "格式化現有摘要": {
+            "main": [
+                [
+                    {
+                        "node": "回傳摘要結果",
                         "type": "main",
                         "index": 0
                     }

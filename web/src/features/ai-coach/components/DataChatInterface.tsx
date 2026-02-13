@@ -68,7 +68,7 @@ export function DataChatInterface({ onSendMessage }: DataChatInterfaceProps) {
 
 
     return (
-        <div className="bg-white rounded-lg shadow flex flex-col h-[1000px]">
+        <div className="bg-white rounded-lg shadow flex flex-col h-[1200px]">
             <div className="p-4 border-b border-gray-100 bg-gray-50 rounded-t-lg">
                 <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                     <Bot className="w-5 h-5 text-indigo-600" />
@@ -76,42 +76,44 @@ export function DataChatInterface({ onSendMessage }: DataChatInterfaceProps) {
                 </h3>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {messages.map((msg) => (
-                    <div
-                        key={msg.id}
-                        className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                    >
-                        <div className={`
-                            max-w-[80%] rounded-lg p-3 text-sm
-                            ${msg.role === 'user'
-                                ? 'bg-indigo-600 text-white rounded-br-none'
-                                : 'bg-gray-100 text-gray-800 rounded-bl-none'}
-                        `}>
-                            {msg.role === 'assistant' ? (
-                                <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-a:text-red-600 prose-a:font-bold">
-                                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col">
+                <div className="mt-auto space-y-4 w-full">
+                    {messages.map((msg) => (
+                        <div
+                            key={msg.id}
+                            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                        >
+                            <div className={`
+                                max-w-[80%] rounded-lg p-3 text-sm
+                                ${msg.role === 'user'
+                                    ? 'bg-indigo-600 text-white rounded-br-none'
+                                    : 'bg-gray-100 text-gray-800 rounded-bl-none'}
+                            `}>
+                                {msg.role === 'assistant' ? (
+                                    <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-a:text-red-600 prose-a:font-bold">
+                                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                    </div>
+                                ) : (
+                                    msg.content
+                                )}
+                                <div className={`text-[10px] mt-1 ${msg.role === 'user' ? 'text-indigo-200' : 'text-gray-400'}`}>
+                                    {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </div>
-                            ) : (
-                                msg.content
-                            )}
-                            <div className={`text-[10px] mt-1 ${msg.role === 'user' ? 'text-indigo-200' : 'text-gray-400'}`}>
-                                {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </div>
                         </div>
-                    </div>
-                ))}
-                {isSending && (
-                    <div className="flex justify-start">
-                        <div className="bg-gray-100 rounded-lg p-3 rounded-bl-none">
-                            <div className="flex space-x-1">
-                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-75"></div>
-                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-150"></div>
+                    ))}
+                    {isSending && (
+                        <div className="flex justify-start">
+                            <div className="bg-gray-100 rounded-lg p-3 rounded-bl-none">
+                                <div className="flex space-x-1">
+                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-75"></div>
+                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-150"></div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
 
             <div className="p-4 border-t border-gray-100">

@@ -50,3 +50,7 @@ async def get_usage(user_id: str, service: AICoachService = Depends(get_ai_servi
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
+
+@router.get("/history/{user_id}")
+async def get_chat_history(user_id: str, limit: int = 5, service: AICoachService = Depends(get_ai_service)):
+    return await service.get_chat_history(user_id, limit)

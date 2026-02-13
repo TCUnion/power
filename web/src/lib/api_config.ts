@@ -1,58 +1,25 @@
 export const API_BASE_URL = import.meta.env.VITE_API_URL || '';
-export const API_BACKUP_URL = import.meta.env.VITE_API_BACKUP_URL || '';
 
 /**
- * 統一的 API 请求處理函數，支援自動切換至備援伺服器
- * @param endpoint API 路徑 (例如 '/api/auth/status')
- * @param options fetch 選項
- * @returns Response 物件
+ * 統一的 API 请求處理函數
  */
 export const apiFetch = async (endpoint: string, options: RequestInit = {}): Promise<Response> => {
-    // 1. 嘗試主伺服器
+    // 強化：在本地開發環境 (localhost) 下，強制所有 /api 請求導向本地後端
+    let baseUrl = API_BASE_URL;
+    if (import.meta.env.DEV && endpoint.startsWith('/api')) {
+        // 在 Vite 開發模式下，不論 .env 怎麼寫，強制連往 8000 埠
+        baseUrl = 'http://localhost:8000';
+        console.log(`[API] Dev Mode Enforced: Calling ${baseUrl}${endpoint}`);
+    }
+
     try {
-        const primaryUrl = `${API_BASE_URL}${endpoint}`;
-        const response = await fetch(primaryUrl, options);
+        const url = `${baseUrl}${endpoint}`;
+        const response = await fetch(url, options);
 
-        // 複製回應物件以便多次讀取 (因為 .json() 會消耗 stream)
-        const responseClone = response.clone();
-
-        // 若主伺服器回應 5xx (伺服器錯誤) 或 401/403 (憑證問題)，嘗試備援
-        if ((response.status >= 500 || response.status === 401 || response.status === 403) && API_BACKUP_URL) {
-            console.warn(`[API] Primary server error (${response.status}), trying backup...`);
-            throw new Error(`Primary server error: ${response.status}`);
-        }
-
-        // 額外檢查：如果回應是 200 但內容包含 "error" 欄位（後端 try-except 捕捉的情況）
-        let shouldFailover = false;
-        try {
-            const data = await responseClone.json();
-            if (data && data.error && (data.error.includes('401') || data.error.includes('credentials')) && API_BACKUP_URL) {
-                console.warn('[API] Primary reported auth error in payload, trying backup...');
-                shouldFailover = true;
-            }
-        } catch (e) {
-            // 解析 JSON 失敗則忽略，交由後續處理
-        }
-
-        if (shouldFailover) {
-            throw new Error('Primary auth error in payload');
-        }
-
+        // 如果回應 401 且不在本地開發環境，可視需求處理。但在本地端我們優先確保連線通暢。
         return response;
     } catch (error) {
-        // 2. 失敗時嘗試備援伺服器 (若有設定)
-        if (API_BACKUP_URL) {
-            console.warn('[API] Primary connection failed, switching to backup:', error);
-            try {
-                const backupUrl = `${API_BACKUP_URL}${endpoint}`;
-                const backupResponse = await fetch(backupUrl, options);
-                return backupResponse;
-            } catch (backupError) {
-                console.error('[API] Backup server also failed:', backupError);
-                throw error; // 若備援也失敗，拋出原始錯誤或最後的錯誤
-            }
-        }
-
+        console.error(`[API] Fetch failed for ${endpoint}:`, error);
         throw error;
     }
 };

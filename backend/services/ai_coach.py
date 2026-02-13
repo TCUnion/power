@@ -1,12 +1,7 @@
-
 import os
 import json
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
-import os
-import json
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from supabase import Client
 
 class AICoachService:
@@ -325,3 +320,37 @@ class AICoachService:
             "member_type": member_type,
             "member_name": member_name
         }
+
+    async def get_chat_history(self, user_id: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """
+        取得使用者的最近對話紀錄 (從 ai_coach_logs 抓取)
+        """
+        try:
+            athlete_id = int(user_id)
+            res = self.supabase.table("ai_coach_logs") \
+                .select("user_message, ai_response, created_at") \
+                .eq("athlete_id", athlete_id) \
+                .eq("type", "chat") \
+                .order("created_at", desc=True) \
+                .limit(limit) \
+                .execute()
+            
+            # 將結果反向排列，使時間順序正確 (從舊到新)
+            history = []
+            for item in reversed(res.data):
+                if item.get("user_message"):
+                    history.append({
+                        "role": "user",
+                        "content": item["user_message"],
+                        "timestamp": item["created_at"]
+                    })
+                if item.get("ai_response"):
+                    history.append({
+                        "role": "assistant",
+                        "content": item["ai_response"],
+                        "timestamp": item["created_at"]
+                    })
+            return history
+        except Exception as e:
+            print(f"Error fetching chat history for {user_id}: {e}")
+            return []

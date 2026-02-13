@@ -19,24 +19,45 @@ interface DataChatInterfaceProps {
         limit: number;
         remaining: number;
     } | null;
+    initialMessages?: any[]; // Changed type to any[] as per instruction snippet
+    isLoadingHistory?: boolean; // 新增此 prop
 }
 
-export function DataChatInterface({ onSendMessage, userName, usageStatus }: DataChatInterfaceProps) {
+export function DataChatInterface({
+    onSendMessage,
+    userName,
+    usageStatus,
+    initialMessages,
+    isLoadingHistory = false // 預設為 false
+}: DataChatInterfaceProps) {
     const [messages, setMessages] = useState<Message[]>([]);
 
-    // NOTE: 當 userName 改變時，更新歡迎訊息
+    // NOTE: 當載入完成或有初始訊息時更新
     useEffect(() => {
-        if (messages.length === 0 && userName) {
-            setMessages([
-                {
-                    id: 'welcome',
-                    role: 'assistant',
-                    content: `你好 ${userName}！我是 TCU AI 功率教練。你可以問我關於你的騎乘表現、比較歷史數據，或是詢問訓練建議。試試看問我：「上個月的爬坡表現跟去年比如何？」`,
-                    timestamp: new Date()
-                }
-            ]);
+        // 1. 如果正在載入歷史資料，先不進行初始化
+        if (isLoadingHistory) return;
+
+        // 2. 如果有歷史對話紀錄，則填入紀錄，並不顯示歡迎語
+        if (initialMessages && initialMessages.length > 0) {
+            const formattedHistory = initialMessages.map(m => ({
+                ...m,
+                timestamp: new Date(m.timestamp)
+            }));
+            setMessages(formattedHistory);
+            return; // 歷史對話優先
         }
-    }, [userName, messages.length]);
+
+        // 3. 只有在【沒有歷史對話紀錄】且【目前訊息陣列為空】且【有使用者名稱】時，才顯示歡迎語
+        if (messages.length === 0 && userName) {
+            const welcomeMsg: Message = {
+                id: 'welcome',
+                role: 'assistant',
+                content: `你好 ${userName}！我是 TCU AI 功率教練。你可以問我關於你的騎乘表現、比較歷史數據，或是詢問訓練建議。試試看問我：「上個月的爬坡表現跟去年比如何？」`,
+                timestamp: new Date()
+            };
+            setMessages([welcomeMsg]);
+        }
+    }, [userName, initialMessages, isLoadingHistory, messages.length]);
 
     const [inputValue, setInputValue] = useState('');
     const [isSending, setIsSending] = useState(false);

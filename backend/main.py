@@ -1,4 +1,5 @@
-
+import os
+from datetime import datetime
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -62,27 +63,41 @@ def health_check():
     }
 
 
+import time
+
+# 全域 Supabase 客戶端單例
+_supabase: Optional[Client] = None
+
+def get_supabase_client() -> Client:
+    global _supabase
+    if _supabase is None:
+        url, key = get_supabase_config()
+        if not url or not key:
+            raise RuntimeError("Missing Supabase configuration")
+        _supabase = create_client(url, key)
+        logger.info("Supabase global client initialized")
+    return _supabase
+
 from datetime import datetime
 
 @app.get("/check-binding")
 @app.get("/api/auth/binding-status/{athlete_id}")
 async def get_binding_status(athlete_id: int):
-    logger.info(f"Checking binding status for athlete: {athlete_id}")
+    start_time = time.time()
+    logger.info(f"--- [API START] get_binding_status for {athlete_id} ---")
     
     try:
-        url, key = get_supabase_config()
+        supabase = get_supabase_client()
         
-        if not url or not key:
-            raise HTTPException(status_code=500, detail="Configuration error: Missing SUPABASE_URL or KEY (v1.5.2)")
-            
-        supabase: Client = create_client(url, key)
-        
+        # 查詢綁定表
         binding_res = supabase.table("strava_member_bindings") \
             .select("*") \
             .eq("strava_id", str(athlete_id)) \
             .execute()
             
         if not binding_res.data or len(binding_res.data) == 0:
+            duration = (time.time() - start_time) * 1000
+            logger.info(f"--- [API END] Not bound. Time: {duration:.2f}ms ---")
             return {
                 "isBound": False,
                 "member_data": None,
@@ -106,14 +121,17 @@ async def get_binding_status(athlete_id: int):
                 .eq("email", tcu_member_email) \
                 .execute()
                 
+        duration = (time.time() - start_time) * 1000
         if member_res and member_res.data and len(member_res.data) > 0:
             member = member_res.data[0]
+            logger.info(f"--- [API END] Bound found. Time: {duration:.2f}ms ---")
             return {
                 "isBound": True,
                 "member_data": member,
                 "strava_name": binding.get("member_name", "")
             }
         
+        logger.info(f"--- [API END] Bound but no member profile. Time: {duration:.2f}ms ---")
         return {
             "isBound": True,
             "member_data": None,
@@ -121,7 +139,8 @@ async def get_binding_status(athlete_id: int):
         }
             
     except Exception as e:
-        logger.error(f"Error checking binding status: {str(e)}")
+        duration = (time.time() - start_time) * 1000
+        logger.error(f"--- [API ERROR] {str(e)}. Time: {duration:.2f}ms ---")
         return {
             "isBound": False,
             "member_data": None,

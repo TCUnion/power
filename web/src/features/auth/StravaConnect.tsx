@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Check, RefreshCw } from 'lucide-react';
-import { API_BASE_URL, API_BACKUP_URL } from '../../lib/api_config';
+import { API_BASE_URL } from '../../lib/api_config';
 import StravaLogo from '../../components/ui/StravaLogo';
 
 interface StravaAthlete {
@@ -30,7 +30,6 @@ const CONFIG = {
         'http://localhost:3000',
         'http://localhost:5173',
         API_BASE_URL,
-        API_BACKUP_URL,
     ]
 };
 

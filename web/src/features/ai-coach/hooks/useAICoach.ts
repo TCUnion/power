@@ -25,6 +25,8 @@ export function useAICoach() {
     const [error, setError] = useState<string | null>(null);
     const [summary, setSummary] = useState<DailySummary | null>(null);
     const [usageStatus, setUsageStatus] = useState<UsageStatus | null>(null);
+    const [chatHistory, setChatHistory] = useState<any[]>([]);
+    const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
     // NOTE: 取得今日用量
     const checkUsageStatus = useCallback(async (userId: string) => {
@@ -146,13 +148,35 @@ export function useAICoach() {
         }
     }, []);
 
+    // NOTE: 取得對話歷史
+    const getChatHistory = useCallback(async (userId: string, limit: number = 5) => {
+        setIsLoadingHistory(true);
+        try {
+            const response = await apiFetch(`/api/ai/history/${userId}?limit=${limit}`);
+            if (response.ok) {
+                const data = await response.json();
+                setChatHistory(data);
+                return data;
+            }
+            return [];
+        } catch (err) {
+            console.error("Failed to get chat history:", err);
+            return [];
+        } finally {
+            setIsLoadingHistory(false);
+        }
+    }, []);
+
     return {
         loading,
         error,
         summary,
         usageStatus,
+        chatHistory,
+        isLoadingHistory,
         checkUsageStatus,
         generateDailySummary,
-        sendChatMessage
+        sendChatMessage,
+        getChatHistory
     };
 }

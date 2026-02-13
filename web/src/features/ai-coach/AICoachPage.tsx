@@ -11,19 +11,39 @@ import MemberBindingCard from '../auth/MemberBindingCard';
 export function AICoachPage() {
     const { athlete, isBound, isLoading: authLoading } = useAuthContext();
 
-    const { generateDailySummary, sendChatMessage, loading, error, summary, usageStatus, checkUsageStatus } = useAICoach();
+    const {
+        generateDailySummary,
+        sendChatMessage,
+        loading,
+        error,
+        summary,
+        usageStatus,
+        checkUsageStatus,
+        getChatHistory,
+        chatHistory,
+        isLoadingHistory
+    } = useAICoach();
 
 
     const [selectedDate] = useState(new Date());
+    const version = "v1.0.3";
 
+    // 診斷環境變數
+    useEffect(() => {
+        console.log(`[Diagnostic] AICoachPage Version: ${version}`);
+        console.log(`[Diagnostic] VITE_API_URL: ${import.meta.env.VITE_API_URL || 'Not Set'}`);
+        console.log(`[Diagnostic] window.location: ${window.location.href}`);
+        console.log(`[Diagnostic] Current Origin: ${window.location.origin}`);
+    }, []);
 
     // Auto-generate on load & check usage
     useEffect(() => {
-        if (athlete?.id) {
+        if (athlete?.id && isBound) {
             generateDailySummary(athlete.id.toString(), format(selectedDate, 'yyyy-MM-dd'));
             checkUsageStatus(athlete.id.toString());
+            getChatHistory(athlete.id.toString(), 5);
         }
-    }, [athlete?.id, selectedDate, generateDailySummary, checkUsageStatus]);
+    }, [athlete?.id, isBound, selectedDate, generateDailySummary, checkUsageStatus, getChatHistory]);
 
     const handleGenerate = () => {
         if (athlete?.id) {
@@ -63,7 +83,7 @@ export function AICoachPage() {
             <header className="mb-8">
                 <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
                     <Sparkles className="w-8 h-8 text-indigo-600" />
-                    AI 智能教練
+                    AI 智能教練 <span className="text-xs font-normal text-gray-300 ml-1">{version}</span>
                 </h1>
                 <p className="text-gray-500 mt-2">
                     透過 AI 分析你的騎乘數據，提供個人化建議與洞察。
@@ -120,13 +140,14 @@ export function AICoachPage() {
                 {/* Right Column: Chat Interface */}
                 <div className="lg:col-span-2">
                     <DataChatInterface
-                        onSendMessage={(msg) => {
-
+                        onSendMessage={async (msg) => {
                             if (!athlete?.id) return Promise.resolve({ reply: "請先綁定 Strava 帳號" });
                             return sendChatMessage(athlete.id.toString(), msg);
                         }}
-                        userName={usageStatus?.member_name || athlete?.firstname}
+                        userName={athlete?.firstname || athlete?.username || '跑者'}
                         usageStatus={usageStatus}
+                        initialMessages={chatHistory}
+                        isLoadingHistory={isLoadingHistory}
                     />
                 </div>
             </div>

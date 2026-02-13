@@ -16,15 +16,12 @@ interface DailySummaryProps {
 }
 
 export function DailySummaryCard({ summary, metrics, isLoading }: DailySummaryProps) {
-    console.log('[DailySummaryCard] Render props:', { hasSummary: !!summary, hasMetrics: !!metrics, isLoading });
-
     if (isLoading) {
         return (
-            <div className="bg-white rounded-lg shadow-lg p-6 animate-pulse border-2 border-indigo-500/20 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500 animate-loading-bar"></div>
+            <div className="bg-white rounded-lg shadow p-6 animate-pulse border border-gray-100">
                 <div className="flex items-center justify-between mb-8">
                     <div className="flex items-center gap-2">
-                        <Loader2 className="w-5 h-5 text-indigo-500 animate-spin" />
+                        <Loader2 className="w-5 h-5 text-indigo-400 animate-spin" />
                         <div className="h-6 bg-gray-200 rounded w-32"></div>
                     </div>
                     <div className="h-4 bg-gray-100 rounded w-20"></div>
@@ -35,13 +32,12 @@ export function DailySummaryCard({ summary, metrics, isLoading }: DailySummaryPr
                     <div className="h-4 bg-gray-100 rounded w-3/4"></div>
                 </div>
                 <div className="grid grid-cols-3 gap-4 border-t border-gray-100 pt-6">
-                    <div className="h-20 bg-gray-50 rounded-xl"></div>
-                    <div className="h-20 bg-gray-50 rounded-xl"></div>
-                    <div className="h-20 bg-gray-50 rounded-xl"></div>
+                    <div className="h-20 bg-gray-50 rounded-lg"></div>
+                    <div className="h-20 bg-gray-50 rounded-lg"></div>
+                    <div className="h-20 bg-gray-50 rounded-lg"></div>
                 </div>
                 <div className="mt-6 text-center">
-                    <p className="text-sm font-medium text-indigo-600 animate-bounce">AI 正在深度分析您的數據...</p>
-                    <p className="text-[10px] text-gray-400 mt-1">這可能需要 10-20 秒，請稍候</p>
+                    <p className="text-xs font-medium text-gray-400">AI 正在分析數據，請稍候...</p>
                 </div>
             </div>
         );
@@ -53,7 +49,7 @@ export function DailySummaryCard({ summary, metrics, isLoading }: DailySummaryPr
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                         <MessageSquare className="w-5 h-5 text-blue-600" />
-                        AI 教練日誌 <span className="text-[10px] bg-gray-100 px-1 rounded text-gray-400 font-normal">v2.1</span>
+                        AI 教練日誌
                     </h2>
                     <span className="text-sm text-gray-500 flex items-center gap-1">
                         <Calendar className="w-4 h-4" />

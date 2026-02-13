@@ -213,7 +213,7 @@
         {
             "parameters": {
                 "respondWith": "json",
-                "responseBody": "={{ $('格式化摘要回應').itemMatching(0).json.summary ? $('格式化摘要回應').itemMatching(0).json : $('格式化現有摘要').itemMatching(0).json }}",
+                "responseBody": "={{ $('格式化摘要回應').isExecuted ? $('格式化摘要回應').itemMatching(0).json : $('格式化現有摘要').itemMatching(0).json }}",
                 "options": {
                     "responseHeaders": {
                         "entries": [

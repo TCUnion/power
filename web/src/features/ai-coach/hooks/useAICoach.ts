@@ -43,6 +43,10 @@ export function useAICoach() {
     const generateDailySummary = useCallback(async (userId: string, date: string) => {
         setLoading(true);
         setError(null);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
         try {
             const response = await fetch('https://service.criterium.tw/webhook/ai-coach-summary', {
                 method: 'POST',
@@ -50,6 +54,7 @@ export function useAICoach() {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ athlete_id: parseInt(userId, 10), date }),
+                signal: controller.signal
             });
 
             if (!response.ok) {
@@ -60,9 +65,14 @@ export function useAICoach() {
             setSummary(data);
             return data;
         } catch (err: any) {
-            setError(err.message);
+            if (err.name === 'AbortError') {
+                setError('AI 生成較為耗時，請稍候 30 秒後點擊「重新生成」再次更新。');
+            } else {
+                setError(err.message);
+            }
             return null;
         } finally {
+            clearTimeout(timeoutId);
             setLoading(false);
         }
     }, []);

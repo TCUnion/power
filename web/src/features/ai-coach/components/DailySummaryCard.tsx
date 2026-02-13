@@ -53,18 +53,22 @@ export function DailySummaryCard({ summary, metrics, isLoading }: DailySummaryPr
                 <div className="grid grid-cols-3 gap-4">
                     <div className="bg-white p-3 rounded border border-gray-200 text-center">
                         <div className="text-xs text-gray-500 mb-1">總時間</div>
-                        <div className="font-bold text-gray-900">{metrics.total_time_min} <span className="text-xs font-normal text-gray-400">min</span></div>
+                        <div className="font-bold text-gray-900">
+                            {metrics?.total_time_min ?? 0} <span className="text-xs font-normal text-gray-400">min</span>
+                        </div>
                     </div>
                     <div className="bg-white p-3 rounded border border-gray-200 text-center">
                         <div className="text-xs text-gray-500 mb-1">總距離</div>
-                        <div className="font-bold text-gray-900">{metrics.total_distance_km} <span className="text-xs font-normal text-gray-400">km</span></div>
+                        <div className="font-bold text-gray-900">
+                            {metrics?.total_distance_km ?? 0} <span className="text-xs font-normal text-gray-400">km</span>
+                        </div>
                     </div>
                     <div className="bg-white p-3 rounded border border-gray-200 text-center">
                         <div className="text-xs text-gray-500 mb-1">活動數</div>
-                        <div className="font-bold text-gray-900">{metrics.activities_count}</div>
+                        <div className="font-bold text-gray-900">{metrics?.activities_count ?? 0}</div>
                     </div>
                 </div>
-                {metrics.details.length > 0 && (
+                {metrics?.details && metrics.details.length > 0 && (
                     <div className="mt-4 text-xs text-gray-500">
                         {metrics.details.map((detail, idx) => (
                             <div key={idx} className="flex items-center gap-1 mb-1 last:mb-0">

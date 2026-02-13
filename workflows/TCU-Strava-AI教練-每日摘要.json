@@ -213,7 +213,7 @@
         {
             "parameters": {
                 "respondWith": "json",
-                "responseBody": "={{ JSON.stringify($input.first().json) }}",
+                "responseBody": "={{ $json.summary ? $json : $('格式化摘要回應').first().json }}",
                 "options": {
                     "responseHeaders": {
                         "entries": [

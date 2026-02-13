@@ -103,10 +103,11 @@ export function AICoachPage() {
                         </div>
                     )}
 
-                    {summary ? (
+                    {summary || loading ? (
                         <DailySummaryCard
-                            summary={summary.summary}
-                            metrics={summary.metrics}
+                            summary={summary?.summary || ''}
+                            metrics={summary?.metrics || { total_time_min: 0, total_distance_km: 0, activities_count: 0, details: [] }}
+                            isLoading={loading}
                         />
                     ) : (
                         <div className="bg-gray-50 rounded-lg p-8 text-center border border-dashed border-gray-300">

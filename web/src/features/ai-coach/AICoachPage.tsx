@@ -11,18 +11,19 @@ import MemberBindingCard from '../auth/MemberBindingCard';
 export function AICoachPage() {
     const { athlete, isBound, isLoading: authLoading } = useAuthContext();
 
-    const { generateDailySummary, sendChatMessage, loading, error, summary } = useAICoach();
+    const { generateDailySummary, sendChatMessage, loading, error, summary, usageStatus, checkUsageStatus } = useAICoach();
 
 
     const [selectedDate] = useState(new Date());
 
 
-    // Auto-generate on load
+    // Auto-generate on load & check usage
     useEffect(() => {
         if (athlete?.id) {
             generateDailySummary(athlete.id.toString(), format(selectedDate, 'yyyy-MM-dd'));
+            checkUsageStatus(athlete.id.toString());
         }
-    }, [athlete?.id, selectedDate, generateDailySummary]);
+    }, [athlete?.id, selectedDate, generateDailySummary, checkUsageStatus]);
 
     const handleGenerate = () => {
         if (athlete?.id) {
@@ -123,6 +124,8 @@ export function AICoachPage() {
                             if (!athlete?.id) return Promise.resolve({ reply: "請先綁定 Strava 帳號" });
                             return sendChatMessage(athlete.id.toString(), msg);
                         }}
+                        userName={usageStatus?.member_name || athlete?.firstname}
+                        usageStatus={usageStatus}
                     />
                 </div>
             </div>

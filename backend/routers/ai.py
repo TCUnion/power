@@ -43,3 +43,10 @@ async def chat_with_data(req: ChatRequest, service: AICoachService = Depends(get
         raise HTTPException(status_code=500, detail=result["error"])
         
     return result
+
+@router.get("/usage/{user_id}")
+async def get_usage(user_id: str, service: AICoachService = Depends(get_ai_service)):
+    result = await service.get_daily_usage(user_id)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result

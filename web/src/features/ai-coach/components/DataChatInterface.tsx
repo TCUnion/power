@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Send, Bot } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -13,17 +13,31 @@ interface Message {
 
 interface DataChatInterfaceProps {
     onSendMessage: (message: string) => Promise<{ reply: string }>;
+    userName?: string;
+    usageStatus?: {
+        current: number;
+        limit: number;
+        remaining: number;
+    } | null;
 }
 
-export function DataChatInterface({ onSendMessage }: DataChatInterfaceProps) {
-    const [messages, setMessages] = useState<Message[]>([
-        {
-            id: 'welcome',
-            role: 'assistant',
-            content: '你好！我是 TCU AI 功率教練。你可以問我關於你的騎乘表現、比較歷史數據，或是詢問訓練建議。試試看問我：「上個月的爬坡表現跟去年比如何？」',
-            timestamp: new Date()
+export function DataChatInterface({ onSendMessage, userName, usageStatus }: DataChatInterfaceProps) {
+    const [messages, setMessages] = useState<Message[]>([]);
+
+    // NOTE: 當 userName 改變時，更新歡迎訊息
+    useEffect(() => {
+        if (messages.length === 0 && userName) {
+            setMessages([
+                {
+                    id: 'welcome',
+                    role: 'assistant',
+                    content: `你好 ${userName}！我是 TCU AI 功率教練。你可以問我關於你的騎乘表現、比較歷史數據，或是詢問訓練建議。試試看問我：「上個月的爬坡表現跟去年比如何？」`,
+                    timestamp: new Date()
+                }
+            ]);
         }
-    ]);
+    }, [userName, messages.length]);
+
     const [inputValue, setInputValue] = useState('');
     const [isSending, setIsSending] = useState(false);
 
@@ -122,7 +136,7 @@ export function DataChatInterface({ onSendMessage }: DataChatInterfaceProps) {
                         type="text"
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
-                        placeholder="詢問你的數據..."
+                        placeholder={usageStatus ? `詢問你的數據... (今日剩餘 ${usageStatus.remaining} 次)` : "詢問你的數據..."}
                         className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm text-gray-900 bg-white placeholder-gray-400"
                         disabled={isSending}
                     />

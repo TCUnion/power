@@ -12,10 +12,32 @@ interface DailySummary {
     };
 }
 
+interface UsageStatus {
+    current: number;
+    limit: number;
+    remaining: number;
+    member_type: string;
+    member_name: string;
+}
+
 export function useAICoach() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [summary, setSummary] = useState<DailySummary | null>(null);
+    const [usageStatus, setUsageStatus] = useState<UsageStatus | null>(null);
+
+    // NOTE: 取得今日用量
+    const checkUsageStatus = useCallback(async (userId: string) => {
+        try {
+            const response = await apiFetch(`/api/ai/usage/${userId}`);
+            if (response.ok) {
+                const data = await response.json();
+                setUsageStatus(data);
+            }
+        } catch (err) {
+            console.error("Failed to check usage:", err);
+        }
+    }, []);
 
     // NOTE: 每日摘要透過 n8n Webhook 產生，傳入 athlete_id 與日期
     const generateDailySummary = useCallback(async (userId: string, date: string) => {
@@ -70,6 +92,18 @@ export function useAICoach() {
 
             const data = await response.json();
 
+            // 更新 usage status
+            if (data.usage) {
+                setUsageStatus(prev => ({
+                    ...prev,
+                    current: data.usage.current,
+                    limit: data.usage.limit,
+                    remaining: Math.max(0, data.usage.limit - data.usage.current),
+                    member_type: prev?.member_type || 'guest',
+                    member_name: prev?.member_name || ''
+                }));
+            }
+
             // 檢查後端是否回傳 limit_reached (200 OK 但邏輯上限制)
             if (data.limit_reached) {
                 return { reply: data.answer || "今日額度已達上限。" };
@@ -88,6 +122,8 @@ export function useAICoach() {
         loading,
         error,
         summary,
+        usageStatus,
+        checkUsageStatus,
         generateDailySummary,
         sendChatMessage
     };

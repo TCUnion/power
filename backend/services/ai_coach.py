@@ -242,3 +242,86 @@ class AICoachService:
                 "limit": daily_limit
             }
         }
+
+    async def get_daily_usage(self, user_id: str) -> Dict[str, Any]:
+        """
+        取得今日 AI 使用量與額度
+        """
+        # 1. 獲取 strava_id 與會員資料
+        strava_id = user_id 
+        
+        binding = self.supabase.table("strava_member_bindings").select("strava_id, tcu_account, member_name").eq("strava_id", strava_id).execute()
+        
+        if not binding.data:
+            return {"error": "User not bound to Strava"}
+        
+        tcu_account = binding.data[0].get('tcu_account')
+        member_name = binding.data[0].get('member_name', '')
+        athlete_id = int(strava_id)
+
+        # 2. 檢查會員等級
+        member_type = "guest"
+        if tcu_account:
+            try:
+                member_res = self.supabase.table("tcu_members").select("member_type").eq("account", tcu_account).execute()
+                if member_res.data:
+                    raw_type = member_res.data[0].get("member_type")
+                    member_type = raw_type.lower() if raw_type else "guest"
+            except Exception as e:
+                print(f"Error checking member type: {e}")
+
+        # 定義預設限制
+        default_limits = {
+            "guest": 5, 
+            "basic": 10,
+            "premium": 50
+        }
+        
+        # 從資料庫讀取設定
+        try:
+            settings_res = self.supabase.table("system_settings").select("*").execute()
+            db_settings = {item['key']: int(item['value']) for item in settings_res.data if item['value'].isdigit()}
+        except Exception as e:
+            print(f"Error fetching system settings: {e}")
+            db_settings = {}
+            
+        # 合併設定 (DB 優先)
+        limits = {
+            "guest": db_settings.get("ai_limit_guest", default_limits["guest"]),
+            "basic": db_settings.get("ai_limit_basic", default_limits["basic"]),
+            "premium": db_settings.get("ai_limit_premium", default_limits["premium"]),
+            "admin": 9999
+        }
+        
+        # Admin 特權
+        daily_limit = limits.get(member_type, 5)
+        if "admin" in member_type.lower():
+            daily_limit = 9999
+
+        # 3. 檢查今日用量
+        today = datetime.now().strftime("%Y-%m-%d")
+        start_of_day = f"{today}T00:00:00"
+        end_of_day = f"{today}T23:59:59"
+
+        usage_count = 0
+        try:
+            logs = self.supabase.table("ai_coach_logs") \
+                .select("id", count="exact") \
+                .eq("athlete_id", athlete_id) \
+                .eq("type", "chat") \
+                .gte("created_at", start_of_day) \
+                .lte("created_at", end_of_day) \
+                .execute()
+            
+            usage_count = logs.count if logs.count is not None else 0
+                
+        except Exception as e:
+            print(f"Error checking usage logs: {e}")
+
+        return {
+            "current": usage_count,
+            "limit": daily_limit,
+            "remaining": max(0, daily_limit - usage_count),
+            "member_type": member_type,
+            "member_name": member_name
+        }

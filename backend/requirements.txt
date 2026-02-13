@@ -5,3 +5,11 @@ python-dotenv
 httpx
 supabase
 openai
+
+
+langchain==0.1.0
+langchain-openai==0.0.5
+langchain-community==0.0.13
+pandas
+langchain-experimental
+

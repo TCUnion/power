@@ -3,13 +3,16 @@ import { useState, useEffect } from 'react';
 import { useAICoach } from './hooks/useAICoach';
 import { DailySummaryCard } from './components/DailySummaryCard';
 import { DataChatInterface } from './components/DataChatInterface';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthContext } from '../../contexts/AuthContext';
+import MemberBindingCard from '../auth/MemberBindingCard';
 
 export function AICoachPage() {
-    const { athlete } = useAuth();
-    const { generateDailySummary, loading, error, summary } = useAICoach();
+    const { athlete, isBound, isLoading: authLoading } = useAuthContext();
+
+    const { generateDailySummary, sendChatMessage, loading, error, summary } = useAICoach();
+
 
     const [selectedDate] = useState(new Date());
 
@@ -26,6 +29,33 @@ export function AICoachPage() {
             generateDailySummary(athlete.id.toString(), format(selectedDate, 'yyyy-MM-dd'));
         }
     };
+
+    // NOTE: 權限檢查 - 載入中顯示 spinner
+    if (authLoading) {
+        return (
+            <div className="container mx-auto px-4 py-8 max-w-6xl flex items-center justify-center min-h-[400px]">
+                <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+            </div>
+        );
+    }
+
+    // NOTE: 權限檢查 - 未綁定會員顯示綁定卡片
+    if (!isBound) {
+        return (
+            <div className="container mx-auto px-4 py-8 max-w-6xl flex items-center justify-center min-h-[400px]">
+                <div className="max-w-md w-full space-y-6 text-center">
+                    <div className="p-6 bg-white rounded-2xl border border-gray-200 shadow-xl">
+                        <Sparkles className="w-12 h-12 text-indigo-500 mx-auto mb-4 opacity-50" />
+                        <h2 className="text-xl font-bold text-gray-900 mb-2">需要會員綁定</h2>
+                        <p className="text-gray-500 text-sm mb-6">
+                            「AI 功率教練」功能僅限已綁定 TCU 會員的用戶使用。請先完成 Strava 帳號與會員資料的綁定。
+                        </p>
+                        <MemberBindingCard onBindingSuccess={() => { }} />
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="container mx-auto px-4 py-8 max-w-6xl">
@@ -45,7 +75,7 @@ export function AICoachPage() {
                     <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-100 flex items-center justify-between">
                         <div>
                             <span className="text-sm text-gray-500 block">日期</span>
-                            <span className="font-medium">{format(selectedDate, 'yyyy-MM-dd')}</span>
+                            <span className="font-medium text-gray-900">{format(selectedDate, 'yyyy-MM-dd')}</span>
                         </div>
                         <button
                             onClick={handleGenerate}
@@ -84,9 +114,16 @@ export function AICoachPage() {
                     )}
                 </div>
 
+
                 {/* Right Column: Chat Interface */}
                 <div className="lg:col-span-2">
-                    <DataChatInterface />
+                    <DataChatInterface
+                        onSendMessage={(msg) => {
+
+                            if (!athlete?.id) return Promise.resolve({ reply: "請先綁定 Strava 帳號" });
+                            return sendChatMessage(athlete.id.toString(), msg);
+                        }}
+                    />
                 </div>
             </div>
         </div>

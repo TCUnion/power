@@ -23,6 +23,23 @@ def get_ai_service():
 @router.post("/summary")
 async def generate_summary(req: DailySummaryRequest, service: AICoachService = Depends(get_ai_service)):
     result = await service.generate_daily_summary(req.user_id, req.date)
+
     if "error" in result:
         raise HTTPException(status_code=500, detail=result["error"])
+    return result
+
+class ChatRequest(BaseModel):
+    user_id: str
+    message: str
+
+@router.post("/chat")
+async def chat_with_data(req: ChatRequest, service: AICoachService = Depends(get_ai_service)):
+    # 使用新的 chat_with_coach 方法 (含用量檢查與 N8N 整合)
+    result = await service.chat_with_coach(req.user_id, req.message)
+    
+    if "error" in result and "answer" not in result: 
+        # 只有在完全無法回答時才拋出 500
+        # 如果是 "Usage limit exceeded"，會在 result 中包含 answer (提示訊息)，不拋錯
+        raise HTTPException(status_code=500, detail=result["error"])
+        
     return result

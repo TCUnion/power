@@ -1,0 +1,312 @@
+{
+    "name": "TCU-Strava-AI教練-端對端測試-v2",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "ai-coach-test",
+                "responseMode": "responseNode",
+                "options": {
+                    "rawBody": false
+                }
+            },
+            "id": "2b95b653-719a-4d75-9b4e-207a73c329f1",
+            "name": "接收測試請求",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2.1,
+            "position": [
+                -224,
+                -160
+            ],
+            "webhookId": "ai-coach-test"
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "SELECT \n  sa.id,\n  sa.name,\n  sa.start_date_local,\n  sa.distance,\n  sa.moving_time,\n  sa.elapsed_time,\n  sa.total_elevation_gain,\n  sa.average_speed,\n  sa.max_speed,\n  sa.average_watts,\n  sa.max_watts,\n  sa.weighted_average_watts,\n  sa.kilojoules,\n  sa.average_heartrate,\n  sa.max_heartrate,\n  sa.suffer_score,\n  sa.type\nFROM strava_activities sa\nWHERE sa.athlete_id = {{ $json.body.athlete_id }}::bigint\nORDER BY sa.start_date_local DESC\nLIMIT 500",
+                "options": {}
+            },
+            "id": "af12956e-e1d0-4ff8-9e46-78dd94789963",
+            "name": "查詢全部歷史活動",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.5,
+            "position": [
+                64,
+                -160
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// === 彙整個人長期訓練紀錄 ===\n// NOTE: 從 Strava 完整歷史活動中計算長期趨勢、月度統計、進步指標\n\nconst items = $input.all();\nconst userMessage = $('接收測試請求').first().json.body.message || '分析我的騎乘表現';\nconst athleteId = $('接收測試請求').first().json.body.athlete_id;\n\nif (!items || items.length === 0) {\n  return [{\n    json: {\n      hasData: false,\n      userMessage,\n      athleteId,\n      summary: '沒有找到任何騎乘活動數據。'\n    }\n  }];\n}\n\n// --- 全期統計 ---\nlet totalDistance = 0, totalTime = 0, totalElevation = 0, totalKJ = 0;\nlet maxAvgWatts = 0, maxMaxWatts = 0, bestNP = 0;\nconst activities = [];\nconst monthlyStats = {};\n\nfor (const item of items) {\n  const d = item.json;\n  const dist = parseFloat(d.distance) || 0;\n  const time = parseInt(d.moving_time) || 0;\n  const elev = parseFloat(d.total_elevation_gain) || 0;\n  const avgW = parseFloat(d.average_watts) || 0;\n  const maxW = parseFloat(d.max_watts) || 0;\n  const np = parseFloat(d.weighted_average_watts) || 0;\n  const kj = parseFloat(d.kilojoules) || 0;\n  const avgHR = parseFloat(d.average_heartrate) || 0;\n  const maxHR = parseFloat(d.max_heartrate) || 0;\n  const dateStr = d.start_date_local ? d.start_date_local.substring(0, 10) : null;\n  const monthKey = dateStr ? dateStr.substring(0, 7) : 'unknown';\n\n  totalDistance += dist;\n  totalTime += time;\n  totalElevation += elev;\n  totalKJ += kj;\n  if (avgW > maxAvgWatts) maxAvgWatts = avgW;\n  if (maxW > maxMaxWatts) maxMaxWatts = maxW;\n  if (np > bestNP) bestNP = np;\n\n  // 月度統計\n  if (!monthlyStats[monthKey]) {\n    monthlyStats[monthKey] = { rides: 0, distance: 0, time: 0, elevation: 0, totalWatts: 0, wattsCount: 0, totalNP: 0, npCount: 0 };\n  }\n  const ms = monthlyStats[monthKey];\n  ms.rides++;\n  ms.distance += dist;\n  ms.time += time;\n  ms.elevation += elev;\n  if (avgW > 0) { ms.totalWatts += avgW; ms.wattsCount++; }\n  if (np > 0) { ms.totalNP += np; ms.npCount++; }\n\n  activities.push({\n    name: d.name,\n    date: dateStr || 'N/A',\n    distance_km: (dist / 1000).toFixed(1),\n    moving_time_min: Math.round(time / 60),\n    elevation_m: Math.round(elev),\n    avg_watts: Math.round(avgW),\n    np: Math.round(np),\n    max_watts: Math.round(maxW),\n    avg_hr: Math.round(avgHR),\n    max_hr: Math.round(maxHR),\n    kj: Math.round(kj)\n  });\n}\n\n// --- 月度趨勢（最近 6 個月）---\nconst sortedMonths = Object.keys(monthlyStats).sort().reverse().slice(0, 6);\nconst monthlyTrends = sortedMonths.map(m => {\n  const ms = monthlyStats[m];\n  return {\n    month: m,\n    rides: ms.rides,\n    distance_km: (ms.distance / 1000).toFixed(1),\n    time_hours: (ms.time / 3600).toFixed(1),\n    elevation_m: Math.round(ms.elevation),\n    avg_watts: ms.wattsCount > 0 ? Math.round(ms.totalWatts / ms.wattsCount) : 0,\n    avg_np: ms.npCount > 0 ? Math.round(ms.totalNP / ms.npCount) : 0\n  };\n});\n\n// --- 近 30 天 vs 前 30 天比較 ---\nconst now = new Date();\nconst d30 = new Date(now.getTime() - 30 * 86400000);\nconst d60 = new Date(now.getTime() - 60 * 86400000);\nlet recent30 = { rides: 0, distance: 0, time: 0, watts: 0, wCount: 0 };\nlet prev30 = { rides: 0, distance: 0, time: 0, watts: 0, wCount: 0 };\n\nfor (const a of activities) {\n  const ad = new Date(a.date);\n  if (ad >= d30) {\n    recent30.rides++; recent30.distance += parseFloat(a.distance_km); recent30.time += a.moving_time_min;\n    if (a.avg_watts > 0) { recent30.watts += a.avg_watts; recent30.wCount++; }\n  } else if (ad >= d60) {\n    prev30.rides++; prev30.distance += parseFloat(a.distance_km); prev30.time += a.moving_time_min;\n    if (a.avg_watts > 0) { prev30.watts += a.avg_watts; prev30.wCount++; }\n  }\n}\n\nconst comparison = {\n  recent30: {\n    rides: recent30.rides,\n    distance_km: recent30.distance.toFixed(1),\n    time_hours: (recent30.time / 60).toFixed(1),\n    avg_watts: recent30.wCount > 0 ? Math.round(recent30.watts / recent30.wCount) : 0\n  },\n  prev30: {\n    rides: prev30.rides,\n    distance_km: prev30.distance.toFixed(1),\n    time_hours: (prev30.time / 60).toFixed(1),\n    avg_watts: prev30.wCount > 0 ? Math.round(prev30.watts / prev30.wCount) : 0\n  }\n};\n\n// --- 計算日期範圍 ---\nconst dates = activities.map(a => a.date).filter(d => d !== 'N/A').sort();\nconst firstDate = dates[0] || 'N/A';\nconst lastDate = dates[dates.length - 1] || 'N/A';\n\nconst overallSummary = {\n  data_range: `${firstDate} ~ ${lastDate}`,\n  total_records: items.length,\n  total_distance_km: (totalDistance / 1000).toFixed(1),\n  total_time_hours: (totalTime / 3600).toFixed(1),\n  total_elevation_m: Math.round(totalElevation),\n  total_kj: Math.round(totalKJ),\n  best_avg_watts: Math.round(maxAvgWatts),\n  best_np: Math.round(bestNP),\n  best_max_watts: Math.round(maxMaxWatts),\n  avg_distance_per_ride_km: items.length > 0 ? (totalDistance / 1000 / items.length).toFixed(1) : 0,\n  avg_time_per_ride_min: items.length > 0 ? Math.round(totalTime / 60 / items.length) : 0\n};\n\nreturn [{\n  json: {\n    hasData: true,\n    userMessage,\n    athleteId,\n    overallSummary,\n    monthlyTrends,\n    comparison,\n    recentActivities: activities.slice(0, 15)\n  }\n}];"
+            },
+            "id": "f96ed9bf-e8e9-463f-8c25-d6e90ef06dfb",
+            "name": "彙整活動摘要",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                336,
+                -160
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "SELECT type, user_message, ai_response, created_at\nFROM ai_coach_logs\nWHERE athlete_id = {{ $('接收測試請求').first().json.body.athlete_id }}::bigint\nORDER BY created_at DESC\nLIMIT 5;",
+                "options": {}
+            },
+            "id": "chat-history-query-001",
+            "name": "查詢歷史對話",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.5,
+            "position": [
+                616,
+                -160
+            ],
+            "alwaysOutputData": true
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "SELECT id, brand_name, product_name, product_url, description, placement_text\nFROM ad_placements\nWHERE is_active = true\n  AND (start_date IS NULL OR start_date <= CURRENT_DATE)\n  AND (end_date IS NULL OR end_date >= CURRENT_DATE)\n  AND (max_impressions IS NULL OR current_impressions < max_impressions)\nORDER BY priority ASC\nLIMIT 3;",
+                "options": {}
+            },
+            "id": "ad-query-chat-001",
+            "name": "查詢可用廣告",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.5,
+            "position": [
+                896,
+                -160
+            ],
+            "alwaysOutputData": true
+        },
+        {
+            "parameters": {
+                "promptType": "define",
+                "text": "=以下是選手 (ID: {{ $('彙整活動摘要').first().json.athleteId }}) 的完整騎乘數據：\n\n📊 整體摘要：\n{{ JSON.stringify($('彙整活動摘要').first().json.overallSummary, null, 2) }}\n\n📈 月度趨勢（近 6 個月）：\n{{ JSON.stringify($('彙整活動摘要').first().json.monthlyTrends, null, 2) }}\n\n🔄 近 30 天 vs 前 30 天對比：\n{{ JSON.stringify($('彙整活動摘要').first().json.comparison, null, 2) }}\n\n🚴 最近騎乘紀錄：\n{{ JSON.stringify($('彙整活動摘要').first().json.recentActivities, null, 2) }}\n\n📝 過去對話紀錄（最近 5 筆）：\n{{ $('查詢歷史對話').first().json.type ? JSON.stringify($('查詢歷史對話').all().map(i => i.json), null, 2) : '無歷史紀錄' }}\n\n可用的推薦商品（僅在高度相關時才推薦 1 個）：\n{{ $('查詢可用廣告').first().json.brand_name ? JSON.stringify($('查詢可用廣告').all().map(i => i.json)) : '無' }}\n\n選手的問題：{{ $('彙整活動摘要').first().json.userMessage }}",
+                "options": {
+                    "systemMessage": "你是 TCU 車隊的專業自行車功率訓練教練，名叫「TCU AI 教練」。\n\n你的任務是根據選手的 **完整歷史騎乘數據** 進行深入的個人化分析與建議。\n\n## 你擁有的數據\n- **整體摘要 (overallSummary)**：選手從第一筆紀錄至今的累積統計（總距離、總時間、最佳功率等）\n- **月度趨勢 (monthlyTrends)**：最近 6 個月的月度統計，可看出訓練量與功率的變化趨勢\n- **30 天對比 (comparison)**：近 30 天 vs 前 30 天的表現比較，用於評估近期進步或退步\n- **近期活動 (recentActivities)**：最近 15 筆騎乘的詳細數據\n- **歷史對話 (chatHistory)**：過去與選手的對話紀錄，可參考之前給過的建議避免重複\n\n## 回答準則\n1. **一律使用繁體中文**回答\n2. 回答要**針對個人數據**，引用具體數字說明\n3. 分析**長期趨勢**：功率是否進步、訓練量是否穩定、有無過度訓練跡象\n4. 比較**近期 vs 過去**表現，指出進步或需注意之處\n5. 提供**具體可行的訓練建議**\n6. 使用 emoji 讓回答更易讀\n7. 回答簡潔但有深度，約 300-500 字\n8. 參考歷史對話，避免重複建議，延續之前的訓練方向\n\n## 廣告置入指引\n如果提供的推薦商品與訓練建議高度相關，可在回覆末尾用以下格式自然推薦 1 個商品：\n\n💡 推薦好物：[商品名稱]\n[一句話推薦理由]\n👉 [商品連結]\n\n規則：只在直接相關時推薦，不可強行置入。沒有相關商品就不推薦。"
+                }
+            },
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 3.1,
+            "position": [
+                1176,
+                -160
+            ],
+            "id": "0059eebd-48c7-4ac8-b653-e662ee7ade9b",
+            "name": "AI Agent"
+        },
+        {
+            "parameters": {
+                "model": {
+                    "__rl": true,
+                    "mode": "list",
+                    "value": "gpt-4o"
+                },
+                "responsesApiEnabled": false,
+                "options": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+            "typeVersion": 1.3,
+            "position": [
+                1240,
+                160
+            ],
+            "id": "df8601ff-59fd-4d56-891f-63c233ddede4",
+            "name": "OpenAI Chat Model"
+        },
+        {
+            "parameters": {
+                "jsCode": "// === 格式化回應 ===\n// NOTE: 將 AI Agent 的輸出轉為前端預期的 {answer} 格式\n\nconst input = $input.first().json;\nconst analysisData = $('彙整活動摘要').first().json;\n\nlet answer = '';\n\nif (!analysisData.hasData) {\n  answer = analysisData.summary;\n} else {\n  try {\n    // AI Agent 節點的輸出格式是 $json.output\n    if (input.output) {\n      answer = input.output;\n    } else if (input.text) {\n      answer = input.text;\n    } else if (typeof input === 'string') {\n      answer = input;\n    } else {\n      // 嘗試從任何可能的欄位取得回覆\n      answer = JSON.stringify(input);\n    }\n  } catch (e) {\n    answer = '解析 AI 回應時發生錯誤：' + e.message;\n  }\n}\n\nreturn [{\n  json: {\n    answer\n  }\n}];"
+            },
+            "id": "07a80210-4f07-4274-b5c5-4dfec0c8b33c",
+            "name": "格式化回應",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1456,
+                -160
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "INSERT INTO ai_coach_logs (athlete_id, type, user_message, ai_response)\nVALUES (\n  {{ $('接收測試請求').first().json.body.athlete_id }}::bigint,\n  'chat',\n  {{ JSON.stringify($('接收測試請求').first().json.body.message || '') }},\n  {{ JSON.stringify($json.answer) }}\n);",
+                "options": {}
+            },
+            "id": "save-chat-log-001",
+            "name": "儲存對話到 Supabase",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.5,
+            "position": [
+                1736,
+                -160
+            ],
+            "alwaysOutputData": true,
+            "onError": "continueRegularOutput"
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ JSON.stringify($('格式化回應').first().json) }}",
+                "options": {
+                    "responseHeaders": {
+                        "entries": [
+                            {
+                                "name": "Access-Control-Allow-Origin",
+                                "value": "*"
+                            },
+                            {
+                                "name": "Access-Control-Allow-Methods",
+                                "value": "POST, OPTIONS"
+                            },
+                            {
+                                "name": "Access-Control-Allow-Headers",
+                                "value": "Content-Type"
+                            }
+                        ]
+                    }
+                }
+            },
+            "id": "d06b358d-5fef-456e-a770-90c603804853",
+            "name": "回傳分析結果",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1.1,
+            "position": [
+                2016,
+                -160
+            ]
+        },
+        {
+            "parameters": {
+                "options": {}
+            },
+            "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+            "typeVersion": 1.4,
+            "position": [
+                1016,
+                160
+            ],
+            "id": "e4193e48-7997-4ccf-a317-20963176a4f2",
+            "name": "When chat message received",
+            "webhookId": "57ca72a8-0d49-4b49-badc-f8c6e6b563b2"
+        }
+    ],
+    "connections": {
+        "接收測試請求": {
+            "main": [
+                [
+                    {
+                        "node": "查詢全部歷史活動",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "查詢全部歷史活動": {
+            "main": [
+                [
+                    {
+                        "node": "彙整活動摘要",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "彙整活動摘要": {
+            "main": [
+                [
+                    {
+                        "node": "查詢歷史對話",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "查詢歷史對話": {
+            "main": [
+                [
+                    {
+                        "node": "查詢可用廣告",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "查詢可用廣告": {
+            "main": [
+                [
+                    {
+                        "node": "AI Agent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "AI Agent": {
+            "main": [
+                [
+                    {
+                        "node": "格式化回應",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "格式化回應": {
+            "main": [
+                [
+                    {
+                        "node": "儲存對話到 Supabase",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "儲存對話到 Supabase": {
+            "main": [
+                [
+                    {
+                        "node": "回傳分析結果",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "When chat message received": {
+            "main": [
+                [
+                    {
+                        "node": "AI Agent",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "OpenAI Chat Model": {
+            "ai_languageModel": [
+                [
+                    {
+                        "node": "AI Agent",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1",
+        "availableInMCP": true
+    }
+}

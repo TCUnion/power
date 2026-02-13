@@ -1,6 +1,7 @@
 
 import { useState } from 'react';
 import { Send, Bot } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 interface Message {
     id: string;
@@ -9,12 +10,17 @@ interface Message {
     timestamp: Date;
 }
 
-export function DataChatInterface() {
+
+interface DataChatInterfaceProps {
+    onSendMessage: (message: string) => Promise<{ reply: string }>;
+}
+
+export function DataChatInterface({ onSendMessage }: DataChatInterfaceProps) {
     const [messages, setMessages] = useState<Message[]>([
         {
             id: 'welcome',
             role: 'assistant',
-            content: '你好！我是你的 AI 數據教練。你可以問我關於你的騎乘表現、比較歷史數據，或是詢問訓練建議。試試看問我：「上個月的爬坡表現跟去年比如何？」',
+            content: '你好！我是 TCU AI 功率教練。你可以問我關於你的騎乘表現、比較歷史數據，或是詢問訓練建議。試試看問我：「上個月的爬坡表現跟去年比如何？」',
             timestamp: new Date()
         }
     ]);
@@ -36,41 +42,37 @@ export function DataChatInterface() {
         setIsSending(true);
 
         try {
-            // TODO: Call API endpoint /api/ai/chat
-            // const response =await apiFetch(...)
-
-            // Simulating a delay and response for now
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            const response = await onSendMessage(userMsg.content);
 
             const botMsg: Message = {
                 id: (Date.now() + 1).toString(),
                 role: 'assistant',
-                content: '這個功能還在開發中！目前我可以為你生成每日訓練摘要，請使用上方的生成按鈕。',
+                content: response.reply,
                 timestamp: new Date()
             };
 
             setMessages(prev => [...prev, botMsg]);
         } catch (error) {
             console.error('Chat failed:', error);
-            // Handle error
+            const errorMsg: Message = {
+                id: (Date.now() + 1).toString(),
+                role: 'assistant',
+                content: '抱歉，發生錯誤，請稍後再試。',
+                timestamp: new Date()
+            };
+            setMessages(prev => [...prev, errorMsg]);
         } finally {
             setIsSending(false);
         }
     };
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleSend();
-        }
-    };
 
     return (
-        <div className="bg-white rounded-lg shadow flex flex-col h-[500px]">
+        <div className="bg-white rounded-lg shadow flex flex-col h-[1000px]">
             <div className="p-4 border-b border-gray-100 bg-gray-50 rounded-t-lg">
                 <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                     <Bot className="w-5 h-5 text-indigo-600" />
-                    數據對話助手
+                    TCU AI 功率教練
                 </h3>
             </div>
 
@@ -86,7 +88,13 @@ export function DataChatInterface() {
                                 ? 'bg-indigo-600 text-white rounded-br-none'
                                 : 'bg-gray-100 text-gray-800 rounded-bl-none'}
                         `}>
-                            {msg.content}
+                            {msg.role === 'assistant' ? (
+                                <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-a:text-red-600 prose-a:font-bold">
+                                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                </div>
+                            ) : (
+                                msg.content
+                            )}
                             <div className={`text-[10px] mt-1 ${msg.role === 'user' ? 'text-indigo-200' : 'text-gray-400'}`}>
                                 {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </div>
@@ -112,9 +120,8 @@ export function DataChatInterface() {
                         type="text"
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
-                        onKeyDown={handleKeyDown}
                         placeholder="詢問你的數據..."
-                        className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+                        className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm text-gray-900 bg-white placeholder-gray-400"
                         disabled={isSending}
                     />
                     <button

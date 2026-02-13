@@ -183,9 +183,10 @@ async def confirm_binding(req: ConfirmBindingRequest):
 
 
 # ... (previous code)
-from routers import ai
+from routers import ai, settings
 
 app.include_router(ai.router)
+app.include_router(settings.router)
 
 if __name__ == "__main__":
     import uvicorn

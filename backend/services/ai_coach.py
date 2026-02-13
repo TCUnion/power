@@ -3,14 +3,17 @@ import os
 import json
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
-from openai import OpenAI
+import os
+import json
+from datetime import datetime, timedelta
+from typing import Optional, Dict, Any
 from supabase import Client
 
 class AICoachService:
     def __init__(self, supabase: Client):
         self.supabase = supabase
-        self.api_key = os.getenv("OPENAI_API_KEY")
-        self.client = OpenAI(api_key=self.api_key) if self.api_key else None
+        # OpenAI Client removed in favor of N8N
+        self.client = None
 
     async def generate_daily_summary(self, user_id: str, date_str: str) -> Dict[str, Any]:
         """
@@ -72,34 +75,17 @@ class AICoachService:
             "details": activity_summaries
         }
 
-        # 2. 呼叫 LLM
-        prompt = f"""
-        你是一位專業的自行車教練。請根據這位運動員今天的數據，用繁體中文寫一段簡短的訓練日誌摘要與建議。
-        
-        日期: {date_str}
-        總時間: {metrics['total_time_min']} 分鐘
-        總距離: {metrics['total_distance_km']} 公里
-        活動:
-        {chr(10).join(activity_summaries)}
-        
-        請包含：
-        1. 訓練量評估
-        2. 對明天的建議
-        語氣：專業、鼓勵、簡潔。
+        # 2. 呼叫 LLM (Deprecated in backend, use N8N Webhook)
+        summary = "請使用 N8N Webhook 生成摘要"
+        # The following code is disabled as we no longer use OpenAI client directly
         """
-
+        prompt = f'''...'''
         try:
-            response = self.client.chat.completions.create(
-                model="gpt-4o", # 或 gpt-3.5-turbo
-                messages=[
-                    {"role": "system", "content": "You are a professional cycling coach."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=300
-            )
+            response = self.client.chat.completions.create(...)
             summary = response.choices[0].message.content
         except Exception as e:
             return {"error": f"LLM generation failed: {str(e)}"}
+        """
 
         # 3. 寫入資料庫
         log_entry = {
@@ -117,4 +103,142 @@ class AICoachService:
             # Log error but return summary
             print(f"Failed to save log: {e}")
 
+
         return {"summary": summary, "metrics": metrics}
+
+    async def chat_with_coach(self, user_id: str, message: str) -> Dict[str, Any]:
+        """
+        AI 教練對話介面 (取代舊的 query_data)
+        1. 檢查會員等級與今日用量
+        2. 呼叫 N8N Webhook 進行處理 (或直接使用 LangChain)
+        3. 記錄對話 Log
+        """
+        
+        # 1. 獲取 strava_id 與會員資料
+        # 前端傳入的 user_id 在這裡是 Strava ID (字串)
+        strava_id = user_id 
+        
+        binding = self.supabase.table("strava_member_bindings").select("strava_id, tcu_account").eq("strava_id", strava_id).execute()
+        
+        if not binding.data:
+            return {"error": "User not bound to Strava (No binding found for Strava ID)"}
+        
+        tcu_account = binding.data[0].get('tcu_account')
+        athlete_id = int(strava_id)
+
+        # 2. 檢查會員等級
+        member_type = "guest"
+        if tcu_account:
+            try:
+                member_res = self.supabase.table("tcu_members").select("member_type").eq("account", tcu_account).execute()
+                if member_res.data:
+                    raw_type = member_res.data[0].get("member_type")
+                    member_type = raw_type.lower() if raw_type else "guest"
+            except Exception as e:
+                print(f"Error checking member type: {e}")
+
+        # 定義預設限制
+        default_limits = {
+            "guest": 5, 
+            "basic": 10,
+            "premium": 50
+        }
+        
+        # 從資料庫讀取設定
+        try:
+            settings_res = self.supabase.table("system_settings").select("*").execute()
+            db_settings = {item['key']: int(item['value']) for item in settings_res.data if item['value'].isdigit()}
+        except Exception as e:
+            print(f"Error fetching system settings: {e}")
+            db_settings = {}
+            
+        # 合併設定 (DB 優先)
+        limits = {
+            "guest": db_settings.get("ai_limit_guest", default_limits["guest"]),
+            "basic": db_settings.get("ai_limit_basic", default_limits["basic"]),
+            "premium": db_settings.get("ai_limit_premium", default_limits["premium"]),
+            "admin": 9999
+        }
+        
+        # Admin 特權
+        daily_limit = limits.get(member_type, 5)
+        if "admin" in member_type.lower():
+            daily_limit = 9999
+
+        # 3. 檢查今日用量
+        today = datetime.now().strftime("%Y-%m-%d")
+        start_of_day = f"{today}T00:00:00"
+        end_of_day = f"{today}T23:59:59"
+
+        try:
+            logs = self.supabase.table("ai_coach_logs") \
+                .select("id", count="exact") \
+                .eq("athlete_id", athlete_id) \
+                .eq("type", "chat") \
+                .gte("created_at", start_of_day) \
+                .lte("created_at", end_of_day) \
+                .execute()
+            
+            usage_count = logs.count if logs.count is not None else 0
+            
+            if usage_count >= daily_limit:
+                return {
+                    "error": "Usage limit exceeded", 
+                    "answer": f"今日額度已達上限 ({usage_count}/{daily_limit})。請明天再來，或升級會員以獲取更多額度。",
+                    "limit_reached": True
+                }
+                
+        except Exception as e:
+            print(f"Error checking usage logs: {e}")
+            # 若檢查失敗，暫時允許通過，避免服務中斷
+            pass
+
+        # 4. 呼叫 N8N Webhook 進行 AI 處理
+        # 這裡將請求轉發給 N8N，保持原有的 AI 邏輯
+        import httpx
+        N8N_WEBHOOK_URL = "https://service.criterium.tw/webhook/ai-coach-test"
+        
+        ai_reply = "系統忙碌中，請稍後再試。"
+        context_data = {}
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                n8n_response = await client.post(
+                    N8N_WEBHOOK_URL,
+                    json={"athlete_id": athlete_id, "message": message},
+                    timeout=60.0 # AI 處理可能需要較長時間
+                )
+                
+                if n8n_response.status_code == 200:
+                    n8n_data = n8n_response.json()
+                    ai_reply = n8n_data.get("answer", ai_reply)
+                    context_data = n8n_data.get("context", {})
+                else:
+                    print(f"N8N Error: {n8n_response.text}")
+                    ai_reply = "AI 教練目前休息中 (N8N Error)"
+                    
+        except Exception as e:
+            print(f"N8N Request Failed: {e}")
+            ai_reply = "連線逾時，請檢查網路狀況。"
+
+        # 5. 記錄對話 (無論成功失敗都記錄，除非系統錯誤)
+        try:
+            log_entry = {
+                "athlete_id": athlete_id,
+                "type": "chat",
+                "user_message": message,
+                "ai_response": ai_reply,
+                "context_data": context_data,
+                "created_at": datetime.now().isoformat()
+            }
+            self.supabase.table("ai_coach_logs").insert(log_entry).execute()
+        except Exception as e:
+            print(f"Failed to save chat log: {e}")
+
+        return {
+            "answer": ai_reply,
+            "usage": {
+                "current": usage_count + 1,
+                "limit": daily_limit
+            }
+        }

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 /* 強制使用 class-based dark mode，避免依賴 prefers-color-scheme */
 @custom-variant dark (&:where(.dark, .dark *));

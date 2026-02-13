@@ -45,10 +45,10 @@
         {
             "parameters": {
                 "conditions": {
-                    "boolean": [
+                    "string": [
                         {
-                            "value1": "={{ $json.ai_response ? true : false }}",
-                            "value2": true
+                            "value1": "={{ $json.ai_response }}",
+                            "operation": "isNotEmpty"
                         }
                     ]
                 }

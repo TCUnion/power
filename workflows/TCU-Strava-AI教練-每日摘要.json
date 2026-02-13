@@ -190,7 +190,7 @@
         {
             "parameters": {
                 "operation": "executeQuery",
-                "query": "INSERT INTO ai_coach_logs (athlete_id, type, ai_response, context_data)\nVALUES (\n  {{ $('接收摘要請求').first().json.body.athlete_id }}::bigint,\n  'summary',\n  {{ JSON.stringify($json.summary) }},\n  {{ JSON.stringify(JSON.stringify($('計算當日指標').first().json.metrics)) }}::jsonb\n);",
+                "query": "INSERT INTO ai_coach_logs (athlete_id, type, ai_response, context_data)\nVALUES (\n  {{ $('接收摘要請求').first().json.body.athlete_id }}::bigint,\n  'summary',\n  '{{ $json.summary.replace(/'/g, \"''\") }}',\n  {{ JSON.stringify(JSON.stringify($('計算當日指標').first().json.metrics)) }}::jsonb\n);",
                 "options": {}
             },
             "id": "88cf6a94-0476-4f15-b179-b7c335da0571",

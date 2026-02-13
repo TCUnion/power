@@ -89,16 +89,16 @@ class AICoachService:
 
         # 3. 寫入資料庫
         log_entry = {
-            "user_id": user_id,
-            "date": date_str,
-            "summary": summary,
-            "metrics": metrics,
+            "athlete_id": int(strava_id),
+            "type": "summary",
+            "ai_response": summary,
+            "context_data": metrics,
             "created_at": datetime.now().isoformat()
         }
         
-        # Upsert
+        # Insert
         try:
-            self.supabase.table("ai_training_logs").upsert(log_entry).execute()
+            self.supabase.table("ai_coach_logs").insert(log_entry).execute()
         except Exception as e:
             # Log error but return summary
             print(f"Failed to save log: {e}")

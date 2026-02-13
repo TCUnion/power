@@ -132,7 +132,7 @@
         {
             "parameters": {
                 "operation": "executeQuery",
-                "query": "INSERT INTO ai_coach_logs (athlete_id, type, user_message, ai_response)\nVALUES (\n  {{ $('接收測試請求').first().json.body.athlete_id }}::bigint,\n  'chat',\n  {{ JSON.stringify($('接收測試請求').first().json.body.message || '') }},\n  {{ JSON.stringify($json.answer) }}\n);",
+                "query": "INSERT INTO ai_coach_logs (athlete_id, type, user_message, ai_response)\nVALUES (\n  {{ $('接收測試請求').first().json.body.athlete_id }}::bigint,\n  'chat',\n  '{{ ($('接收測試請求').first().json.body.message || \"\").replace(/'/g, \"''\") }}',\n  '{{ $json.answer.replace(/'/g, \"''\") }}'\n);",
                 "options": {}
             },
             "id": "save-chat-log-001",

@@ -13,6 +13,8 @@ export function AICoachPage() {
 
     const { generateDailySummary, sendChatMessage, loading, error, summary, usageStatus, checkUsageStatus } = useAICoach();
 
+    console.log('[AICoachPage] State:', { loading, hasSummary: !!summary, error });
+
 
     const [selectedDate] = useState(new Date());
 

@@ -1,5 +1,5 @@
 
-import { MessageSquare, Calendar, ChevronRight } from 'lucide-react';
+import { MessageSquare, Calendar, ChevronRight, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 interface DailySummaryMetrics {
@@ -20,23 +20,28 @@ export function DailySummaryCard({ summary, metrics, isLoading }: DailySummaryPr
 
     if (isLoading) {
         return (
-            <div className="bg-white rounded-lg shadow p-6 animate-pulse border-2 border-indigo-100">
-                <div className="flex items-center justify-between mb-4">
-                    <div className="h-6 bg-gray-200 rounded w-1/3"></div>
-                    <div className="h-4 bg-gray-100 rounded w-1/4"></div>
+            <div className="bg-white rounded-lg shadow-lg p-6 animate-pulse border-2 border-indigo-500/20 relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500 animate-loading-bar"></div>
+                <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-2">
+                        <Loader2 className="w-5 h-5 text-indigo-500 animate-spin" />
+                        <div className="h-6 bg-gray-200 rounded w-32"></div>
+                    </div>
+                    <div className="h-4 bg-gray-100 rounded w-20"></div>
                 </div>
-                <div className="space-y-3 mb-6">
+                <div className="space-y-4 mb-8">
                     <div className="h-4 bg-gray-200 rounded w-full"></div>
-                    <div className="h-4 bg-gray-200 rounded w-5/6"></div>
-                    <div className="h-4 bg-gray-200 rounded w-4/6"></div>
+                    <div className="h-4 bg-gray-200 rounded w-11/12"></div>
+                    <div className="h-4 bg-gray-100 rounded w-3/4"></div>
                 </div>
-                <div className="grid grid-cols-3 gap-4 border-t border-gray-100 pt-4">
-                    <div className="h-16 bg-gray-50 rounded"></div>
-                    <div className="h-16 bg-gray-50 rounded"></div>
-                    <div className="h-16 bg-gray-50 rounded"></div>
+                <div className="grid grid-cols-3 gap-4 border-t border-gray-100 pt-6">
+                    <div className="h-20 bg-gray-50 rounded-xl"></div>
+                    <div className="h-20 bg-gray-50 rounded-xl"></div>
+                    <div className="h-20 bg-gray-50 rounded-xl"></div>
                 </div>
-                <div className="mt-4 text-center">
-                    <span className="text-xs text-indigo-400 font-medium">AI 正在努力分析中...請稍候</span>
+                <div className="mt-6 text-center">
+                    <p className="text-sm font-medium text-indigo-600 animate-bounce">AI 正在深度分析您的數據...</p>
+                    <p className="text-[10px] text-gray-400 mt-1">這可能需要 10-20 秒，請稍候</p>
                 </div>
             </div>
         );

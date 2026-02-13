@@ -43,6 +43,7 @@ export function useAICoach() {
     const generateDailySummary = useCallback(async (userId: string, date: string) => {
         setLoading(true);
         setError(null);
+        setSummary(null); // NOTE: 強制清空，確保載入動畫出現
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000);
@@ -61,9 +62,26 @@ export function useAICoach() {
                 throw new Error(`每日摘要服務回應異常 (${response.status})`);
             }
 
-            const data = await response.json();
-            setSummary(data);
-            return data;
+            let data = await response.json();
+
+            // NOTE: 處理 n8n 可能回傳的陣列格式
+            if (Array.isArray(data)) {
+                data = data[0];
+            }
+
+            // NOTE: 相容性映射 - 同時支援快取格式與新生成格式
+            const parsedSummary: DailySummary = {
+                summary: data.summary || data.ai_response || '未收到分析結果。',
+                metrics: data.metrics || data.context_data || {
+                    total_time_min: 0,
+                    total_distance_km: 0,
+                    activities_count: 0,
+                    details: []
+                }
+            };
+
+            setSummary(parsedSummary);
+            return parsedSummary;
         } catch (err: any) {
             if (err.name === 'AbortError') {
                 setError('AI 生成較為耗時，請稍候 30 秒後點擊「重新生成」再次更新。');

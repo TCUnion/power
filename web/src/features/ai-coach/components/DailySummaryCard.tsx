@@ -16,32 +16,7 @@ interface DailySummaryProps {
 }
 
 export function DailySummaryCard({ summary, metrics, isLoading }: DailySummaryProps) {
-    if (isLoading) {
-        return (
-            <div className="bg-white rounded-lg shadow p-6 animate-pulse border border-gray-100">
-                <div className="flex items-center justify-between mb-8">
-                    <div className="flex items-center gap-2">
-                        <Loader2 className="w-5 h-5 text-indigo-400 animate-spin" />
-                        <div className="h-6 bg-gray-200 rounded w-32"></div>
-                    </div>
-                    <div className="h-4 bg-gray-100 rounded w-20"></div>
-                </div>
-                <div className="space-y-4 mb-8">
-                    <div className="h-4 bg-gray-200 rounded w-full"></div>
-                    <div className="h-4 bg-gray-200 rounded w-11/12"></div>
-                    <div className="h-4 bg-gray-100 rounded w-3/4"></div>
-                </div>
-                <div className="grid grid-cols-3 gap-4 border-t border-gray-100 pt-6">
-                    <div className="h-20 bg-gray-50 rounded-lg"></div>
-                    <div className="h-20 bg-gray-50 rounded-lg"></div>
-                    <div className="h-20 bg-gray-50 rounded-lg"></div>
-                </div>
-                <div className="mt-6 text-center">
-                    <p className="text-xs font-medium text-gray-400">AI 正在分析數據，請稍候...</p>
-                </div>
-            </div>
-        );
-    }
+
 
     return (
         <div className="bg-white rounded-lg shadow overflow-hidden">

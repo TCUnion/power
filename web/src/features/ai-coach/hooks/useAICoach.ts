@@ -45,7 +45,7 @@ export function useAICoach() {
     const generateDailySummary = useCallback(async (userId: string, date: string) => {
         setLoading(true);
         setError(null);
-        setSummary(null); // NOTE: 強制清空，確保載入動畫出現
+
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000);

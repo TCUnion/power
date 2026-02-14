@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useAICoach } from './hooks/useAICoach';
 import { DailySummaryCard } from './components/DailySummaryCard';
 import { DataChatInterface } from './components/DataChatInterface';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { Sparkles, Loader2, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuthContext } from '../../contexts/AuthContext';
 import MemberBindingCard from '../auth/MemberBindingCard';
@@ -82,18 +82,23 @@ export function AICoachPage() {
                 </p>
             </header>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-                {/* Left Column: Daily Summary - Full width on mobile, Left on tablet/desktop */}
-                <div className="col-span-1 space-y-6">
-                    <div className="bg-card rounded-lg p-4 shadow-sm border border-border flex items-center justify-between">
-                        <div>
-                            <span className="text-sm text-muted-foreground block">日期</span>
-                            <span className="font-medium text-foreground">{format(selectedDate, 'yyyy-MM-dd')}</span>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 items-start">
+                {/* Top Section: Daily Summary - Full width on desktop to support 2-column card internal layout */}
+                <div className="col-span-1 lg:col-span-3 space-y-6">
+                    <div className="bg-slate-900/40 backdrop-blur-md rounded-xl p-4 shadow-xl border border-white/5 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="bg-orange-500/10 p-2 rounded-lg border border-orange-500/20">
+                                <Calendar className="w-5 h-5 text-orange-500" />
+                            </div>
+                            <div>
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">分析日期</span>
+                                <span className="text-base font-bold text-slate-100">{format(selectedDate, 'yyyy-MM-dd')}</span>
+                            </div>
                         </div>
                         <button
                             onClick={handleGenerate}
                             disabled={loading || !athlete}
-                            className="bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-2"
+                            className="bg-orange-500 text-white px-6 py-2.5 rounded-full text-sm font-black italic tracking-wider hover:bg-orange-600 disabled:opacity-50 transition-all shadow-lg shadow-orange-500/20 flex items-center gap-2 group"
                         >
                             {loading ? (
                                 <>
@@ -102,16 +107,16 @@ export function AICoachPage() {
                                 </>
                             ) : (
                                 <>
-                                    <Sparkles className="w-4 h-4" />
-                                    重新生成
+                                    <Sparkles className="w-4 h-4 group-hover:animate-pulse" />
+                                    重新生成報告
                                 </>
                             )}
                         </button>
                     </div>
 
                     {error && (
-                        <div className="bg-destructive/10 text-destructive p-4 rounded-lg text-sm border border-destructive/20">
-                            <strong>Error:</strong> {error}
+                        <div className="bg-red-500/10 text-red-400 p-4 rounded-xl text-sm border border-red-500/20 backdrop-blur-md">
+                            <strong className="font-black italic uppercase mr-2">Error:</strong> {error}
                         </div>
                     )}
 
@@ -122,15 +127,15 @@ export function AICoachPage() {
                             isLoading={loading}
                         />
                     ) : (
-                        <div className="bg-muted rounded-lg p-8 text-center border border-dashed border-border">
-                            <p className="text-muted-foreground text-sm">點擊「生成日誌」來獲取今天的訓練分析。</p>
+                        <div className="bg-slate-900/30 backdrop-blur rounded-xl p-12 text-center border border-dashed border-white/10">
+                            <Sparkles className="w-12 h-12 text-slate-700 mx-auto mb-4 opacity-50" />
+                            <p className="text-slate-400 text-sm font-medium">點擊「重新生成報告」來獲取今日數據洞察。</p>
                         </div>
                     )}
                 </div>
 
-
-                {/* Right Column: Chat Interface - Full width on mobile, Right on tablet, Spans 2 cols on Desktop */}
-                <div className="col-span-1 lg:col-span-2 h-[600px] lg:h-[800px]">
+                {/* Bottom Section: Chat Interface - Spans full width for easier reading */}
+                <div className="col-span-1 lg:col-span-3 h-[600px] lg:h-[800px]">
                     <DataChatInterface
                         onSendMessage={async (msg) => {
                             if (!athlete?.id) return Promise.resolve({ reply: "請先綁定 Strava 帳號" });

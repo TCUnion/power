@@ -342,7 +342,7 @@ class AICoachService:
         try:
             athlete_id = int(user_id)
             res = self.supabase.table("ai_coach_logs") \
-                .select("user_message, ai_response, created_at") \
+                .select("id, user_message, ai_response, created_at") \
                 .eq("athlete_id", athlete_id) \
                 .eq("type", "chat") \
                 .order("created_at", desc=True) \
@@ -354,12 +354,14 @@ class AICoachService:
             for item in reversed(res.data):
                 if item.get("user_message"):
                     history.append({
+                        "id": f"{item['id']}_user",
                         "role": "user",
                         "content": item["user_message"],
                         "timestamp": item["created_at"]
                     })
                 if item.get("ai_response"):
                     history.append({
+                        "id": f"{item['id']}_bot",
                         "role": "assistant",
                         "content": item["ai_response"],
                         "timestamp": item["created_at"]

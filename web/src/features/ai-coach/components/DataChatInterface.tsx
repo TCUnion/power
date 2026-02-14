@@ -57,7 +57,7 @@ export function DataChatInterface({
             };
             setMessages([welcomeMsg]);
         }
-    }, [userName, initialMessages, isLoadingHistory, messages.length]);
+    }, [userName, initialMessages, isLoadingHistory]);
 
     const [inputValue, setInputValue] = useState('');
     const [isSending, setIsSending] = useState(false);

@@ -28,13 +28,8 @@ export function AICoachPage() {
     const [selectedDate] = useState(new Date());
     const version = "v1.0.3";
 
-    // 診斷環境變數
-    useEffect(() => {
-        console.log(`[Diagnostic] AICoachPage Version: ${version}`);
-        console.log(`[Diagnostic] VITE_API_URL: ${import.meta.env.VITE_API_URL || 'Not Set'}`);
-        console.log(`[Diagnostic] window.location: ${window.location.href}`);
-        console.log(`[Diagnostic] Current Origin: ${window.location.origin}`);
-    }, []);
+    const [selectedDate] = useState(new Date());
+    const version = "v1.0.3";
 
     // Auto-generate on load & check usage
     useEffect(() => {

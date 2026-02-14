@@ -82,7 +82,7 @@ from datetime import datetime
 
 @app.get("/check-binding")
 @app.get("/api/auth/binding-status/{athlete_id}")
-async def get_binding_status(athlete_id: int):
+def get_binding_status(athlete_id: int):
     start_time = time.time()
     logger.info(f"--- [API START] get_binding_status for {athlete_id} ---")
     
@@ -159,7 +159,7 @@ async def member_binding(req: BindingRequest):
     return {"success": False, "message": "無效的動作"}
 
 @app.post("/api/auth/confirm-binding")
-async def confirm_binding(req: ConfirmBindingRequest):
+def confirm_binding(req: ConfirmBindingRequest):
     logger.info(f"Confirming binding for athlete {req.stravaId} v1.4")
     
     try:

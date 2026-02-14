@@ -33,9 +33,9 @@ class ChatRequest(BaseModel):
     message: str
 
 @router.post("/chat")
-async def chat_with_data(req: ChatRequest, service: AICoachService = Depends(get_ai_service)):
+def chat_with_data(req: ChatRequest, service: AICoachService = Depends(get_ai_service)):
     # 使用新的 chat_with_coach 方法 (含用量檢查與 N8N 整合)
-    result = await service.chat_with_coach(req.user_id, req.message)
+    result = service.chat_with_coach(req.user_id, req.message)
     
     if "error" in result and "answer" not in result: 
         # 只有在完全無法回答時才拋出 500
@@ -45,8 +45,8 @@ async def chat_with_data(req: ChatRequest, service: AICoachService = Depends(get
     return result
 
 @router.get("/usage/{user_id}")
-async def get_usage(user_id: str, service: AICoachService = Depends(get_ai_service)):
-    result = await service.get_daily_usage(user_id)
+def get_usage(user_id: str, service: AICoachService = Depends(get_ai_service)):
+    result = service.get_daily_usage(user_id)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     return result

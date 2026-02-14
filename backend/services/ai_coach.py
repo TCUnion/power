@@ -101,7 +101,7 @@ class AICoachService:
 
         return {"summary": summary, "metrics": metrics}
 
-    async def chat_with_coach(self, user_id: str, message: str) -> Dict[str, Any]:
+    def chat_with_coach(self, user_id: str, message: str) -> Dict[str, Any]:
         """
         AI 教練對話介面 (取代舊的 query_data)
         1. 檢查會員等級與今日用量
@@ -128,11 +128,18 @@ class AICoachService:
                 member_res = self.supabase.table("tcu_members").select("member_type").eq("account", tcu_account).execute()
                 if member_res.data:
                     raw_type = member_res.data[0].get("member_type")
-                    member_type = raw_type.lower() if raw_type else "guest"
+                    # 將資料庫中文類型對照到程式內部 Key
+                    type_mapping = {
+                        "付費會員": "premium",
+                        "免費會員": "basic",
+                        "付費車隊管理員": "premium",
+                        "管理員": "admin"
+                    }
+                    member_type = type_mapping.get(raw_type, "basic")
             except Exception as e:
                 print(f"Error checking member type: {e}")
 
-        # 定義預設限制
+        # 定義預設限制 (恢復原始預設值)
         default_limits = {
             "guest": 5, 
             "basic": 10,
@@ -147,7 +154,7 @@ class AICoachService:
             print(f"Error fetching system settings: {e}")
             db_settings = {}
             
-        # 合併設定 (DB 優先)
+        # 合併設定 (DB 優先，嚴格遵守設定值)
         limits = {
             "guest": db_settings.get("ai_limit_guest", default_limits["guest"]),
             "basic": db_settings.get("ai_limit_basic", default_limits["basic"]),
@@ -197,20 +204,20 @@ class AICoachService:
         context_data = {}
         
         try:
-            async with httpx.AsyncClient() as client:
-                n8n_response = await client.post(
-                    N8N_WEBHOOK_URL,
-                    json={"athlete_id": athlete_id, "message": message},
-                    timeout=60.0 # AI 處理可能需要較長時間
-                )
-                
-                if n8n_response.status_code == 200:
-                    n8n_data = n8n_response.json()
-                    ai_reply = n8n_data.get("answer", ai_reply)
-                    context_data = n8n_data.get("context", {})
-                else:
-                    print(f"N8N Error: {n8n_response.text}")
-                    ai_reply = "AI 教練目前休息中 (N8N Error)"
+            # 改用同步 httpx.post
+            n8n_response = httpx.post(
+                N8N_WEBHOOK_URL,
+                json={"athlete_id": athlete_id, "message": message},
+                timeout=60.0
+            )
+            
+            if n8n_response.status_code == 200:
+                n8n_data = n8n_response.json()
+                ai_reply = n8n_data.get("answer", ai_reply)
+                context_data = n8n_data.get("context", {})
+            else:
+                print(f"N8N Error: {n8n_response.text}")
+                ai_reply = "AI 教練目前休息中 (N8N Error)"
                     
         except Exception as e:
             print(f"N8N Request Failed: {e}")
@@ -238,7 +245,7 @@ class AICoachService:
             }
         }
 
-    async def get_daily_usage(self, user_id: str) -> Dict[str, Any]:
+    def get_daily_usage(self, user_id: str) -> Dict[str, Any]:
         """
         取得今日 AI 使用量與額度
         """
@@ -261,11 +268,18 @@ class AICoachService:
                 member_res = self.supabase.table("tcu_members").select("member_type").eq("account", tcu_account).execute()
                 if member_res.data:
                     raw_type = member_res.data[0].get("member_type")
-                    member_type = raw_type.lower() if raw_type else "guest"
+                    # 將資料庫中文類型對照到程式內部 Key
+                    type_mapping = {
+                        "付費會員": "premium",
+                        "免費會員": "basic",
+                        "付費車隊管理員": "premium",
+                        "管理員": "admin"
+                    }
+                    member_type = type_mapping.get(raw_type, "basic")
             except Exception as e:
                 print(f"Error checking member type: {e}")
 
-        # 定義預設限制
+        # 定義預設限制 (恢復原始預設值)
         default_limits = {
             "guest": 5, 
             "basic": 10,
@@ -280,7 +294,7 @@ class AICoachService:
             print(f"Error fetching system settings: {e}")
             db_settings = {}
             
-        # 合併設定 (DB 優先)
+        # 合併設定 (DB 優先，嚴格遵守設定值)
         limits = {
             "guest": db_settings.get("ai_limit_guest", default_limits["guest"]),
             "basic": db_settings.get("ai_limit_basic", default_limits["basic"]),

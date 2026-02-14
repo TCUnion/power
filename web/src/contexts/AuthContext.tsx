@@ -21,6 +21,7 @@ interface AuthContextType {
     memberData: TCUMember | null;
     isAdmin: boolean;
     isLoading: boolean;
+    isMaintenance: boolean;
     logout: () => void;
     refreshBinding: () => void;
 }
@@ -36,6 +37,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [memberData, setMemberData] = useState<TCUMember | null>(null);
     const [isAdmin, setIsAdmin] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [isMaintenance, setIsMaintenance] = useState(false);
 
     // 全域冷卻鎖（Provider 級別）
     const lastSyncTime = useRef<number>(0);
@@ -214,11 +216,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }
         };
 
+        const handleMaintenance = (event: any) => {
+            const status = event.detail?.maintenance || false;
+            setIsMaintenance(status);
+        };
+
         // 初始載入
         handleAuthChange();
 
         window.addEventListener(AUTH_EVENT, handleAuthChange);
         window.addEventListener('storage', handleAuthChange);
+        window.addEventListener('tcu-api-maintenance', handleMaintenance);
         window.addEventListener('tcu-binding-success', () => {
             refreshBinding();
         });
@@ -226,11 +234,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return () => {
             window.removeEventListener(AUTH_EVENT, handleAuthChange);
             window.removeEventListener('storage', handleAuthChange);
+            window.removeEventListener('tcu-api-maintenance', handleMaintenance);
         };
     }, [loadAthleteFromStorage, checkBindingStatus, checkAdminStatus, syncToken, refreshBinding]);
 
     return (
-        <AuthContext.Provider value={{ athlete, isBound, memberData, isAdmin, isLoading, logout, refreshBinding }}>
+        <AuthContext.Provider value={{ athlete, isBound, memberData, isAdmin, isLoading, isMaintenance, logout, refreshBinding }}>
             {children}
         </AuthContext.Provider>
     );

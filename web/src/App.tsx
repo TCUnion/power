@@ -16,10 +16,22 @@ import tcuLogo from './assets/tcu-logo.png';
 const SegmentCompare = React.lazy(() => import('./features/segment-compare/SegmentCompare'));
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { athlete, isBound, logout } = useAuth();
+  const { athlete, isBound, isMaintenance, logout } = useAuth();
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-tcu-blue/20">
-      <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+      {/* 伺服器維修橫幅 */}
+      {isMaintenance && (
+        <div className="fixed top-0 left-0 right-0 z-[100] bg-tcu-orange text-white py-2 px-4 shadow-lg animate-in slide-in-from-top duration-300">
+          <div className="container mx-auto flex items-center justify-center gap-2">
+            <Zap className="w-4 h-4 animate-pulse" />
+            <span className="text-sm font-black italic tracking-wider">
+              系統公告：後端 API 伺服器連線異常，正在緊急維修中單代... 部分功能可能暫時無法使用。
+            </span>
+          </div>
+        </div>
+      )}
+
+      <header className={`fixed ${isMaintenance ? 'top-9' : 'top-0'} left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-all duration-300`}>
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           {/* 左側：Logo */}
           <RouterLink to="/" className="flex items-center gap-2 group shrink-0">

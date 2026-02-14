@@ -1,0 +1,8 @@
+INFO:     Will watch for changes in these directories: ['/Volumes/OWC 2T/Github/STRAVAPower/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [6288] using StatReload
+INFO:tcu-power-api:Loaded environment variables from ../web/.env
+INFO:tcu-power-api:Loaded environment variables from /Volumes/OWC 2T/Github/STRAVAPower/backend/../web/.env
+INFO:     Started server process [6340]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.

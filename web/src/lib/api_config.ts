@@ -16,10 +16,23 @@ export const apiFetch = async (endpoint: string, options: RequestInit = {}): Pro
         const url = `${baseUrl}${endpoint}`;
         const response = await fetch(url, options);
 
-        // 如果回應 401 且不在本地開發環境，可視需求處理。但在本地端我們優先確保連線通暢。
+        // 如果是維修中常用的狀態碼 (502 Gateway Error, 503 Service Unavailable, 504 Gateway Timeout)
+        if ([502, 503, 504].includes(response.status)) {
+            window.dispatchEvent(new CustomEvent('tcu-api-maintenance', { detail: { maintenance: true } }));
+        } else if (response.ok) {
+            // 如果連線成功，則主動解除維修狀態
+            window.dispatchEvent(new CustomEvent('tcu-api-maintenance', { detail: { maintenance: false } }));
+        }
+
         return response;
     } catch (error) {
         console.error(`[API] Fetch failed for ${endpoint}:`, error);
+
+        // 通常 fetch 拋出錯誤代表連線被拒絕 (Connection Refused) 或 DNS 失敗，這也視為維修中
+        if (error instanceof TypeError) {
+            window.dispatchEvent(new CustomEvent('tcu-api-maintenance', { detail: { maintenance: true } }));
+        }
+
         throw error;
     }
 };

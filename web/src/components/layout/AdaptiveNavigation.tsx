@@ -65,7 +65,7 @@ export const TopNav: React.FC<AdaptiveNavProps> = ({ athlete, isBound, logout })
 
 export const BottomNav: React.FC = () => {
     return (
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 pb-safe">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 pb-[env(safe-area-inset-bottom)]">
             <div className="flex justify-around items-center h-16">
                 {navigationConfig.map((item) => (
                     <NavLink

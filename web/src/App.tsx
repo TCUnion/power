@@ -27,7 +27,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-tcu-blue/20 pb-16 md:pb-0">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-tcu-blue/20 pb-16 md:pb-0 max-w-full overflow-x-hidden">
       {/* 伺服器維修橫幅 */}
       {isMaintenance && (
         <div className="fixed top-0 left-0 right-0 z-[100] bg-tcu-orange text-white py-2 px-4 shadow-lg animate-in slide-in-from-top duration-300">

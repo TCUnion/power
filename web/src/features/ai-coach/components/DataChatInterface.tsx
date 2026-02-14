@@ -116,7 +116,7 @@ export function DataChatInterface({
 
 
     return (
-        <div className="bg-zinc-900 rounded-xl shadow-2xl flex flex-col min-h-[500px] h-[600px] lg:h-[800px] border border-white/10 ring-1 ring-white/5 overflow-hidden">
+        <div className="flex flex-col h-full bg-slate-900/80 backdrop-blur-md rounded-xl border border-white/10 shadow-2xl overflow-hidden ring-1 ring-white/5">
             <div className="p-3 md:p-4 border-b border-white/10 bg-gradient-to-r from-zinc-900 to-zinc-800/50 rounded-t-xl backdrop-blur">
                 <h3 className="font-bold text-white flex items-center gap-2 tracking-wide">
                     <Bot className="w-5 h-5 text-primary drop-shadow-[0_0_8px_rgba(249,115,22,0.6)]" />

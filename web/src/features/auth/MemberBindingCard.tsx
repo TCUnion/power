@@ -484,3 +484,4 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
 };
 
 export default MemberBindingCard;
+

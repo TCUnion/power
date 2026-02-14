@@ -19,9 +19,9 @@ import { highlightKeywords } from '../../../utils/textHighlighting';
 export function DailySummaryCard({ summary, metrics, isLoading }: DailySummaryProps) {
     if (isLoading) {
         return (
-            <div className="bg-zinc-900/50 rounded-lg shadow-lg p-8 flex flex-col items-center justify-center min-h-[300px] border border-white/10 backdrop-blur-sm">
-                <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
-                <p className="text-sm text-gray-400 animate-pulse">AI 教練正在分析數據...</p>
+            <div className="bg-slate-900/80 backdrop-blur-md rounded-lg shadow-lg p-8 flex flex-col items-center justify-center min-h-[300px] border border-white/10">
+                <Loader2 className="w-8 h-8 text-orange-500 animate-spin mb-4" />
+                <p className="text-sm text-slate-400 animate-pulse font-medium">AI 教練正在分析數據...</p>
             </div>
         );
     }
@@ -29,11 +29,11 @@ export function DailySummaryCard({ summary, metrics, isLoading }: DailySummaryPr
     const processedSummary = highlightKeywords(summary);
 
     return (
-        <div className="bg-zinc-900 rounded-xl shadow-2xl overflow-hidden border border-white/10 ring-1 ring-white/5">
+        <div className="bg-slate-900/80 backdrop-blur-md rounded-xl shadow-2xl overflow-hidden border border-white/10 ring-1 ring-white/5">
             <div className="p-6 border-b border-white/10 bg-gradient-to-b from-white/5 to-transparent">
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-bold text-white flex items-center gap-2 tracking-wide">
-                        <MessageSquare className="w-5 h-5 text-primary drop-shadow-[0_0_8px_rgba(249,115,22,0.5)]" />
+                        <MessageSquare className="w-5 h-5 text-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.5)]" />
                         AI 教練日誌
                     </h2>
                     <span className="text-sm text-gray-400 flex items-center gap-1 font-mono">

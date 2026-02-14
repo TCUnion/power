@@ -26,8 +26,8 @@
   --color-ring: hsl(var(--ring));
 
   --color-tcu-blue: #0056A4;
-  --color-tcu-orange: #FC6100;
-  --color-strava-orange: #FC6100;
+  --color-tcu-orange: #FF4500; /* Electric Orange */
+  --color-strava-orange: #FF4500;
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
@@ -35,6 +35,7 @@
 
   --font-sans: "Chakra Petch", "Noto Sans TC", sans-serif;
   --font-display: "Russo One", "Noto Sans TC", sans-serif;
+  --font-mono: "JetBrains Mono", monospace; /* Added for data display */
 }
 
 @layer base {
@@ -48,7 +49,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 209 100% 32%;
+    --primary: 16 100% 50%; /* Electric Orange #FF4500 */
     --primary-foreground: 210 40% 98%;
 
     --secondary: 210 40% 96.1%;
@@ -65,39 +66,41 @@
 
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 209 100% 32%;
+    --ring: 16 100% 50%; /* Electric Orange Ring */
 
     --radius: 0.5rem;
   }
 
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 210 40% 98%;
+    /* Deep Grey Background #121212 -> HSL 0 0% 7% */
+    --background: 0 0% 7%;
+    --foreground: 0 0% 95%; /* Off-white */
 
-    --card: 240 5.9% 10%;
-    --card-foreground: 210 40% 98%;
+    /* Slightly lighter grey for cards #1E1E1E -> HSL 0 0% 12% */
+    --card: 0 0% 12%; 
+    --card-foreground: 0 0% 95%;
 
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 0 0% 12%;
+    --popover-foreground: 0 0% 95%;
 
-    --primary: 199 89% 60%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 16 100% 50%; /* Electric Orange #FF4500 */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 0 0% 16%; /* Darker secondary */
+    --secondary-foreground: 0 0% 98%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 0 0% 16%;
+    --muted-foreground: 0 0% 65%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 0 0% 16%;
+    --accent-foreground: 0 0% 98%;
 
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 199 89% 60%;
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --ring: 16 100% 50%;
   }
 }
 
@@ -107,6 +110,6 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
   }
 }

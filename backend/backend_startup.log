@@ -1,0 +1,172 @@
+INFO:tcu-power-api:Loaded environment variables from web/.env
+INFO:tcu-power-api:Loaded environment variables from /Volumes/OWC 2T/Github/STRAVAPower/backend/../web/.env
+INFO:     Started server process [48050]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:tcu-power-api:--- [API START] get_binding_status for 2838277 ---
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:     127.0.0.1:51287 - "OPTIONS /api/auth/strava-token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51287 - "POST /api/auth/strava-token HTTP/1.1" 200 OK
+INFO:tcu-power-api:Supabase global client initialized
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/strava_member_bindings?select=%2A&strava_id=eq.2838277 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/tcu_members?select=%2A&account=eq.Y120513973 "HTTP/2 200 OK"
+INFO:tcu-power-api:--- [API END] Bound found. Time: 985.79ms ---
+INFO:     127.0.0.1:51285 - "GET /api/auth/binding-status/2838277 HTTP/1.1" 200 OK
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id%2Cuser_message%2Cai_response%2Ccreated_at&athlete_id=eq.2838277&type=eq.chat&order=created_at.desc&limit=5 "HTTP/2 200 OK"
+INFO:     127.0.0.1:51343 - "GET /api/ai/history/2838277?limit=5 HTTP/1.1" 200 OK
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/strava_member_bindings?select=strava_id%2Ctcu_account%2Cmember_name&strava_id=eq.2838277 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id%2Cuser_message%2Cai_response%2Ccreated_at&athlete_id=eq.2838277&type=eq.chat&order=created_at.desc&limit=5 "HTTP/2 200 OK"
+INFO:     127.0.0.1:51346 - "GET /api/ai/history/2838277?limit=5 HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/tcu_members?select=member_type&account=eq.Y120513973 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/system_settings?select=%2A "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id&athlete_id=eq.2838277&type=eq.chat&created_at=gte.2026-02-14T00%3A00%3A00&created_at=lte.2026-02-14T23%3A59%3A59 "HTTP/2 200 OK"
+INFO:     127.0.0.1:51285 - "GET /api/ai/usage/2838277 HTTP/1.1" 200 OK
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/strava_member_bindings?select=strava_id%2Ctcu_account%2Cmember_name&strava_id=eq.2838277 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/tcu_members?select=member_type&account=eq.Y120513973 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/system_settings?select=%2A "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id&athlete_id=eq.2838277&type=eq.chat&created_at=gte.2026-02-14T00%3A00%3A00&created_at=lte.2026-02-14T23%3A59%3A59 "HTTP/2 200 OK"
+INFO:     127.0.0.1:51346 - "GET /api/ai/usage/2838277 HTTP/1.1" 200 OK
+INFO:tcu-power-api:--- [API START] get_binding_status for 2838277 ---
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/strava_member_bindings?select=%2A&strava_id=eq.2838277 "HTTP/2 200 OK"
+INFO:     127.0.0.1:51906 - "OPTIONS /api/auth/strava-token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51906 - "POST /api/auth/strava-token HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/tcu_members?select=%2A&account=eq.Y120513973 "HTTP/2 200 OK"
+INFO:tcu-power-api:--- [API END] Bound found. Time: 616.47ms ---
+INFO:     127.0.0.1:51895 - "GET /api/auth/binding-status/2838277 HTTP/1.1" 200 OK
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id%2Cuser_message%2Cai_response%2Ccreated_at&athlete_id=eq.2838277&type=eq.chat&order=created_at.desc&limit=5 "HTTP/2 200 OK"
+INFO:     127.0.0.1:51906 - "GET /api/ai/history/2838277?limit=5 HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/strava_member_bindings?select=strava_id%2Ctcu_account%2Cmember_name&strava_id=eq.2838277 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/tcu_members?select=member_type&account=eq.Y120513973 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/system_settings?select=%2A "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id&athlete_id=eq.2838277&type=eq.chat&created_at=gte.2026-02-14T00%3A00%3A00&created_at=lte.2026-02-14T23%3A59%3A59 "HTTP/2 200 OK"
+INFO:     127.0.0.1:51895 - "GET /api/ai/usage/2838277 HTTP/1.1" 200 OK
+INFO:tcu-power-api:--- [API START] get_binding_status for 2838277 ---
+INFO:     127.0.0.1:60177 - "OPTIONS /api/auth/strava-token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60179 - "POST /api/auth/strava-token HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/strava_member_bindings?select=%2A&strava_id=eq.2838277 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/tcu_members?select=%2A&account=eq.Y120513973 "HTTP/2 200 OK"
+INFO:tcu-power-api:--- [API END] Bound found. Time: 782.84ms ---
+INFO:     127.0.0.1:60170 - "GET /api/auth/binding-status/2838277 HTTP/1.1" 200 OK
+INFO:tcu-power-api:--- [API START] get_binding_status for 2838277 ---
+INFO:     127.0.0.1:61046 - "OPTIONS /api/auth/strava-token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61046 - "POST /api/auth/strava-token HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/strava_member_bindings?select=%2A&strava_id=eq.2838277 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/tcu_members?select=%2A&account=eq.Y120513973 "HTTP/2 200 OK"
+INFO:tcu-power-api:--- [API END] Bound found. Time: 751.73ms ---
+INFO:     127.0.0.1:61044 - "GET /api/auth/binding-status/2838277 HTTP/1.1" 200 OK
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id%2Cuser_message%2Cai_response%2Ccreated_at&athlete_id=eq.2838277&type=eq.chat&order=created_at.desc&limit=5 "HTTP/2 200 OK"
+INFO:     127.0.0.1:61046 - "GET /api/ai/history/2838277?limit=5 HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/strava_member_bindings?select=strava_id%2Ctcu_account%2Cmember_name&strava_id=eq.2838277 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/tcu_members?select=member_type&account=eq.Y120513973 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/system_settings?select=%2A "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id&athlete_id=eq.2838277&type=eq.chat&created_at=gte.2026-02-14T00%3A00%3A00&created_at=lte.2026-02-14T23%3A59%3A59 "HTTP/2 200 OK"
+INFO:     127.0.0.1:61044 - "GET /api/ai/usage/2838277 HTTP/1.1" 200 OK
+INFO:tcu-power-api:--- [API START] get_binding_status for 2838277 ---
+INFO:     127.0.0.1:62204 - "POST /api/auth/strava-token HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/strava_member_bindings?select=%2A&strava_id=eq.2838277 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/tcu_members?select=%2A&account=eq.Y120513973 "HTTP/2 200 OK"
+INFO:tcu-power-api:--- [API END] Bound found. Time: 707.93ms ---
+INFO:     127.0.0.1:62202 - "GET /api/auth/binding-status/2838277 HTTP/1.1" 200 OK
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id%2Cuser_message%2Cai_response%2Ccreated_at&athlete_id=eq.2838277&type=eq.chat&order=created_at.desc&limit=5 "HTTP/2 200 OK"
+INFO:     127.0.0.1:62204 - "GET /api/ai/history/2838277?limit=5 HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/strava_member_bindings?select=strava_id%2Ctcu_account%2Cmember_name&strava_id=eq.2838277 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/tcu_members?select=member_type&account=eq.Y120513973 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/system_settings?select=%2A "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id&athlete_id=eq.2838277&type=eq.chat&created_at=gte.2026-02-14T00%3A00%3A00&created_at=lte.2026-02-14T23%3A59%3A59 "HTTP/2 200 OK"
+INFO:     127.0.0.1:62202 - "GET /api/ai/usage/2838277 HTTP/1.1" 200 OK
+INFO:tcu-power-api:--- [API START] get_binding_status for 2838277 ---
+INFO:     127.0.0.1:65339 - "POST /api/auth/strava-token HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/strava_member_bindings?select=%2A&strava_id=eq.2838277 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/tcu_members?select=%2A&account=eq.Y120513973 "HTTP/2 200 OK"
+INFO:tcu-power-api:--- [API END] Bound found. Time: 762.98ms ---
+INFO:     127.0.0.1:65333 - "GET /api/auth/binding-status/2838277 HTTP/1.1" 200 OK
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id%2Cuser_message%2Cai_response%2Ccreated_at&athlete_id=eq.2838277&type=eq.chat&order=created_at.desc&limit=5 "HTTP/2 200 OK"
+INFO:     127.0.0.1:65339 - "GET /api/ai/history/2838277?limit=5 HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/strava_member_bindings?select=strava_id%2Ctcu_account%2Cmember_name&strava_id=eq.2838277 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/tcu_members?select=member_type&account=eq.Y120513973 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/system_settings?select=%2A "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id&athlete_id=eq.2838277&type=eq.chat&created_at=gte.2026-02-14T00%3A00%3A00&created_at=lte.2026-02-14T23%3A59%3A59 "HTTP/2 200 OK"
+INFO:     127.0.0.1:65333 - "GET /api/ai/usage/2838277 HTTP/1.1" 200 OK
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id%2Cuser_message%2Cai_response%2Ccreated_at&athlete_id=eq.2838277&type=eq.chat&order=created_at.desc&limit=5 "HTTP/2 200 OK"
+INFO:     127.0.0.1:52780 - "GET /api/ai/history/2838277?limit=5 HTTP/1.1" 200 OK
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/strava_member_bindings?select=strava_id%2Ctcu_account%2Cmember_name&strava_id=eq.2838277 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id%2Cuser_message%2Cai_response%2Ccreated_at&athlete_id=eq.2838277&type=eq.chat&order=created_at.desc&limit=5 "HTTP/2 200 OK"
+INFO:     127.0.0.1:52780 - "GET /api/ai/history/2838277?limit=5 HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/tcu_members?select=member_type&account=eq.Y120513973 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/system_settings?select=%2A "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id&athlete_id=eq.2838277&type=eq.chat&created_at=gte.2026-02-14T00%3A00%3A00&created_at=lte.2026-02-14T23%3A59%3A59 "HTTP/2 200 OK"
+INFO:     127.0.0.1:52778 - "GET /api/ai/usage/2838277 HTTP/1.1" 200 OK
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/strava_member_bindings?select=strava_id%2Ctcu_account%2Cmember_name&strava_id=eq.2838277 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/tcu_members?select=member_type&account=eq.Y120513973 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/system_settings?select=%2A "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id&athlete_id=eq.2838277&type=eq.chat&created_at=gte.2026-02-14T00%3A00%3A00&created_at=lte.2026-02-14T23%3A59%3A59 "HTTP/2 200 OK"
+INFO:     127.0.0.1:52780 - "GET /api/ai/usage/2838277 HTTP/1.1" 200 OK
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id%2Cuser_message%2Cai_response%2Ccreated_at&athlete_id=eq.2838277&type=eq.chat&order=created_at.desc&limit=5 "HTTP/2 200 OK"
+INFO:     127.0.0.1:55174 - "GET /api/ai/history/2838277?limit=5 HTTP/1.1" 200 OK
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/strava_member_bindings?select=strava_id%2Ctcu_account%2Cmember_name&strava_id=eq.2838277 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id%2Cuser_message%2Cai_response%2Ccreated_at&athlete_id=eq.2838277&type=eq.chat&order=created_at.desc&limit=5 "HTTP/2 200 OK"
+INFO:     127.0.0.1:55193 - "GET /api/ai/history/2838277?limit=5 HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/tcu_members?select=member_type&account=eq.Y120513973 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/system_settings?select=%2A "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id&athlete_id=eq.2838277&type=eq.chat&created_at=gte.2026-02-14T00%3A00%3A00&created_at=lte.2026-02-14T23%3A59%3A59 "HTTP/2 200 OK"
+INFO:     127.0.0.1:55172 - "GET /api/ai/usage/2838277 HTTP/1.1" 200 OK
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/strava_member_bindings?select=strava_id%2Ctcu_account%2Cmember_name&strava_id=eq.2838277 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/tcu_members?select=member_type&account=eq.Y120513973 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/system_settings?select=%2A "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id&athlete_id=eq.2838277&type=eq.chat&created_at=gte.2026-02-14T00%3A00%3A00&created_at=lte.2026-02-14T23%3A59%3A59 "HTTP/2 200 OK"
+INFO:     127.0.0.1:55193 - "GET /api/ai/usage/2838277 HTTP/1.1" 200 OK
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id%2Cuser_message%2Cai_response%2Ccreated_at&athlete_id=eq.2838277&type=eq.chat&order=created_at.desc&limit=5 "HTTP/2 200 OK"
+INFO:     127.0.0.1:55550 - "GET /api/ai/history/2838277?limit=5 HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/strava_member_bindings?select=strava_id%2Ctcu_account%2Cmember_name&strava_id=eq.2838277 "HTTP/2 200 OK"
+INFO:     127.0.0.1:55550 - "OPTIONS /api/ai/chat HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/tcu_members?select=member_type&account=eq.Y120513973 "HTTP/2 200 OK"
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/system_settings?select=%2A "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id&athlete_id=eq.2838277&type=eq.chat&created_at=gte.2026-02-14T00%3A00%3A00&created_at=lte.2026-02-14T23%3A59%3A59 "HTTP/2 200 OK"
+INFO:     127.0.0.1:55549 - "GET /api/ai/usage/2838277 HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/strava_member_bindings?select=strava_id%2Ctcu_account&strava_id=eq.2838277 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/tcu_members?select=member_type&account=eq.Y120513973 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/system_settings?select=%2A "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id&athlete_id=eq.2838277&type=eq.chat&created_at=gte.2026-02-14T00%3A00%3A00&created_at=lte.2026-02-14T23%3A59%3A59 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: POST https://service.criterium.tw/webhook/ai-coach-test "HTTP/1.1 200 OK"
+INFO:httpx:HTTP Request: POST https://db.criterium.tw/rest/v1/ai_coach_logs "HTTP/2 201 Created"
+INFO:     127.0.0.1:55550 - "POST /api/ai/chat HTTP/1.1" 200 OK
+INFO:tcu-power-api:--- [API START] get_binding_status for 2838277 ---
+INFO:     127.0.0.1:56119 - "OPTIONS /api/auth/strava-token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56119 - "POST /api/auth/strava-token HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/strava_member_bindings?select=%2A&strava_id=eq.2838277 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/tcu_members?select=%2A&account=eq.Y120513973 "HTTP/2 200 OK"
+INFO:tcu-power-api:--- [API END] Bound found. Time: 970.17ms ---
+INFO:     127.0.0.1:56113 - "GET /api/auth/binding-status/2838277 HTTP/1.1" 200 OK
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:tcu-power-api:Supabase v1.5.1 Loaded. Source: SUPABASE_SERVICE_ROLE_KEY, Len: 187, Masked: eyJh...ixfs
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id%2Cuser_message%2Cai_response%2Ccreated_at&athlete_id=eq.2838277&type=eq.chat&order=created_at.desc&limit=5 "HTTP/2 200 OK"
+INFO:     127.0.0.1:56119 - "GET /api/ai/history/2838277?limit=5 HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/strava_member_bindings?select=strava_id%2Ctcu_account%2Cmember_name&strava_id=eq.2838277 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/tcu_members?select=member_type&account=eq.Y120513973 "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/system_settings?select=%2A "HTTP/2 200 OK"
+INFO:httpx:HTTP Request: GET https://db.criterium.tw/rest/v1/ai_coach_logs?select=id&athlete_id=eq.2838277&type=eq.chat&created_at=gte.2026-02-14T00%3A00%3A00&created_at=lte.2026-02-14T23%3A59%3A59 "HTTP/2 200 OK"
+INFO:     127.0.0.1:56113 - "GET /api/ai/usage/2838277 HTTP/1.1" 200 OK

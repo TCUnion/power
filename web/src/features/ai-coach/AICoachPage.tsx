@@ -28,9 +28,6 @@ export function AICoachPage() {
     const [selectedDate] = useState(new Date());
     const version = "v1.0.3";
 
-    const [selectedDate] = useState(new Date());
-    const version = "v1.0.3";
-
     // Auto-generate on load & check usage
     useEffect(() => {
         if (athlete?.id && isBound) {
@@ -50,7 +47,7 @@ export function AICoachPage() {
     if (authLoading) {
         return (
             <div className="container mx-auto px-4 py-8 max-w-6xl flex items-center justify-center min-h-[400px]">
-                <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+                <Loader2 className="w-8 h-8 text-primary animate-spin" />
             </div>
         );
     }
@@ -60,10 +57,10 @@ export function AICoachPage() {
         return (
             <div className="container mx-auto px-4 py-8 max-w-6xl flex items-center justify-center min-h-[400px]">
                 <div className="max-w-md w-full space-y-6 text-center">
-                    <div className="p-6 bg-white rounded-2xl border border-gray-200 shadow-xl">
-                        <Sparkles className="w-12 h-12 text-indigo-500 mx-auto mb-4 opacity-50" />
-                        <h2 className="text-xl font-bold text-gray-900 mb-2">需要會員綁定</h2>
-                        <p className="text-gray-500 text-sm mb-6">
+                    <div className="p-6 bg-card rounded-2xl border border-border shadow-xl">
+                        <Sparkles className="w-12 h-12 text-primary mx-auto mb-4 opacity-50" />
+                        <h2 className="text-xl font-bold text-foreground mb-2">需要會員綁定</h2>
+                        <p className="text-muted-foreground text-sm mb-6">
                             「AI 功率教練」功能僅限已綁定 TCU 會員的用戶使用。請先完成 Strava 帳號與會員資料的綁定。
                         </p>
                         <MemberBindingCard onBindingSuccess={() => { }} />
@@ -74,29 +71,29 @@ export function AICoachPage() {
     }
 
     return (
-        <div className="container mx-auto px-4 py-8 max-w-[1600px]">
+        <div className="container mx-auto px-4 py-8 max-w-[1600px] bg-background min-h-screen">
             <header className="mb-6 md:mb-8 text-center md:text-left">
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-900 flex items-center justify-center md:justify-start gap-3">
-                    <Sparkles className="w-6 h-6 md:w-8 md:h-8 text-indigo-600" />
-                    AI 智能教練 <span className="text-[10px] md:text-xs font-normal text-gray-300 ml-1">{version}</span>
+                <h1 className="text-2xl md:text-3xl font-bold text-foreground flex items-center justify-center md:justify-start gap-3">
+                    <Sparkles className="w-6 h-6 md:w-8 md:h-8 text-primary" />
+                    AI 智能教練 <span className="text-[10px] md:text-xs font-normal text-muted-foreground ml-1">{version}</span>
                 </h1>
-                <p className="text-sm md:text-base text-gray-500 mt-2">
+                <p className="text-sm md:text-base text-muted-foreground mt-2">
                     透過 AI 分析你的騎乘數據，提供個人化建議與洞察。
                 </p>
             </header>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Left Column: Daily Summary */}
-                <div className="lg:col-span-1 space-y-6">
-                    <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-100 flex items-center justify-between">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+                {/* Left Column: Daily Summary - Full width on mobile, Left on tablet/desktop */}
+                <div className="col-span-1 space-y-6">
+                    <div className="bg-card rounded-lg p-4 shadow-sm border border-border flex items-center justify-between">
                         <div>
-                            <span className="text-sm text-gray-500 block">日期</span>
-                            <span className="font-medium text-gray-900">{format(selectedDate, 'yyyy-MM-dd')}</span>
+                            <span className="text-sm text-muted-foreground block">日期</span>
+                            <span className="font-medium text-foreground">{format(selectedDate, 'yyyy-MM-dd')}</span>
                         </div>
                         <button
                             onClick={handleGenerate}
                             disabled={loading || !athlete}
-                            className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors flex items-center gap-2"
+                            className="bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-2"
                         >
                             {loading ? (
                                 <>
@@ -113,7 +110,7 @@ export function AICoachPage() {
                     </div>
 
                     {error && (
-                        <div className="bg-red-50 text-red-700 p-4 rounded-lg text-sm border border-red-200">
+                        <div className="bg-destructive/10 text-destructive p-4 rounded-lg text-sm border border-destructive/20">
                             <strong>Error:</strong> {error}
                         </div>
                     )}
@@ -125,15 +122,15 @@ export function AICoachPage() {
                             isLoading={loading}
                         />
                     ) : (
-                        <div className="bg-gray-50 rounded-lg p-8 text-center border border-dashed border-gray-300">
-                            <p className="text-gray-500 text-sm">點擊「生成日誌」來獲取今天的訓練分析。</p>
+                        <div className="bg-muted rounded-lg p-8 text-center border border-dashed border-border">
+                            <p className="text-muted-foreground text-sm">點擊「生成日誌」來獲取今天的訓練分析。</p>
                         </div>
                     )}
                 </div>
 
 
-                {/* Right Column: Chat Interface */}
-                <div className="lg:col-span-2">
+                {/* Right Column: Chat Interface - Full width on mobile, Right on tablet, Spans 2 cols on Desktop */}
+                <div className="col-span-1 lg:col-span-2 h-[600px] lg:h-[800px]">
                     <DataChatInterface
                         onSendMessage={async (msg) => {
                             if (!athlete?.id) return Promise.resolve({ reply: "請先綁定 Strava 帳號" });

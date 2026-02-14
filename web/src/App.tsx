@@ -1,27 +1,37 @@
-
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link as RouterLink } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import StravaConnect from './features/auth/StravaConnect';
 
 import PowerAnalysisPage from './features/power/PowerAnalysisPage';
-import { Link as RouterLink, NavLink } from 'react-router-dom';
-import { Zap, LogOut, LayoutDashboard, Activity, ShieldCheck, ArrowLeftRight, Sparkles } from 'lucide-react';
+import { Zap, LogOut, Activity, Sparkles } from 'lucide-react';
 import MemberBindingCard from './features/auth/MemberBindingCard';
 import PowerDashboard from './features/power/PowerDashboard';
 import GoldenCheetahPage from './features/golden-cheetah/GoldenCheetahPage';
 import { AICoachPage } from './features/ai-coach/AICoachPage';
 import tcuLogo from './assets/tcu-logo.png';
 
+import LandingPage from './features/landing-page/LandingPage';
+
 const SegmentCompare = React.lazy(() => import('./features/segment-compare/SegmentCompare'));
+
+import { TopNav, BottomNav, SidebarNav } from './components/layout/AdaptiveNavigation';
+
+// ... imports
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { athlete, isBound, isMaintenance, logout } = useAuth();
+
+  if (!athlete) {
+    return <div className="min-h-screen bg-slate-950">{children}</div>;
+  }
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-tcu-blue/20">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-tcu-blue/20 pb-16 md:pb-0">
       {/* 伺服器維修橫幅 */}
       {isMaintenance && (
         <div className="fixed top-0 left-0 right-0 z-[100] bg-tcu-orange text-white py-2 px-4 shadow-lg animate-in slide-in-from-top duration-300">
+          {/* ... banner content ... */}
           <div className="container mx-auto flex items-center justify-center gap-2">
             <Zap className="w-4 h-4 animate-pulse" />
             <span className="text-sm font-black italic tracking-wider">
@@ -31,119 +41,41 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </div>
       )}
 
-      <header className={`fixed ${isMaintenance ? 'top-9' : 'top-0'} left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-all duration-300`}>
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          {/* 左側：Logo */}
-          <RouterLink to="/" className="flex items-center gap-2 group shrink-0">
-            <img src={tcuLogo} alt="TCU Logo" className="h-10 w-auto object-contain transition-transform group-hover:scale-105" />
-            <span className="text-xl font-black italic tracking-tighter uppercase hidden md:block">
+      {/* Desktop & Mobile Header (Full Nav on Desktop, Logo only on Mobile maybe? OR use TopNav component logic) */}
+      {/* We use TopNav for Desktop (lg+) and Mobile (md-) header structure, but hide nav links on mobile */}
+      <div className="hidden lg:block">
+        <TopNav athlete={athlete} isBound={isBound} logout={logout} />
+      </div>
+
+      {/* Tablet Sidebar (md only) */}
+      <SidebarNav athlete={athlete} isBound={isBound} logout={logout} />
+
+      {/* Mobile Header (Simplified) & Bottom Nav */}
+      <div className="lg:hidden">
+        <header className={`fixed ${isMaintenance ? 'top-9' : 'top-0'} left-0 right-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 h-16 flex items-center justify-between px-4`}>
+          <RouterLink to="/" className="flex items-center gap-2">
+            <img src={tcuLogo} alt="TCU Logo" className="h-8 w-auto" />
+            <span className="text-lg font-black italic tracking-tighter uppercase">
               TCU <span className="text-tcu-orange">POWER</span>
             </span>
           </RouterLink>
 
-          {/* 中間：導航選單 (登入後顯示) */}
-          {athlete && (
-            <nav className="flex items-center p-1 bg-slate-100/80 dark:bg-slate-800/50 backdrop-blur-sm rounded-full border border-slate-200 dark:border-slate-700/50 absolute left-1/2 -translate-x-1/2 max-w-[60%] overflow-x-auto no-scrollbar">
-              <NavLink
-                to="/"
-                end
-                className={({ isActive }) =>
-                  `px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${isActive
-                    ? 'bg-white dark:bg-slate-700 text-tcu-orange shadow-sm'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/30'
-                  }`
-                }
-              >
-                <LayoutDashboard className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">會員主頁</span>
-              </NavLink>
+          <button
+            onClick={logout}
+            className="p-2 text-slate-400"
+          >
+            <LogOut className="w-5 h-5" />
+          </button>
+        </header>
+        <BottomNav />
+      </div>
 
-              <NavLink
-                to="/analysis"
-                className={({ isActive }) =>
-                  `px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${isActive
-                    ? 'bg-white dark:bg-slate-700 text-blue-500 shadow-sm'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/30'
-                  }`
-                }
-              >
-                <Zap className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">功率分析</span>
-              </NavLink>
 
-              <NavLink
-                to="/ai-coach"
-                className={({ isActive }) =>
-                  `px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${isActive
-                    ? 'bg-white dark:bg-slate-700 text-indigo-500 shadow-sm'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/30'
-                  }`
-                }
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">AI 教練</span>
-              </NavLink>
-
-              <NavLink
-                to="/goldencheetah"
-                className={({ isActive }) =>
-                  `px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${isActive
-                    ? 'bg-white dark:bg-slate-700 text-yellow-500 shadow-sm'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/30'
-                  }`
-                }
-              >
-                <Activity className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">GoldenCheetah</span>
-              </NavLink>
-
-              <NavLink
-                to="/compare"
-                className={({ isActive }) =>
-                  `px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${isActive
-                    ? 'bg-white dark:bg-slate-700 text-purple-500 shadow-sm'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/30'
-                  }`
-                }
-              >
-                <ArrowLeftRight className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">比較</span>
-              </NavLink>
-            </nav>
-          )}
-
-          {!athlete && (
-            <div className="flex-1 flex justify-center">
-              <span className="text-xl font-black italic tracking-tighter uppercase">
-                UNLOCK YOUR <span className="text-tcu-orange text-2xl">TCU POWER</span>
-              </span>
-            </div>
-          )}
-
-          {/* 右側：會員狀態與登出 */}
-          <div className="flex items-center shrink-0 gap-3">
-            {athlete && isBound && (
-              <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-500">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span className="text-[10px] font-black uppercase tracking-wider">TCU 認證會員</span>
-              </div>
-            )}
-            {athlete && (
-              <button
-                onClick={logout}
-                className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all flex items-center justify-center group"
-                title="登出"
-              >
-                <LogOut className="w-4 h-4 group-hover:scale-110 transition-transform" />
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
-      <main className="container mx-auto px-4 pt-24 pb-12 flex-1">
+      <main className="container mx-auto px-4 pt-20 md:pt-6 lg:pt-24 pb-12 flex-1 md:pl-24 lg:pl-4 transition-all">
         {children}
       </main>
-      <footer className="py-4 text-center">
+
+      <footer className="py-4 text-center md:pl-20 lg:pl-0">
         <span className="text-[10px] font-mono font-bold text-slate-600 dark:text-slate-600 uppercase tracking-wider">
           {import.meta.env.VITE_GIT_HASH || 'v1.2-dev'}
         </span>
@@ -157,54 +89,7 @@ const HomePage: React.FC = () => {
 
   // 未登入狀態
   if (!athlete) {
-    return (
-      <div className="max-w-3xl mx-auto space-y-8">
-        {/* Hero 圖片區塊 */}
-        <div className="relative rounded-3xl overflow-hidden shadow-2xl shadow-blue-500/10 border border-slate-700/50">
-          <img
-            src="/hero-cycling.png"
-            alt="Cyclist riding with power data visualization"
-            className="w-full h-[340px] sm:h-[420px] object-cover object-center"
-          />
-          {/* 漸層疊加 */}
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-900/20 to-purple-900/20" />
-          {/* 文字內容 */}
-          <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-10">
-            <h1 className="text-3xl sm:text-5xl font-black italic uppercase tracking-tight text-white leading-tight">
-              Unlock Your{' '}
-              <span className="bg-gradient-to-r from-orange-400 to-yellow-400 bg-clip-text text-transparent">
-                TCU Power
-              </span>
-            </h1>
-            <p className="text-slate-300 font-medium mt-3 text-sm sm:text-base max-w-lg">
-              連接 Strava，透過 AI 驅動的功率分析洞察你的騎乘潛力。
-            </p>
-          </div>
-        </div>
-
-        {/* Strava 連接按鈕 */}
-        <div className="p-6 bg-white dark:bg-slate-900/80 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800">
-          <StravaConnect />
-        </div>
-
-        {/* 功能亮點 */}
-        <div className="grid grid-cols-3 gap-3 text-center">
-          <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800/50">
-            <div className="text-2xl mb-1">⚡</div>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Power Zones</div>
-          </div>
-          <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800/50">
-            <div className="text-2xl mb-1">📊</div>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">MMP / CP Model</div>
-          </div>
-          <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800/50">
-            <div className="text-2xl mb-1">🏋️</div>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">TSS Tracking</div>
-          </div>
-        </div>
-      </div>
-    );
+    return <LandingPage />;
   }
 
   // 已登入狀態

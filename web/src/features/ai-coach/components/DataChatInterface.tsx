@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Send, Bot } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { highlightKeywords } from '../../../utils/textHighlighting';
 
 interface Message {
     id: string;
@@ -112,36 +113,45 @@ export function DataChatInterface({
     };
 
 
+
+
     return (
-        <div className="bg-white rounded-lg shadow flex flex-col min-h-[500px] h-[600px] lg:h-[800px]">
-            <div className="p-3 md:p-4 border-b border-gray-100 bg-gray-50 rounded-t-lg">
-                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                    <Bot className="w-5 h-5 text-indigo-600" />
+        <div className="bg-zinc-900 rounded-xl shadow-2xl flex flex-col min-h-[500px] h-[600px] lg:h-[800px] border border-white/10 ring-1 ring-white/5 overflow-hidden">
+            <div className="p-3 md:p-4 border-b border-white/10 bg-gradient-to-r from-zinc-900 to-zinc-800/50 rounded-t-xl backdrop-blur">
+                <h3 className="font-bold text-white flex items-center gap-2 tracking-wide">
+                    <Bot className="w-5 h-5 text-primary drop-shadow-[0_0_8px_rgba(249,115,22,0.6)]" />
                     TCU AI 功率教練
                 </h3>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-3 md:p-4 flex flex-col">
-                <div className="mt-auto space-y-4 w-full">
+            <div className="flex-1 overflow-y-auto p-3 md:p-4 flex flex-col bg-[#121212]">
+                <div className="mt-auto space-y-6 w-full">
                     {messages.map((msg) => (
                         <div
                             key={msg.id}
                             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                         >
                             <div className={`
-                                max-w-[85%] md:max-w-[80%] rounded-lg p-3 text-sm
+                                max-w-[85%] md:max-w-[80%] rounded-2xl p-4 text-sm border shadow-lg
                                 ${msg.role === 'user'
-                                    ? 'bg-indigo-600 text-white rounded-br-none shadow-sm'
-                                    : 'bg-gray-100 text-gray-800 rounded-bl-none'}
+                                    ? 'bg-primary text-white rounded-br-sm border-primary/50 shadow-primary/10'
+                                    : 'bg-zinc-800/80 text-gray-200 rounded-bl-sm border-white/10 shadow-black/20 backdrop-blur-sm'}
                             `}>
                                 {msg.role === 'assistant' ? (
-                                    <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-a:text-red-600 prose-a:font-bold">
-                                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                    <div className={`prose prose-sm max-w-none 
+                                        prose-p:leading-relaxed prose-p:my-1
+                                        prose-strong:text-[#F97316] prose-strong:font-bold prose-strong:drop-shadow-[0_0_2px_rgba(249,115,22,0.3)]
+                                        prose-headings:text-white prose-headings:font-bold
+                                        prose-a:text-yellow-400 prose-a:no-underline prose-a:border-b prose-a:border-yellow-400/50 hover:prose-a:border-yellow-400 prose-a:transition-all prose-a:drop-shadow-[0_0_5px_rgba(250,204,21,0.6)]
+                                        prose-ul:my-2 prose-li:my-1 prose-li:marker:text-primary
+                                        text-gray-200
+                                    `}>
+                                        <ReactMarkdown>{highlightKeywords(msg.content)}</ReactMarkdown>
                                     </div>
                                 ) : (
-                                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                                    <div className="whitespace-pre-wrap font-medium">{msg.content}</div>
                                 )}
-                                <div className={`text-[10px] mt-1 ${msg.role === 'user' ? 'text-indigo-200' : 'text-gray-400'}`}>
+                                <div className={`text-[10px] mt-2 font-mono flex items-center gap-1 ${msg.role === 'user' ? 'text-white/70' : 'text-gray-500'}`}>
                                     {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </div>
                             </div>
@@ -149,11 +159,11 @@ export function DataChatInterface({
                     ))}
                     {isSending && (
                         <div className="flex justify-start">
-                            <div className="bg-gray-100 rounded-lg p-3 rounded-bl-none">
-                                <div className="flex space-x-1">
-                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-75"></div>
-                                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-150"></div>
+                            <div className="bg-zinc-800/50 rounded-2xl p-4 rounded-bl-sm border border-white/5">
+                                <div className="flex space-x-1.5">
+                                    <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce"></div>
+                                    <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce delay-75"></div>
+                                    <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce delay-150"></div>
                                 </div>
                             </div>
                         </div>
@@ -162,20 +172,20 @@ export function DataChatInterface({
                 </div>
             </div>
 
-            <div className="p-4 border-t border-gray-100">
+            <div className="p-4 border-t border-white/10 bg-zinc-900">
                 <div className="flex gap-2">
                     <input
                         type="text"
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         placeholder={usageStatus ? `詢問你的數據... (今日剩餘 ${usageStatus.remaining} 次)` : "詢問你的數據..."}
-                        className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm text-gray-900 bg-white placeholder-gray-400"
+                        className="flex-1 border border-input rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm text-foreground bg-background placeholder-muted-foreground"
                         disabled={isSending}
                     />
                     <button
                         onClick={handleSend}
                         disabled={isSending || !inputValue.trim()}
-                        className="bg-indigo-600 text-white rounded-lg p-2 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="bg-primary text-primary-foreground rounded-lg p-2 hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                         <Send className="w-5 h-5" />
                     </button>

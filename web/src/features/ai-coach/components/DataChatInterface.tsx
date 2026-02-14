@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Send, Bot } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -61,6 +61,16 @@ export function DataChatInterface({
 
     const [inputValue, setInputValue] = useState('');
     const [isSending, setIsSending] = useState(false);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // NOTE: 自動捲動至最下方
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages, isSending]);
 
     const handleSend = async () => {
         if (!inputValue.trim() || isSending) return;
@@ -103,15 +113,15 @@ export function DataChatInterface({
 
 
     return (
-        <div className="bg-white rounded-lg shadow flex flex-col h-[1200px]">
-            <div className="p-4 border-b border-gray-100 bg-gray-50 rounded-t-lg">
+        <div className="bg-white rounded-lg shadow flex flex-col min-h-[500px] h-[600px] lg:h-[800px]">
+            <div className="p-3 md:p-4 border-b border-gray-100 bg-gray-50 rounded-t-lg">
                 <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                     <Bot className="w-5 h-5 text-indigo-600" />
                     TCU AI 功率教練
                 </h3>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 flex flex-col">
+            <div className="flex-1 overflow-y-auto p-3 md:p-4 flex flex-col">
                 <div className="mt-auto space-y-4 w-full">
                     {messages.map((msg) => (
                         <div
@@ -119,9 +129,9 @@ export function DataChatInterface({
                             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                         >
                             <div className={`
-                                max-w-[80%] rounded-lg p-3 text-sm
+                                max-w-[85%] md:max-w-[80%] rounded-lg p-3 text-sm
                                 ${msg.role === 'user'
-                                    ? 'bg-indigo-600 text-white rounded-br-none'
+                                    ? 'bg-indigo-600 text-white rounded-br-none shadow-sm'
                                     : 'bg-gray-100 text-gray-800 rounded-bl-none'}
                             `}>
                                 {msg.role === 'assistant' ? (
@@ -129,7 +139,7 @@ export function DataChatInterface({
                                         <ReactMarkdown>{msg.content}</ReactMarkdown>
                                     </div>
                                 ) : (
-                                    msg.content
+                                    <div className="whitespace-pre-wrap">{msg.content}</div>
                                 )}
                                 <div className={`text-[10px] mt-1 ${msg.role === 'user' ? 'text-indigo-200' : 'text-gray-400'}`}>
                                     {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -148,6 +158,7 @@ export function DataChatInterface({
                             </div>
                         </div>
                     )}
+                    <div ref={messagesEndRef} />
                 </div>
             </div>
 

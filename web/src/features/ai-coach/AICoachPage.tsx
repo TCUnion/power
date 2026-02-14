@@ -80,12 +80,12 @@ export function AICoachPage() {
 
     return (
         <div className="container mx-auto px-4 py-8 max-w-[1600px]">
-            <header className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-                    <Sparkles className="w-8 h-8 text-indigo-600" />
-                    AI 智能教練 <span className="text-xs font-normal text-gray-300 ml-1">{version}</span>
+            <header className="mb-6 md:mb-8 text-center md:text-left">
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-900 flex items-center justify-center md:justify-start gap-3">
+                    <Sparkles className="w-6 h-6 md:w-8 md:h-8 text-indigo-600" />
+                    AI 智能教練 <span className="text-[10px] md:text-xs font-normal text-gray-300 ml-1">{version}</span>
                 </h1>
-                <p className="text-gray-500 mt-2">
+                <p className="text-sm md:text-base text-gray-500 mt-2">
                     透過 AI 分析你的騎乘數據，提供個人化建議與洞察。
                 </p>
             </header>

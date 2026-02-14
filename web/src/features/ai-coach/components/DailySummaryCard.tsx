@@ -37,24 +37,24 @@ export function DailySummaryCard({ summary, metrics, isLoading }: DailySummaryPr
                 </div>
             </div>
 
-            <div className="bg-gray-50 px-6 py-4 border-t border-gray-100">
+            <div className="bg-gray-50 px-4 md:px-6 py-4 border-t border-gray-100">
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">今日數據概覽</h3>
-                <div className="grid grid-cols-3 gap-4">
-                    <div className="bg-white p-3 rounded border border-gray-200 text-center">
-                        <div className="text-xs text-gray-500 mb-1">總時間</div>
-                        <div className="font-bold text-gray-900">
-                            {metrics?.total_time_min ?? 0} <span className="text-xs font-normal text-gray-400">min</span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4">
+                    <div className="bg-white p-2 md:p-3 rounded border border-gray-200 text-center shadow-sm">
+                        <div className="text-[10px] md:text-xs text-gray-500 mb-1">總時間</div>
+                        <div className="text-sm md:text-base font-bold text-gray-900">
+                            {metrics?.total_time_min ?? 0} <span className="text-[10px] font-normal text-gray-400">min</span>
                         </div>
                     </div>
-                    <div className="bg-white p-3 rounded border border-gray-200 text-center">
-                        <div className="text-xs text-gray-500 mb-1">總距離</div>
-                        <div className="font-bold text-gray-900">
-                            {metrics?.total_distance_km ?? 0} <span className="text-xs font-normal text-gray-400">km</span>
+                    <div className="bg-white p-2 md:p-3 rounded border border-gray-200 text-center shadow-sm">
+                        <div className="text-[10px] md:text-xs text-gray-500 mb-1">總距離</div>
+                        <div className="text-sm md:text-base font-bold text-gray-900">
+                            {metrics?.total_distance_km ?? 0} <span className="text-[10px] font-normal text-gray-400">km</span>
                         </div>
                     </div>
-                    <div className="bg-white p-3 rounded border border-gray-200 text-center">
-                        <div className="text-xs text-gray-500 mb-1">活動數</div>
-                        <div className="font-bold text-gray-900">{metrics?.activities_count ?? 0}</div>
+                    <div className="bg-white p-2 md:p-3 rounded border border-gray-200 text-center shadow-sm col-span-2 sm:col-span-1">
+                        <div className="text-[10px] md:text-xs text-gray-500 mb-1">活動數</div>
+                        <div className="text-sm md:text-base font-bold text-gray-900">{metrics?.activities_count ?? 0}</div>
                     </div>
                 </div>
                 {metrics?.details && metrics.details.length > 0 && (

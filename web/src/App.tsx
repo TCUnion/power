@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Link as RouterLink } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link as RouterLink, useLocation } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import StravaConnect from './features/auth/StravaConnect';
 
@@ -20,9 +20,25 @@ import { TopNav, BottomNav, SidebarNav } from './components/layout/AdaptiveNavig
 // ... imports
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { athlete, isBound, isMaintenance, logout } = useAuth();
+  const { athlete, isBound, isMaintenance, logout, isLoading } = useAuth();
+  const location = useLocation();
 
+  // 1. Loading State - 避免在資料載入完成前錯誤重定向
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-tcu-orange"></div>
+      </div>
+    );
+  }
+
+  // 2. Unauthenticated Guard - 強制重定向邏輯
   if (!athlete) {
+    // 如果嘗試訪問任何非根目錄頁面 (即受保護頁面)，強制重定向回首頁 (Landing Page)
+    if (location.pathname !== '/') {
+      return <Navigate to="/" replace />;
+    }
+    // 如果是在首頁，則正常渲染 (HomePage 會處理顯示 LandingPage)
     return <div className="min-h-screen bg-slate-950">{children}</div>;
   }
 

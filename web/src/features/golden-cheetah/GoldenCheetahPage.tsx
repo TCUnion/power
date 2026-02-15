@@ -311,9 +311,43 @@ export const GoldenCheetahPage = () => {
 
     /**
      * 公共切換活動介面，依賴 allActivities 與 allStreamsData
+     * 如果本地快取沒有 Streams 資料，嘗試從 Supabase 下載
      */
-    const selectActivity = useCallback((activityId: number) => {
-        updateLocalActivityStreams(activityId, allActivities, allStreamsData);
+    const selectActivity = useCallback(async (activityId: number) => {
+        // 1. 嘗試從快取中尋找
+        const cachedRow = allStreamsData.find(r => r.activity_id === activityId);
+
+        if (cachedRow) {
+            updateLocalActivityStreams(activityId, allActivities, allStreamsData);
+            return;
+        }
+
+        // 2. 快取無資料，從 Supabase 下載 (On-Demand Fetch)
+        try {
+            setLoading(true);
+            setStatusMessage("正在下載活動詳細數據...");
+
+            const { data: streamData, error } = await supabase
+                .from('strava_streams')
+                .select('activity_id, streams, max_heartrate, strava_zones')
+                .eq('activity_id', activityId)
+                .maybeSingle();
+
+            if (streamData) {
+                // 更新快取並顯示
+                setAllStreamsData(prev => [...prev, streamData]);
+                // 使用新的資料陣列呼叫更新，確保拿到最新
+                updateLocalActivityStreams(activityId, allActivities, [...allStreamsData, streamData]);
+            } else {
+                // 真的沒資料 (未同步)
+                updateLocalActivityStreams(activityId, allActivities, allStreamsData);
+            }
+        } catch (err) {
+            console.error('[GoldenCheetah] On-demand fetch failed:', err);
+            updateLocalActivityStreams(activityId, allActivities, allStreamsData);
+        } finally {
+            setLoading(false);
+        }
     }, [allActivities, allStreamsData, updateLocalActivityStreams]);
 
     // Fetch Data Logic
@@ -340,17 +374,17 @@ export const GoldenCheetahPage = () => {
                 if (athleteData.weight) setAthleteWeight(athleteData.weight);
             }
 
-            // 2. Get Activities (Last 90 days for CP Model, Last 1 for Display)
+            // 2. Get Activities (Last 365 days for CP Model, Last 1 for Display)
             const cutoffDate = new Date();
             cutoffDate.setHours(0, 0, 0, 0); // 固定時間部分，避免毫秒漂移引發重複更新
-            cutoffDate.setDate(cutoffDate.getDate() - 90);
+            cutoffDate.setDate(cutoffDate.getDate() - 365);
 
             const { data: activityData, error: actError } = await supabase
                 .from('strava_activities')
                 .select('id, athlete_id, name, distance, moving_time, elapsed_time, total_elevation_gain, type, sport_type, start_date, average_watts, max_watts, average_heartrate, max_heartrate, suffer_score, average_speed, max_speed, average_cadence')
                 .eq('athlete_id', athlete.id)
                 .gte('start_date', cutoffDate.toISOString())
-                .in('sport_type', ['Ride', 'VirtualRide', 'MountainBikeRide', 'GravelRide'])
+                .in('sport_type', ['Ride', 'VirtualRide', 'MountainBikeRide', 'GravelRide', 'EBikeRide'])
                 .order('start_date', { ascending: false });
 
             if (actError) throw actError;

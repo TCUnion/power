@@ -1,12 +1,22 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAdminAuth as useAuth } from '../../contexts/AdminAuthContext';
 import { toast } from 'sonner';
 
 export default function AdminLogin() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [rememberMe, setRememberMe] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const { signIn } = useAuth();
+
+    // 載入時檢查是否有儲存的帳號
+    useEffect(() => {
+        const savedEmail = localStorage.getItem('admin_remember_email');
+        if (savedEmail) {
+            setEmail(savedEmail);
+            setRememberMe(true);
+        }
+    }, []);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -26,6 +36,13 @@ export default function AdminLogin() {
             if (error) {
                 toast.error('登入失敗: ' + error.message);
             } else {
+                // 處理「記住我」
+                if (rememberMe) {
+                    localStorage.setItem('admin_remember_email', email);
+                } else {
+                    localStorage.removeItem('admin_remember_email');
+                }
+
                 toast.success('登入成功');
                 window.location.href = '/admin.html'; // Force redirect to dashboard
             }
@@ -45,7 +62,7 @@ export default function AdminLogin() {
             </div>
 
             <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
-                <form className="space-y-6" onSubmit={handleLogin}>
+                <form className="space-y-6" onSubmit={handleLogin} action="#" method="POST">
                     <div>
                         <label htmlFor="email" className="block text-sm font-medium leading-6 text-gray-900">
                             Email
@@ -55,7 +72,7 @@ export default function AdminLogin() {
                                 id="email"
                                 name="email"
                                 type="email"
-                                autoComplete="email"
+                                autoComplete="username"
                                 required
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
@@ -82,6 +99,20 @@ export default function AdminLogin() {
                                 className="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6 px-3"
                             />
                         </div>
+                    </div>
+
+                    <div className="flex items-center">
+                        <input
+                            id="remember-me"
+                            name="remember-me"
+                            type="checkbox"
+                            checked={rememberMe}
+                            onChange={(e) => setRememberMe(e.target.checked)}
+                            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"
+                        />
+                        <label htmlFor="remember-me" className="ml-3 block text-sm leading-6 text-gray-900">
+                            記住我的帳號
+                        </label>
                     </div>
 
                     <div>

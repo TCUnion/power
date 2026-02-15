@@ -32,6 +32,7 @@ app = FastAPI(title="TCU Power API")
 # 設定 CORS
 origins = [
     "http://localhost:5173",
+    "http://localhost:5174",
     "https://stravapower.zeabur.app",
     "https://www.criterium.tw",
     "https://strava.criterium.tw",

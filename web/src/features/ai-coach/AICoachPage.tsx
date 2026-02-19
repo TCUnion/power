@@ -56,48 +56,61 @@ export function AICoachPage() {
         const act = data.activity;
         const streams = data.streams || [];
 
-        let md = `## Strava Activity Data (Raw)\n\n`;
-        md += `### Metadata\n`;
-        md += `- **Name**: ${act.name}\n`;
-        md += `- **Date**: ${format(new Date(act.start_date_local), 'yyyy-MM-dd HH:mm')}\n`;
-        md += `- **Distance**: ${(act.distance / 1000).toFixed(2)} km\n`;
-        md += `- **Time**: ${(act.moving_time / 60).toFixed(0)} min\n`;
-        md += `- **Elev**: ${act.total_elevation_gain} m\n`;
-        md += `- **Avg/NP Power**: ${act.average_watts?.toFixed(0)}W / ${act.weighted_average_watts?.toFixed(0)}W\n`;
-        md += `- **Avg HR**: ${act.average_heartrate?.toFixed(0)} bpm\n\n`;
+        const mdLines: string[] = [];
+        mdLines.push(`## Strava Activity Data (Raw)`);
+        mdLines.push(``);
+        mdLines.push(`### Metadata`);
+        mdLines.push(`- **Name**: ${act.name}`);
+        mdLines.push(`- **Date**: ${format(new Date(act.start_date_local), 'yyyy-MM-dd HH:mm')}`);
+        mdLines.push(`- **Distance**: ${(act.distance / 1000).toFixed(2)} km`);
+        mdLines.push(`- **Time**: ${(act.moving_time / 60).toFixed(0)} min`);
+        mdLines.push(`- **Elev**: ${act.total_elevation_gain} m`);
+        mdLines.push(`- **Avg/NP Power**: ${act.average_watts?.toFixed(0)}W / ${act.weighted_average_watts?.toFixed(0)}W`);
+        mdLines.push(`- **Avg HR**: ${act.average_heartrate?.toFixed(0)} bpm`);
+        mdLines.push(``);
 
-        md += `### Stream Data (Time, Watts, HeartRate)\n`;
-        md += `Format: Time(sec), Power(w), HeartRate(bpm)\n\n`;
-        md += `\`\`\`csv\n`;
+        mdLines.push(`### Stream Data (Time, Watts, HeartRate)`);
 
         // 提取並對齊數據
         const timeStream = streams.find((s: any) => s.type === 'time')?.data || [];
         const wattsStream = streams.find((s: any) => s.type === 'watts')?.data || [];
         const hrStream = streams.find((s: any) => s.type === 'heartrate')?.data || [];
 
-        // 取最小長度以避免越界，通常這三個 stream 長度應一致
-        const len = Math.min(timeStream.length, wattsStream.length || timeStream.length, hrStream.length || timeStream.length);
+        const rawLen = Math.min(timeStream.length, wattsStream.length || timeStream.length, hrStream.length || timeStream.length);
 
-        if (len === 0) {
-            md += "No stream data available.\n";
+        if (rawLen === 0) {
+            mdLines.push(`No stream data available.`);
         } else {
+            // Sampling logic: AI 不需要每秒一筆，過大的資料會導致 Token 溢出或瀏覽器當掉
+            // 限制輸出約 1000 點左右，這對功率分析已充足
+            const maxPoints = 1200;
+            const step = Math.max(1, Math.ceil(rawLen / maxPoints));
+
+            mdLines.push(`Format: Time(sec), Power(w), HeartRate(bpm)`);
+            if (step > 1) {
+                mdLines.push(`(Note: Data downsampled by 1/${step} for AI analysis)`);
+            }
+            mdLines.push(``);
+            mdLines.push(`\`\`\`csv`);
+
             // 生成 CSV 內容
-            for (let i = 0; i < len; i++) {
+            for (let i = 0; i < rawLen; i += step) {
                 const t = timeStream[i];
-                // 若無該項數據顯示為空或0，視情況而定，這裡保留空白較佳以便 AI 辨識缺失值
                 const w = wattsStream[i] !== undefined ? wattsStream[i] : '';
                 const h = hrStream[i] !== undefined ? hrStream[i] : '';
-                md += `${t},${w},${h}\n`;
+                mdLines.push(`${t},${w},${h}`);
             }
+            mdLines.push(`\`\`\``);
         }
-
-        md += `\`\`\`\n`;
 
         if (summary?.summary) {
-            md += `\n\n## Existing AI Summary\n\n${summary.summary}`;
+            mdLines.push(``);
+            mdLines.push(`## Existing AI Summary`);
+            mdLines.push(``);
+            mdLines.push(summary.summary);
         }
 
-        return md;
+        return mdLines.join('\n');
     };
 
     // NOTE: 權限檢查 - 載入中顯示 spinner

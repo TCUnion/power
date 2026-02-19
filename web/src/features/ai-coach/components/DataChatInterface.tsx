@@ -117,11 +117,16 @@ export function DataChatInterface({
 
     return (
         <div className="flex flex-col h-full bg-slate-900/80 backdrop-blur-md rounded-xl border border-white/10 shadow-2xl overflow-hidden ring-1 ring-white/5">
-            <div className="p-3 md:p-4 border-b border-white/10 bg-gradient-to-r from-zinc-900 to-zinc-800/50 rounded-t-xl backdrop-blur">
+            <div className="p-3 md:p-4 border-b border-white/10 bg-gradient-to-r from-zinc-900 to-zinc-800/50 rounded-t-xl backdrop-blur flex justify-between items-center">
                 <h3 className="font-bold text-white flex items-center gap-2 tracking-wide">
                     <Bot className="w-5 h-5 text-primary drop-shadow-[0_0_8px_rgba(249,115,22,0.6)]" />
                     TCU AI 功率教練
                 </h3>
+                {usageStatus && (
+                    <span className="text-xs font-mono text-slate-400 bg-black/20 px-2 py-1 rounded border border-white/5 flex items-center gap-1">
+                        剩餘 <span className="text-primary font-bold">{usageStatus.remaining}</span> 次
+                    </span>
+                )}
             </div>
 
             <div className="flex-1 overflow-y-auto p-3 md:p-4 flex flex-col bg-[#121212]">

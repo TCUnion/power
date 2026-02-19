@@ -60,7 +60,7 @@ export function DailySummaryCard({ summary, metrics, isLoading }: DailySummaryPr
                 <div className="bg-black/20 p-6 md:bg-transparent">
                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                         <div className="w-1 h-3 bg-orange-500 rounded-full"></div>
-                        今日數據概覽
+                        最新5筆資訊
                     </h3>
 
                     <div className="grid grid-cols-2 gap-3 mb-6">
@@ -85,8 +85,8 @@ export function DailySummaryCard({ summary, metrics, isLoading }: DailySummaryPr
                     {metrics?.details && metrics.details.length > 0 && (
                         <div className="space-y-2">
                             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-1">詳細清單</p>
-                            <div className="text-xs text-slate-300 space-y-1.5 px-1 max-h-[200px] overflow-y-auto no-scrollbar">
-                                {metrics.details.map((detail, idx) => (
+                            <div className="text-xs text-slate-300 space-y-1.5 px-1">
+                                {metrics.details.slice(0, 5).map((detail, idx) => (
                                     <div key={idx} className="flex items-start gap-2 py-1 border-b border-white/5 last:border-0">
                                         <ChevronRight className="w-3 h-3 text-orange-500 mt-0.5 shrink-0" />
                                         <span className="leading-tight font-medium md:font-normal">{detail}</span>

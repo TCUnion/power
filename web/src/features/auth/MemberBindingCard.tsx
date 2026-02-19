@@ -23,11 +23,13 @@ import {
 
 
 interface MemberBindingCardProps {
-    onBindingSuccess: () => void;
+    onBindingSuccess?: () => void;
+    variant?: 'default' | 'compact';
 }
 
-const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess }) => {
+const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess, variant = 'default' }) => {
     const { athlete, isBound, memberData: authMemberData, refreshBinding } = useAuth();
+    // ... state declarations ...
     const [tcuId, setTcuId] = useState('');
     const [isSyncing, setIsSyncing] = useState(false);
     const [step, setStep] = useState<'input' | 'otp' | 'success'>('input');
@@ -36,7 +38,6 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
     const [isVerifying, setIsVerifying] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
-    // const [isUnbinding, setIsUnbinding] = useState(false); // Unused for now
 
     // 有權威性的資料優先使用 useAuth 的 memberData
     const memberData = authMemberData || localMemberData;
@@ -50,6 +51,7 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
     }, [isBound, localMemberData]);
 
     const handleSync = async () => {
+        // ... (keep existing logic) ...
         if (!tcuId.trim()) {
             setError('請輸入 TCU-ID 或身份證字號');
             return;
@@ -82,7 +84,7 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
                     setStep('success');
                     window.dispatchEvent(new Event('tcu-binding-success'));
                     setSuccess('已偵測到綁定狀態！');
-                    onBindingSuccess();
+                    if (onBindingSuccess) onBindingSuccess();
                 } else if (result.success) {
                     setStep('otp');
                 } else {
@@ -97,6 +99,7 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
         }
     };
 
+    // ... (keep triggerOtp and handleVerifyOtp) ...
     const triggerOtp = async (email: string, name: string, inputId: string) => {
         try {
             const response = await fetch('https://service.criterium.tw/webhook/member-binding', {
@@ -113,7 +116,6 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
             const text = await response.text();
 
             if (!response.ok) {
-                // 嘗試解析錯誤訊息
                 try {
                     const json = JSON.parse(text);
                     return { success: false, message: json.message || response.statusText };
@@ -122,10 +124,8 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
                 }
             }
 
-            // 成功狀態下處理
             try {
                 if (!text.trim()) {
-                    // 空回應視為成功
                     return { success: true };
                 }
                 return JSON.parse(text);
@@ -150,7 +150,6 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
         setError(null);
 
         try {
-            // 驗證 OTP (仍從 tcu_members 檢查)
             if (!memberData?.email) {
                 setError('會員資料缺失，請重新輸入 TCU-ID。');
                 return;
@@ -168,10 +167,8 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
             if (!data) {
                 setError('驗證碼錯誤或已過期。');
             } else {
-                // 取得當前 Supabase Auth User ID (若有的話)
                 const { data: { user } } = await supabase.auth.getUser();
 
-                // 呼叫 confirm-binding API 寫入 strava_member_bindings 表格
                 const response = await apiFetch('/api/auth/confirm-binding', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -180,7 +177,7 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
                         stravaId: athlete.id,
                         tcu_account: data.account || tcuId,
                         member_name: data.real_name,
-                        user_id: user?.id // 傳遞 Auth ID 建立綁定
+                        user_id: user?.id
                     })
                 });
 
@@ -190,7 +187,6 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
                     throw new Error(result.message || '綁定確認失敗');
                 }
 
-                // 清除 OTP (可選，保持 tcu_members 乾淨)
                 await supabase
                     .from('tcu_members')
                     .update({ otp_code: null, otp_expires_at: null })
@@ -198,12 +194,11 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
 
                 setStep('success');
                 setSuccess('綁定成功！');
-                setLocalMemberData(result.member_data || data); // 使用回傳的最新資料
+                setLocalMemberData(result.member_data || data);
 
-                // 主動觸發全局狀態刷新
                 if (refreshBinding) refreshBinding();
                 window.dispatchEvent(new Event('tcu-binding-success'));
-                // onBindingSuccess(); // 移除自動跳轉，改由按鈕觸發
+                if (onBindingSuccess) onBindingSuccess();
             }
         } catch (err: unknown) {
             console.error('驗證錯誤:', err);
@@ -213,12 +208,13 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
         }
     };
 
+
     if ((isBound || step === 'success') && memberData) {
+        // ... (keep success view) ...
         return (
             <div className="bg-card border border-border rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden group">
                 <div className="absolute -top-10 -right-10 w-40 h-40 bg-primary/5 rounded-full blur-3xl"></div>
                 <div className="relative z-10 flex flex-col gap-8">
-
                     {/* Header Section */}
                     <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-border pb-6">
                         <div className="flex items-center gap-4">
@@ -241,7 +237,6 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
                     </div>
 
                     <div className="space-y-6">
-
                         {/* Section 1: Basic Info */}
                         <div>
                             <h4 className="text-xs font-black text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
@@ -264,8 +259,6 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
                                 </div>
                             </div>
                         </div>
-
-
 
                         {/* Section 3: Profile & Skills */}
                         {(memberData?.self_introduction || memberData?.skills) && (
@@ -308,7 +301,6 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
                                 </div>
                             </div>
                         )}
-
                     </div>
 
                     {/* Footer Info: Profile Edit & Update Time */}
@@ -330,9 +322,53 @@ const MemberBindingCard: React.FC<MemberBindingCardProps> = ({ onBindingSuccess 
                             <span>每日會員資料更新時間 08:00</span>
                         </div>
                     </div>
-
-
                 </div>
+            </div>
+        );
+    }
+
+    if (variant === 'compact') {
+        return (
+            <div className="flex flex-col gap-2 w-full max-w-sm">
+                {step === 'input' ? (
+                    <div className="flex gap-2">
+                        <input
+                            type="text"
+                            value={tcuId}
+                            onChange={(e) => setTcuId(e.target.value)}
+                            placeholder="輸入 TCU-ID 或身分證號"
+                            className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:border-primary"
+                        />
+                        <button
+                            onClick={handleSync}
+                            disabled={isSyncing || !tcuId}
+                            className="bg-primary text-primary-foreground px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap disabled:opacity-50"
+                        >
+                            {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : '驗證綁定'}
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex gap-2 items-center">
+                        <input
+                            type="text"
+                            maxLength={6}
+                            value={otp}
+                            onChange={(e) => setOtp(e.target.value)}
+                            placeholder="驗證碼 (6碼)"
+                            className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm font-mono text-center tracking-widest focus:outline-none focus:border-primary"
+                        />
+                        <button onClick={() => setStep('input')} className="text-xs text-muted-foreground hover:text-foreground px-2">返回</button>
+                        <button
+                            onClick={handleVerifyOtp}
+                            disabled={isVerifying || otp.length < 6}
+                            className="bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap disabled:opacity-50"
+                        >
+                            {isVerifying ? <Loader2 className="w-4 h-4 animate-spin" /> : '確認'}
+                        </button>
+                    </div>
+                )}
+                {error && <p className="text-xs text-red-500 font-bold">{error}</p>}
+                {success && <p className="text-xs text-emerald-500 font-bold">{success}</p>}
             </div>
         );
     }

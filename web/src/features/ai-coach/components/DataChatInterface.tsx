@@ -64,13 +64,46 @@ export function DataChatInterface({
     const [isSending, setIsSending] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    // NOTE: 自動捲動至最下方
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    };
+    // NOTE: Scroll logic references
+    const prevMessagesLengthRef = useRef(0);
 
     useEffect(() => {
-        scrollToBottom();
+        const length = messages.length;
+        const prevLength = prevMessagesLengthRef.current;
+        prevMessagesLengthRef.current = length;
+
+        // 1. If sending, scroll to bottom to show loading indicator
+        if (isSending) {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            return;
+        }
+
+        if (length === 0) return;
+
+        const lastMessage = messages[length - 1];
+
+        // 2. If multiple messages added (history load) or just one user message, scroll to bottom
+        if (length - prevLength > 1 || lastMessage.role === 'user') {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            return;
+        }
+
+        // 3. If single assistant message added, scroll to the user question (context)
+        if (lastMessage.role === 'assistant') {
+            const questionIndex = length - 2;
+            if (questionIndex >= 0) {
+                const questionMsg = messages[questionIndex];
+                const element = document.getElementById(`msg-${questionMsg.id}`);
+                if (element) {
+                    setTimeout(() => {
+                        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 100);
+                    return;
+                }
+            }
+            // Fallback
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
     }, [messages, isSending]);
 
     const handleSend = async () => {
@@ -134,6 +167,7 @@ export function DataChatInterface({
                     {messages.map((msg) => (
                         <div
                             key={msg.id}
+                            id={`msg-${msg.id}`}
                             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                         >
                             <div className={`

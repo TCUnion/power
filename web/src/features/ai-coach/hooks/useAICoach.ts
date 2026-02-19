@@ -167,6 +167,20 @@ export function useAICoach() {
         }
     }, []);
 
+    // NOTE: 取得原始活動數據 (供複製)
+    const getRawActivities = useCallback(async (userId: string, limit: number = 5) => {
+        try {
+            const response = await apiFetch(`/api/ai/raw-activities/${userId}?limit=${limit}`);
+            if (response.ok) {
+                return await response.json();
+            }
+            return [];
+        } catch (err) {
+            console.error("Failed to get raw activities:", err);
+            return [];
+        }
+    }, []);
+
     return {
         loading,
         error,
@@ -177,6 +191,7 @@ export function useAICoach() {
         checkUsageStatus,
         generateDailySummary,
         sendChatMessage,
-        getChatHistory
+        getChatHistory,
+        getRawActivities
     };
 }

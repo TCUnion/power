@@ -371,3 +371,43 @@ class AICoachService:
         except Exception as e:
             print(f"Error fetching chat history for {user_id}: {e}")
             return []
+
+    async def get_latest_activity_streams(self, user_id: str) -> Dict[str, Any]:
+        """
+        獲取最新一筆活動的完整 Stream 數據 (用於 AI 深度分析)
+        1. 查詢最新活動 ID
+        2. 查詢 strava_streams 表
+        """
+        try:
+            athlete_id = int(user_id)
+            
+            # 1. Get Latest Activity Metadata
+            act_res = self.supabase.table("strava_activities") \
+                .select("*") \
+                .eq("athlete_id", athlete_id) \
+                .order("start_date_local", desc=True) \
+                .limit(1) \
+                .execute()
+                
+            if not act_res.data:
+                return {}
+                
+            activity = act_res.data[0]
+            activity_id = activity.get("id")
+            
+            # 2. Get Streams
+            stream_res = self.supabase.table("strava_streams") \
+                .select("streams") \
+                .eq("activity_id", activity_id) \
+                .execute()
+                
+            streams = stream_res.data[0]['streams'] if stream_res.data else []
+            
+            return {
+                "activity": activity,
+                "streams": streams
+            }
+            
+        except Exception as e:
+            print(f"Error fetching activity streams for {user_id}: {e}")
+            return {}

@@ -21,7 +21,8 @@ export function AICoachPage() {
         checkUsageStatus,
         getChatHistory,
         chatHistory,
-        isLoadingHistory
+        isLoadingHistory,
+        getRawActivities
     } = useAICoach();
 
 
@@ -41,6 +42,62 @@ export function AICoachPage() {
         if (athlete?.id) {
             generateDailySummary(athlete.id.toString(), format(selectedDate, 'yyyy-MM-dd'));
         }
+    };
+
+    const handleCopyRaw = async () => {
+        if (!athlete?.id) return '';
+        const data = await getRawActivities(athlete.id.toString(), 1);
+
+        // 檢查回傳資料結構
+        if (!data || !data.activity) {
+            return `## Strava Recent Activity Data\n\nNo activity data found.`;
+        }
+
+        const act = data.activity;
+        const streams = data.streams || [];
+
+        let md = `## Strava Activity Data (Raw)\n\n`;
+        md += `### Metadata\n`;
+        md += `- **Name**: ${act.name}\n`;
+        md += `- **Date**: ${format(new Date(act.start_date_local), 'yyyy-MM-dd HH:mm')}\n`;
+        md += `- **Distance**: ${(act.distance / 1000).toFixed(2)} km\n`;
+        md += `- **Time**: ${(act.moving_time / 60).toFixed(0)} min\n`;
+        md += `- **Elev**: ${act.total_elevation_gain} m\n`;
+        md += `- **Avg/NP Power**: ${act.average_watts?.toFixed(0)}W / ${act.weighted_average_watts?.toFixed(0)}W\n`;
+        md += `- **Avg HR**: ${act.average_heartrate?.toFixed(0)} bpm\n\n`;
+
+        md += `### Stream Data (Time, Watts, HeartRate)\n`;
+        md += `Format: Time(sec), Power(w), HeartRate(bpm)\n\n`;
+        md += `\`\`\`csv\n`;
+
+        // 提取並對齊數據
+        const timeStream = streams.find((s: any) => s.type === 'time')?.data || [];
+        const wattsStream = streams.find((s: any) => s.type === 'watts')?.data || [];
+        const hrStream = streams.find((s: any) => s.type === 'heartrate')?.data || [];
+
+        // 取最小長度以避免越界，通常這三個 stream 長度應一致
+        const len = Math.min(timeStream.length, wattsStream.length || timeStream.length, hrStream.length || timeStream.length);
+
+        if (len === 0) {
+            md += "No stream data available.\n";
+        } else {
+            // 生成 CSV 內容
+            for (let i = 0; i < len; i++) {
+                const t = timeStream[i];
+                // 若無該項數據顯示為空或0，視情況而定，這裡保留空白較佳以便 AI 辨識缺失值
+                const w = wattsStream[i] !== undefined ? wattsStream[i] : '';
+                const h = hrStream[i] !== undefined ? hrStream[i] : '';
+                md += `${t},${w},${h}\n`;
+            }
+        }
+
+        md += `\`\`\`\n`;
+
+        if (summary?.summary) {
+            md += `\n\n## Existing AI Summary\n\n${summary.summary}`;
+        }
+
+        return md;
     };
 
     // NOTE: 權限檢查 - 載入中顯示 spinner
@@ -128,6 +185,7 @@ export function AICoachPage() {
                             summary={summary?.summary || ''}
                             metrics={summary?.metrics || { total_time_min: 0, total_distance_km: 0, activities_count: 0, details: [] }}
                             isLoading={loading}
+                            onCopyRaw={handleCopyRaw}
                         />
                     ) : (
                         <div className="bg-slate-900/30 backdrop-blur rounded-xl p-12 text-center border border-dashed border-white/10">

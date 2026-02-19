@@ -1,5 +1,6 @@
-import { MessageSquare, Calendar, ChevronRight, Loader2 } from 'lucide-react';
+import { MessageSquare, Calendar, ChevronRight, Loader2, Copy, Check, Bot } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { useState } from 'react';
 
 interface DailySummaryMetrics {
     total_time_min: number;
@@ -12,11 +13,34 @@ interface DailySummaryProps {
     summary: string;
     metrics: DailySummaryMetrics;
     isLoading?: boolean;
+    onCopyRaw?: () => Promise<string>;
 }
 
 import { highlightKeywords } from '../../../utils/textHighlighting';
 
-export function DailySummaryCard({ summary, metrics, isLoading }: DailySummaryProps) {
+export function DailySummaryCard({ summary, metrics, isLoading, onCopyRaw }: DailySummaryProps) {
+    const [isCopied, setIsCopied] = useState(false);
+    const [isCopying, setIsCopying] = useState(false);
+
+    const handleCopy = async () => {
+        if (isCopying) return;
+        setIsCopying(true);
+        try {
+            let content = summary;
+            if (onCopyRaw) {
+                const rawData = await onCopyRaw();
+                if (rawData) content = rawData;
+            }
+            await navigator.clipboard.writeText(content);
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000);
+        } catch (err) {
+            console.error('Failed to copy text:', err);
+        } finally {
+            setIsCopying(false);
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="bg-slate-900 rounded-lg shadow-lg p-8 flex flex-col items-center justify-center min-h-[300px] border border-white/10 md:bg-slate-900/50 md:backdrop-blur-xl">
@@ -32,12 +56,52 @@ export function DailySummaryCard({ summary, metrics, isLoading }: DailySummaryPr
         <div className="bg-slate-900 md:bg-slate-900/50 md:backdrop-blur-xl rounded-xl shadow-2xl overflow-hidden border border-white/10 ring-1 ring-white/5">
             <div className="flex flex-col md:grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-white/10">
                 {/* Left Side: Summary Content */}
-                <div className="p-6 bg-gradient-to-b from-white/5 to-transparent">
+                <div className="p-6 bg-gradient-to-b from-white/5 to-transparent relative">
                     <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-lg font-bold text-slate-50 flex items-center gap-2 tracking-wide">
-                            <MessageSquare className="w-5 h-5 text-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.5)]" />
-                            AI 教練日誌
-                        </h2>
+                        <div className="flex items-center gap-3">
+                            <h2 className="text-lg font-bold text-slate-50 flex items-center gap-2 tracking-wide">
+                                <MessageSquare className="w-5 h-5 text-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.5)]" />
+                                AI 教練日誌
+                            </h2>
+                            <div className="relative group">
+                                <button
+                                    onClick={handleCopy}
+                                    disabled={isCopying}
+                                    className={`
+                                        flex items-center gap-2 px-3 py-1.5 rounded-full 
+                                        text-xs font-medium transition-all duration-300
+                                        border 
+                                        ${isCopied
+                                            ? "bg-green-500/20 text-green-400 border-green-500/30"
+                                            : "bg-indigo-500/10 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/20 hover:text-indigo-200 hover:border-indigo-500/50 hover:shadow-[0_0_10px_rgba(99,102,241,0.3)]"
+                                        }
+                                        ${isCopying ? "opacity-70 cursor-wait" : ""}
+                                    `}
+                                >
+                                    {isCopying ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    ) : isCopied ? (
+                                        <Check className="w-3.5 h-3.5" />
+                                    ) : (
+                                        <Bot className="w-3.5 h-3.5" />
+                                    )}
+
+                                    <span>{isCopied ? "已複製" : "複製給 AI 分析"}</span>
+                                </button>
+
+                                {/* Tooltip */}
+                                {!isCopied && !isCopying && (
+                                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-max max-w-[200px] 
+                                                    bg-slate-900/90 backdrop-blur border border-white/10 rounded-lg p-2 
+                                                    opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-xl">
+                                        <p className="text-[10px] text-slate-300 text-center leading-tight">
+                                            複製包含心率與功率的原始數據<br />可直接貼給 ChatGPT/Gemini 進行分析
+                                        </p>
+                                        <div className="absolute left-1/2 -translate-x-1/2 top-full -mt-1 border-4 border-transparent border-t-slate-900/90"></div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                         <span className="text-xs text-slate-400 flex items-center gap-1 font-mono">
                             <Calendar className="w-3.5 h-3.5" />
                             Today

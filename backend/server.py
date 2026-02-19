@@ -224,7 +224,18 @@ async def confirm_binding(req: ConfirmBindingRequest):
         logger.error(f"Error in confirm_binding: {str(e)}")
         return {"success": False, "message": f"綁定過程發生錯誤: {str(e)}"}
 
+# Include routers
+logger.info("Including AI and Settings routers...")
+from routers import ai, settings
+app.include_router(ai.router)
+app.include_router(settings.router)
+
 if __name__ == "__main__":
     import uvicorn
+    # List all routes for debugging
+    for route in app.routes:
+        if hasattr(route, "path"):
+            logger.info(f"Registered route: {route.path}")
+            
     port = int(os.environ.get("PORT") or 8000)
     uvicorn.run(app, host="0.0.0.0", port=port)

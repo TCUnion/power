@@ -115,10 +115,10 @@ class AICoachService:
         
         binding = self.supabase.table("strava_member_bindings").select("strava_id, tcu_account").eq("strava_id", strava_id).execute()
         
-        if not binding.data:
-            return {"error": "User not bound to Strava (No binding found for Strava ID)"}
+        tcu_account = None
+        if binding.data:
+            tcu_account = binding.data[0].get('tcu_account')
         
-        tcu_account = binding.data[0].get('tcu_account')
         athlete_id = int(strava_id)
 
         # 2. 檢查會員等級
@@ -254,11 +254,12 @@ class AICoachService:
         
         binding = self.supabase.table("strava_member_bindings").select("strava_id, tcu_account, member_name").eq("strava_id", strava_id).execute()
         
-        if not binding.data:
-            return {"error": "User not bound to Strava"}
-        
-        tcu_account = binding.data[0].get('tcu_account')
-        member_name = binding.data[0].get('member_name', '')
+        tcu_account = None
+        member_name = ""
+        if binding.data:
+            tcu_account = binding.data[0].get('tcu_account')
+            member_name = binding.data[0].get('member_name', '')
+            
         athlete_id = int(strava_id)
 
         # 2. 檢查會員等級

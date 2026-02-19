@@ -30,12 +30,12 @@ export function AICoachPage() {
 
     // Auto-generate on load & check usage
     useEffect(() => {
-        if (athlete?.id && isBound) {
+        if (athlete?.id) {
             generateDailySummary(athlete.id.toString(), format(selectedDate, 'yyyy-MM-dd'));
             checkUsageStatus(athlete.id.toString());
             getChatHistory(athlete.id.toString(), 5);
         }
-    }, [athlete?.id, isBound, selectedDate, generateDailySummary, checkUsageStatus, getChatHistory]);
+    }, [athlete?.id, selectedDate, generateDailySummary, checkUsageStatus, getChatHistory]);
 
     const handleGenerate = () => {
         if (athlete?.id) {
@@ -52,23 +52,8 @@ export function AICoachPage() {
         );
     }
 
-    // NOTE: 權限檢查 - 未綁定會員顯示綁定卡片
-    if (!isBound) {
-        return (
-            <div className="container mx-auto px-4 py-8 max-w-6xl flex items-center justify-center min-h-[400px]">
-                <div className="max-w-md w-full space-y-6 text-center">
-                    <div className="p-6 bg-card rounded-2xl border border-border shadow-xl">
-                        <Sparkles className="w-12 h-12 text-primary mx-auto mb-4 opacity-50" />
-                        <h2 className="text-xl font-bold text-foreground mb-2">需要會員綁定</h2>
-                        <p className="text-muted-foreground text-sm mb-6">
-                            「AI 功率教練」功能僅限已綁定 TCU 會員的用戶使用。請先完成 Strava 帳號與會員資料的綁定。
-                        </p>
-                        <MemberBindingCard onBindingSuccess={() => { }} />
-                    </div>
-                </div>
-            </div>
-        );
-    }
+    // NOTE: 權限檢查 - 未綁定會員顯示綁定卡片 -> 改為顯示上方 Banner
+    // if (!isBound) { ... } // Removed blocking check
 
     return (
         <div className="container mx-auto px-4 py-8 max-w-[1600px] bg-background min-h-screen">
@@ -81,6 +66,24 @@ export function AICoachPage() {
                     透過 AI 分析你的騎乘數據，提供個人化建議與洞察。
                 </p>
             </header>
+
+            {/* Guest Mode Banner */}
+            {!isBound && (
+                <div className="mb-8 p-4 bg-orange-500/10 border border-orange-500/20 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-orange-500/20 p-2 rounded-full">
+                            <Sparkles className="w-5 h-5 text-orange-500" />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-orange-500">訪客體驗模式</h3>
+                            <p className="text-sm text-muted-foreground">您目前尚未綁定 TCU 會員，僅能查看今日分析數據。綁定後可解鎖完整歷史紀錄與更多 AI 額度。</p>
+                            <p className="text-sm text-muted-foreground mt-1">綁定會員後，每次活動均會寄送活動總結到 TCU 綁定的 Email 信箱，供您參考今日活動報告。</p>
+                        </div>
+                    </div>
+                    <MemberBindingCard variant="compact" />
+                </div>
+            )}
+
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 items-start">
                 {/* Top Section: Daily Summary - Full width on desktop to support 2-column card internal layout */}

@@ -225,7 +225,29 @@ async def confirm_binding(req: ConfirmBindingRequest):
         logger.error(f"Error in confirm_binding: {str(e)}")
         return {"success": False, "message": f"綁定過程發生錯誤: {str(e)}"}
 
+# Include Backend Routers
+import sys
+# Add backend directory to path so imports work
+backend_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend")
+if backend_path not in sys.path:
+    sys.path.append(backend_path)
+
+try:
+    from routers import ai, settings
+    app.include_router(ai.router)
+    app.include_router(settings.router)
+    logger.info("Successfully included AI and Settings routers")
+except ImportError as e:
+    logger.error(f"Failed to import routers: {e}")
+except Exception as e:
+    logger.error(f"Failed to include routers: {e}")
+
 if __name__ == "__main__":
     import uvicorn
+    # List all routes for debugging
+    for route in app.routes:
+        if hasattr(route, "path"):
+            logger.info(f"Registered route: {route.path}")
+
     port = int(os.environ.get("PORT") or 8000)
     uvicorn.run(app, host="0.0.0.0", port=port)

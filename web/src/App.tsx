@@ -16,6 +16,7 @@ import LandingPage from './features/landing-page/LandingPage';
 const SegmentCompare = React.lazy(() => import('./features/segment-compare/SegmentCompare'));
 
 import { TopNav, BottomNav, SidebarNav } from './components/layout/AdaptiveNavigation';
+import GoogleAnalyticsTracker from './components/GoogleAnalyticsTracker';
 
 // ... imports
 
@@ -24,6 +25,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
 
   // 1. Loading State - 避免在資料載入完成前錯誤重定向
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -183,6 +185,7 @@ const HomePage: React.FC = () => {
 const App: React.FC = () => {
   return (
     <Router>
+      <GoogleAnalyticsTracker />
       <Layout>
         <Routes>
           <Route path="/" element={<HomePage />} />

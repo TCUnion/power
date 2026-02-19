@@ -54,3 +54,10 @@ def get_usage(user_id: str, service: AICoachService = Depends(get_ai_service)):
 @router.get("/history/{user_id}")
 async def get_chat_history(user_id: str, limit: int = 5, service: AICoachService = Depends(get_ai_service)):
     return await service.get_chat_history(user_id, limit)
+
+@router.get("/raw-activities/{user_id}")
+async def get_raw_activities(user_id: str, limit: int = 1, service: AICoachService = Depends(get_ai_service)):
+    """
+    獲取最新活動的完整 Stream 數據 (strava_streams)
+    """
+    return await service.get_latest_activity_streams(user_id)

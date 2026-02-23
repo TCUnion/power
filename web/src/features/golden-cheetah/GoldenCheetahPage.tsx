@@ -137,6 +137,12 @@ export const GoldenCheetahPage = () => {
     const [calculatedCP, setCalculatedCP] = useState(250);
     const [calculatedWPrime, setCalculatedWPrime] = useState(20000);
 
+    // Manual Override State
+    const [autoCalculatedCP, setAutoCalculatedCP] = useState(250);
+    const [autoCalculatedWPrime, setAutoCalculatedWPrime] = useState(20000);
+    const [isManualCP, setIsManualCP] = useState(false);
+    const [isManualWPrime, setIsManualWPrime] = useState(false);
+
     // 圖表資料系列可見性切換
     const [chartVisibility, setChartVisibility] = useState({
         power: true,
@@ -447,8 +453,10 @@ export const GoldenCheetahPage = () => {
                 const mmp = calculateMMP(powerArrays);
                 const model = fitMorton3P(mmp);
                 if (model) {
-                    setCalculatedCP(model.cp);
-                    setCalculatedWPrime(model.wPrime);
+                    if (!isManualCP) setCalculatedCP(model.cp);
+                    if (!isManualWPrime) setCalculatedWPrime(model.wPrime);
+                    setAutoCalculatedCP(model.cp);
+                    setAutoCalculatedWPrime(model.wPrime);
                 }
             }
 
@@ -461,7 +469,7 @@ export const GoldenCheetahPage = () => {
         } finally {
             setLoading(false);
         }
-    }, [athlete?.id, updateLocalActivityStreams]);
+    }, [athlete?.id, updateLocalActivityStreams, isManualCP, isManualWPrime]);
 
     useEffect(() => {
         loadData();
@@ -1074,10 +1082,46 @@ export const GoldenCheetahPage = () => {
                     {/* 3. Gauges Row */}
                     <div className="md:col-span-12 grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="bg-white dark:bg-slate-800 rounded-xl p-3 shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center">
-                            <GaugeChart value={calculatedCP} min={100} max={400} label="CP Estimate" unit="watts" color="#EAB308" subLabel={`${(calculatedCP / athleteWeight).toFixed(1)} W/kg`} />
+                            <GaugeChart
+                                value={calculatedCP}
+                                min={100}
+                                max={400}
+                                label="CP Estimate"
+                                unit="watts"
+                                color="#EAB308"
+                                subLabel={`${(calculatedCP / athleteWeight).toFixed(1)} W/kg`}
+                                editable={true}
+                                isManualOverride={isManualCP}
+                                onSave={(newVal) => {
+                                    setCalculatedCP(newVal);
+                                    setIsManualCP(true);
+                                }}
+                                onResetAuto={() => {
+                                    setCalculatedCP(autoCalculatedCP);
+                                    setIsManualCP(false);
+                                }}
+                            />
                         </div>
                         <div className="bg-white dark:bg-slate-800 rounded-xl p-3 shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center">
-                            <GaugeChart value={calculatedWPrime / 1000} min={5} max={45} label="W' Estimate" unit="kJ" color="#A855F7" decimals={1} />
+                            <GaugeChart
+                                value={calculatedWPrime / 1000}
+                                min={5}
+                                max={45}
+                                label="W' Estimate"
+                                unit="kJ"
+                                color="#A855F7"
+                                decimals={1}
+                                editable={true}
+                                isManualOverride={isManualWPrime}
+                                onSave={(newVal) => {
+                                    setCalculatedWPrime(newVal * 1000); // 轉換 kJ -> J
+                                    setIsManualWPrime(true);
+                                }}
+                                onResetAuto={() => {
+                                    setCalculatedWPrime(autoCalculatedWPrime);
+                                    setIsManualWPrime(false);
+                                }}
+                            />
                         </div>
                         <div className="bg-white dark:bg-slate-800 rounded-xl p-3 shadow-sm border border-slate-200 dark:border-slate-700 flex items-center justify-center">
                             <GaugeChart value={athleteWeight} min={50} max={120} label="Weight" unit="kg" color="#3B82F6" decimals={1} />

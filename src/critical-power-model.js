@@ -15,6 +15,11 @@ const CTL_TIME_CONSTANT = 42;  // 慢性訓練負荷時間常數
 const ATL_TIME_CONSTANT = 7;   // 急性訓練負荷時間常數
 const NP_WINDOW_SIZE = 30;     // NP 計算窗口大小
 
+// 安全性常數定義 (防禦性編程)
+const MAX_DATA_POINTS = 86400; // 單一活動最大數據點數量限制 (24小時 at 1Hz)
+const MAX_ACTIVITIES = 1000;   // 最大活動分析數量限制
+const MAX_CURVE_POINTS = 200;  // 功率曲線最大點數量限制
+
 // MMP 採樣時間點 (用於 Power-Duration Curve)
 const MMP_DURATIONS = [1, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 300, 360, 480, 600, 720, 900, 1200, 1800, 2400, 3600, 5400, 7200];
 
@@ -22,8 +27,13 @@ const MMP_DURATIONS = [1, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 300, 360
 // 1. Normalized Power (NP) - 標準算法
 // ============================================
 function calculateNormalizedPower(powerData, windowSize = NP_WINDOW_SIZE) {
-    if (!powerData || powerData.length < windowSize) {
-        const sum = powerData.reduce((a, b) => a + b, 0);
+    if (!Array.isArray(powerData)) return 0;
+    if (powerData.length > MAX_DATA_POINTS) {
+        throw new Error(`Data length exceeds maximum allowed limit of ${MAX_DATA_POINTS}`);
+    }
+
+    if (powerData.length < windowSize) {
+        const sum = powerData.reduce((a, b) => a + Number(b || 0), 0);
         return Math.round(sum / powerData.length) || 0;
     }
 
@@ -31,7 +41,7 @@ function calculateNormalizedPower(powerData, windowSize = NP_WINDOW_SIZE) {
     const correctedWindowSize = Math.min(windowSize, powerData.length);
 
     for (let i = correctedWindowSize - 1; i < powerData.length; i++) {
-        const windowSum = powerData.slice(i - correctedWindowSize + 1, i + 1).reduce((a, b) => a + b, 0);
+        const windowSum = powerData.slice(i - correctedWindowSize + 1, i + 1).reduce((a, b) => a + Number(b || 0), 0);
         rollingAveragePower.push(windowSum / correctedWindowSize);
     }
 
@@ -61,20 +71,27 @@ function calculateTSB(ctl, atl) {
 // 3. Mean Maximal Power (MMP) 曲線計算
 // ============================================
 function calculateMMP(powerData, duration) {
-    if (!powerData || powerData.length < duration) return 0;
+    if (!Array.isArray(powerData)) return 0;
+    if (powerData.length > MAX_DATA_POINTS) {
+        throw new Error(`Data length exceeds maximum allowed limit of ${MAX_DATA_POINTS}`);
+    }
+
+    duration = Number(duration);
+    if (isNaN(duration) || duration <= 0) return 0;
+    if (powerData.length < duration) return 0;
 
     let maxAvg = 0;
     let windowSum = 0;
 
     // 初始化窗口
     for (let i = 0; i < duration; i++) {
-        windowSum += powerData[i];
+        windowSum += Number(powerData[i] || 0);
     }
     maxAvg = windowSum / duration;
 
     // 滑動窗口
     for (let i = duration; i < powerData.length; i++) {
-        windowSum = windowSum - powerData[i - duration] + powerData[i];
+        windowSum = windowSum - Number(powerData[i - duration] || 0) + Number(powerData[i] || 0);
         const avg = windowSum / duration;
         if (avg > maxAvg) maxAvg = avg;
     }
@@ -83,6 +100,11 @@ function calculateMMP(powerData, duration) {
 }
 
 function calculateFullMMP(powerData) {
+    if (!Array.isArray(powerData)) return {};
+    if (powerData.length > MAX_DATA_POINTS) {
+        throw new Error(`Data length exceeds maximum allowed limit of ${MAX_DATA_POINTS}`);
+    }
+
     const mmpCurve = {};
     for (const duration of MMP_DURATIONS) {
         if (duration <= powerData.length) {
@@ -107,12 +129,18 @@ function fitMorton3P(pdCurve) {
      * 
      * 使用 Levenberg-Marquardt 簡化版進行非線性擬合
      */
-    if (!pdCurve || pdCurve.length < 3) {
+    if (!Array.isArray(pdCurve) || pdCurve.length < 3) {
         return { cp: 0, wPrime: 0, tau: 20, pMax: 0, r2: 0 };
     }
+    if (pdCurve.length > MAX_CURVE_POINTS) {
+        throw new Error(`Curve data length exceeds maximum allowed limit of ${MAX_CURVE_POINTS}`);
+    }
 
-    // 過濾有效數據點 (功率 > 0 且時間 > τ 初始值)
-    const validPoints = pdCurve.filter(p => p.power > 0 && p.duration > 5);
+    // 過濾有效數據點 (功率 > 0 且時間 > τ 初始值) 並確保為數字
+    const validPoints = pdCurve
+        .map(p => ({ power: Number(p.power), duration: Number(p.duration) }))
+        .filter(p => !isNaN(p.power) && !isNaN(p.duration) && p.power > 0 && p.duration > 5);
+
     if (validPoints.length < 3) {
         return { cp: 0, wPrime: 0, tau: 20, pMax: 0, r2: 0 };
     }
@@ -181,6 +209,16 @@ function fitMorton3P(pdCurve) {
 // 5. AI FTP 預測補償模型 - 特徵工程
 // ============================================
 function extractFTPPredictionFeatures(activities, currentFTP = 200, maxHR = 185) {
+    if (!Array.isArray(activities)) throw new Error('Activities must be an array');
+    if (activities.length > MAX_ACTIVITIES) {
+        throw new Error(`Number of activities exceeds maximum limit of ${MAX_ACTIVITIES}`);
+    }
+
+    currentFTP = Number(currentFTP);
+    if (isNaN(currentFTP) || currentFTP <= 0 || currentFTP > 1000) currentFTP = 200;
+
+    maxHR = Number(maxHR);
+    if (isNaN(maxHR) || maxHR <= 0 || maxHR > 300) maxHR = 185;
     /**
      * 為 AI 模型準備特徵，解決「使用者最近沒測過全力」的問題
      * 
@@ -342,13 +380,35 @@ function extractFTPPredictionFeatures(activities, currentFTP = 200, maxHR = 185)
 function extractPowerData(streams) {
     if (!streams || !Array.isArray(streams)) return [];
     const wattsStream = streams.find(s => s.type === 'watts');
-    return wattsStream?.data || [];
+    let data = wattsStream?.data || [];
+    if (!Array.isArray(data)) return [];
+
+    // 預防性截斷以避免記憶體溢出
+    if (data.length > MAX_DATA_POINTS) {
+        data = data.slice(0, MAX_DATA_POINTS);
+    }
+
+    // 將所有元素轉為安全的數字
+    return data.map(val => {
+        const n = Number(val);
+        return (!isNaN(n) && n >= 0 && n <= 5000) ? n : 0;
+    });
 }
 
 function extractHRData(streams) {
     if (!streams || !Array.isArray(streams)) return [];
     const hrStream = streams.find(s => s.type === 'heartrate');
-    return hrStream?.data || [];
+    let data = hrStream?.data || [];
+    if (!Array.isArray(data)) return [];
+
+    if (data.length > MAX_DATA_POINTS) {
+        data = data.slice(0, MAX_DATA_POINTS);
+    }
+
+    return data.map(val => {
+        const n = Number(val);
+        return (!isNaN(n) && n >= 0 && n <= 300) ? n : 0;
+    });
 }
 
 function calculateTSS(np, ftp, durationSeconds) {
@@ -383,16 +443,27 @@ module.exports = {
 // n8n 直接執行入口
 // ============================================
 if (typeof $input !== 'undefined') {
-    const items = $input.all();
-    const first = items[0]?.json || {};
-    const currentFTP = first.athlete_ftp || 200;
-    const maxHR = first.athlete_max_hr || 185;
+    try {
+        const items = $input.all();
+        if (!Array.isArray(items) || items.length === 0) {
+            return [{ json: { error: 'No input items provided' } }];
+        }
+        if (items.length > MAX_ACTIVITIES) {
+            return [{ json: { error: `Too many input items. Limit is ${MAX_ACTIVITIES}` } }];
+        }
 
-    // 提取所有活動
-    const activities = items.map(item => item.json);
+        const first = items[0]?.json || {};
+        const currentFTP = Number(first.athlete_ftp) || 200;
+        const maxHR = Number(first.athlete_max_hr) || 185;
 
-    // 執行完整分析
-    const analysisResult = extractFTPPredictionFeatures(activities, currentFTP, maxHR);
+        // 提取所有活動
+        const activities = items.map(item => item.json || {});
 
-    return [{ json: analysisResult }];
+        // 執行完整分析
+        const analysisResult = extractFTPPredictionFeatures(activities, currentFTP, maxHR);
+
+        return [{ json: analysisResult }];
+    } catch (error) {
+        return [{ json: { error: error.message } }];
+    }
 }

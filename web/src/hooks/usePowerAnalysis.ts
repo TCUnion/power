@@ -81,6 +81,8 @@ interface UsePowerAnalysisReturn {
     analyzeActivityPowerDistributionViaDB: (activityId: number, ftp: number) => Promise<PowerZoneAnalysis[] | null>;
     /** 檢查活動是否有數據流 */
     checkStreamsAvailability: (activityIds: number[]) => Promise<number[]>;
+    /** 更新選手的 FTP 歷史紀錄 */
+    updateFTPHistory: (athleteId: number, newFtp: number, effectiveDate: string) => Promise<boolean>;
 }
 
 export function usePowerAnalysis(): UsePowerAnalysisReturn {
@@ -130,6 +132,36 @@ export function usePowerAnalysis(): UsePowerAnalysisReturn {
         } catch (err) {
             console.error('checkStreamsAvailability 異常:', err);
             return [];
+        }
+    }, []);
+
+    /** 更新歷史活動的 FTP 數值 */
+    const updateFTPHistory = useCallback(async (
+        athleteId: number,
+        newFtp: number,
+        effectiveDate: string
+    ): Promise<boolean> => {
+        setLoading(true);
+        setError(null);
+        try {
+            const { error } = await supabase.rpc('update_athlete_ftp_history', {
+                p_athlete_id: athleteId,
+                p_new_ftp: newFtp,
+                p_effective_date: effectiveDate,
+            });
+
+            if (error) {
+                console.error('更新 FTP 歷史失敗:', error);
+                setError(error.message);
+                return false;
+            }
+            return true;
+        } catch (err: any) {
+            console.error('updateFTPHistory 異常:', err);
+            setError(err.message || '更新 FTP 歷史發生錯誤');
+            return false;
+        } finally {
+            setLoading(false);
         }
     }, []);
 
@@ -561,5 +593,6 @@ export function usePowerAnalysis(): UsePowerAnalysisReturn {
         calculateNPViaDB,
         analyzeActivityPowerDistributionViaDB,
         checkStreamsAvailability,
+        updateFTPHistory,
     };
 }

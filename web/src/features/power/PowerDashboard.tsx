@@ -19,6 +19,7 @@ import { PowerZoneChart } from './components/PowerZoneChart';
 import { HRZoneChart } from './components/HRZoneChart';
 import { StravaZoneChart } from './components/StravaZoneChart';
 import { ActivityCharts } from './components/ActivityCharts';
+import { FTPUpdateModal } from './components/FTPUpdateModal';
 import { formatDuration } from '../../utils/formatters';
 
 const PowerDashboard: React.FC = () => {
@@ -46,7 +47,9 @@ const PowerDashboard: React.FC = () => {
         pendingIds: []
     });
 
-    const { getActivityStreams, analyzeActivityPower, checkStreamsAvailability } = usePowerAnalysis();
+    const [isFtpModalOpen, setIsFtpModalOpen] = useState(false);
+
+    const { getActivityStreams, analyzeActivityPower, checkStreamsAvailability, updateFTPHistory } = usePowerAnalysis();
 
     // 1. 取得最近活動列表 & 選手基本數據
     useEffect(() => {
@@ -474,6 +477,29 @@ const PowerDashboard: React.FC = () => {
         }
     };
 
+    // 更新歷史 FTP (Batch Update)
+    const handleFtpUpdateSubmit = async (newFtp: number, effectiveDate: string) => {
+        if (!athlete?.id) return false;
+        const success = await updateFTPHistory(athlete.id, newFtp, effectiveDate);
+        if (success) {
+            setCurrentFTP(newFtp);
+
+            // Re-analyze currently selected activity
+            if (selectedActivity && availableStreams.has(selectedActivity.id)) {
+                try {
+                    const streams = await getActivityStreams(selectedActivity.id);
+                    if (streams) {
+                        const analysis = analyzeActivityPower(selectedActivity, streams, newFtp, activityAnalysis?.max_heartrate || currentMaxHR);
+                        setActivityAnalysis(analysis);
+                    }
+                } catch (e) {
+                    console.error('重新分析活動失敗:', e);
+                }
+            }
+        }
+        return success;
+    };
+
     if (!athlete) return <div className="p-4 text-slate-400">請先登入 Strava</div>;
 
     return (
@@ -504,11 +530,19 @@ const PowerDashboard: React.FC = () => {
                                     進階分析
                                 </Link>
                             </h2>
-                            <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-                                目前設定 FTP: <span className="text-white font-mono font-bold">{currentFTP > 0 ? `${currentFTP}W` : '未設定'}</span>
+                            <div className="text-xs sm:text-sm text-slate-400 mt-1 flex items-center flex-wrap gap-y-1">
+                                目前設定 FTP:
+                                <button
+                                    onClick={() => setIsFtpModalOpen(true)}
+                                    className="inline-flex items-center gap-1 mx-1.5 px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-white font-mono font-bold transition-all border border-slate-600 hover:border-yellow-500/50"
+                                    title="修改 FTP"
+                                >
+                                    {currentFTP > 0 ? `${currentFTP}W` : '未設定'}
+                                    <Zap className="w-3 h-3 text-yellow-500" />
+                                </button>
                                 <span className="mx-1.5">·</span>
-                                本週 TSS: <span className="text-white font-mono font-bold">{Math.round(weeklyTSS)}</span>
-                            </p>
+                                本週 TSS: <span className="text-white font-mono font-bold ml-1">{Math.round(weeklyTSS)}</span>
+                            </div>
                         </div>
                     </div>
 
@@ -850,6 +884,13 @@ const PowerDashboard: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            <FTPUpdateModal
+                isOpen={isFtpModalOpen}
+                onClose={() => setIsFtpModalOpen(false)}
+                currentFtp={currentFTP}
+                onUpdate={handleFtpUpdateSubmit}
+            />
         </div>
     );
 };

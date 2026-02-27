@@ -3,10 +3,12 @@
 -- 用於整批更新特定選手在特定日期之後的所有活動的 FTP，以自動重新計算 PMC
 -- ============================================
 
+-- 清除舊版本的函數簽名（TIMESTAMP WITH TIME ZONE 版本），避免 PostgREST 函數重載衝突 (PGRST203)
+DROP FUNCTION IF EXISTS update_athlete_ftp_history(BIGINT, INTEGER, TIMESTAMP WITH TIME ZONE);
 CREATE OR REPLACE FUNCTION update_athlete_ftp_history(
     p_athlete_id BIGINT,
     p_new_ftp INTEGER,
-    p_effective_date TIMESTAMP WITH TIME ZONE
+    p_effective_date TEXT
 )
 RETURNS JSONB AS $$
 DECLARE
@@ -26,7 +28,7 @@ BEGIN
         WHERE ss.activity_id = sa.id
           AND sa.athlete_id = p_athlete_id
           AND sa.start_date >= p_effective_date
-        RETURNING ss.id
+        RETURNING ss.activity_id
     )
     SELECT COUNT(*) INTO v_updated_count FROM updated;
     
@@ -47,5 +49,5 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 權限設定
-GRANT EXECUTE ON FUNCTION update_athlete_ftp_history(BIGINT, INTEGER, TIMESTAMP WITH TIME ZONE) TO authenticated;
-GRANT EXECUTE ON FUNCTION update_athlete_ftp_history(BIGINT, INTEGER, TIMESTAMP WITH TIME ZONE) TO service_role;
+GRANT EXECUTE ON FUNCTION update_athlete_ftp_history(BIGINT, INTEGER, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION update_athlete_ftp_history(BIGINT, INTEGER, TEXT) TO service_role;

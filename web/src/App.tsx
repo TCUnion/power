@@ -53,7 +53,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           <div className="container mx-auto flex items-center justify-center gap-2">
             <Zap className="w-4 h-4 animate-pulse" />
             <span className="text-sm font-black italic tracking-wider">
-              系統公告：後端 API 伺服器連線異常，正在緊急維修中單代... 部分功能可能暫時無法使用。
+              系統公告：後端 API 伺服器連線異常，正在緊急維修中，敬請見諒... 部分功能可能暫時無法使用。
             </span>
           </div>
         </div>
@@ -114,23 +114,19 @@ const HomePage: React.FC = () => {
   return (
     <div className={`mx-auto space-y-8 ${isBound ? 'max-w-7xl' : 'max-w-4xl'}`}>
       <div className="grid gap-8">
-        {/* TCU 綁定卡片 - 僅在未綁定時顯示，且改為次要提示 */}
+        {/* TCU 綁定卡片 - 未綁定時顯示提示訊息 */}
         {!isBound && (
-          <div className="md:col-span-1">
-            <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-2xl">
-              <p className="text-sm font-bold text-blue-700 dark:text-blue-300 flex items-center gap-2">
-                <Activity className="w-4 h-4" /> 綁定 TCU 會員以解鎖更完整的個人數據與車隊排名！
-              </p>
-            </div>
-            <MemberBindingCard onBindingSuccess={() => { }} />
+          <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-2xl">
+            <p className="text-sm font-bold text-blue-700 dark:text-blue-300 flex items-center gap-2">
+              <Activity className="w-4 h-4" /> 綁定 TCU 會員以解鎖更完整的個人數據與車隊排名！
+            </p>
           </div>
         )}
 
-        {isBound && (
-          <div className="md:col-span-1">
-            <MemberBindingCard onBindingSuccess={() => { }} />
-          </div>
-        )}
+        {/* 會員綁定卡片 - 統一渲染 */}
+        <div className="md:col-span-1">
+          <MemberBindingCard onBindingSuccess={() => { }} />
+        </div>
 
         {/* 功率分析頁面進入按鈕 - 現在對所有登入使用者開放 */}
         <div className="flex flex-col md:flex-row justify-center gap-4">

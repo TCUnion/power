@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Save, Calendar, Zap } from 'lucide-react';
 
 interface FTPUpdateModalProps {
@@ -23,6 +23,15 @@ export const FTPUpdateModal: React.FC<FTPUpdateModalProps> = ({
     });
     const [isUpdating, setIsUpdating] = useState(false);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+    // NOTE: 每次開啟 Modal 或 currentFtp 變更時，同步更新內部狀態
+    // 解決 useState 只在首次掛載時初始化的問題
+    useEffect(() => {
+        if (isOpen && currentFtp > 0) {
+            setNewFtp(currentFtp);
+            setErrorMsg(null);
+        }
+    }, [isOpen, currentFtp]);
 
     if (!isOpen) return null;
 

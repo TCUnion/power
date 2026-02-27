@@ -64,7 +64,7 @@ const PowerDashboard: React.FC = () => {
 
                 const { data: activities, error, count } = await supabase
                     .from('strava_activities')
-                    .select('id, athlete_id, name, distance, moving_time, elapsed_time, total_elevation_gain, type, sport_type, start_date, average_watts, max_watts, average_heartrate, max_heartrate', { count: 'exact' })
+                    .select('id, athlete_id, name, distance, moving_time, elapsed_time, total_elevation_gain, type, sport_type, start_date, average_watts, weighted_average_watts, max_watts, average_heartrate, max_heartrate', { count: 'exact' })
                     .eq('athlete_id', athlete.id)
                     .order('start_date', { ascending: false })
                     .range(from, to);
@@ -81,20 +81,33 @@ const PowerDashboard: React.FC = () => {
                     const availableIds = await checkStreamsAvailability(ids);
                     setAvailableStreams(new Set(availableIds));
 
-                    // 嘗試從最近的 Streams 中找出 FTP (若有)
+                    // 從該選手最新活動的 stream 中讀取 FTP
+                    // NOTE: Supabase JS client 的 .in() 不支援巢狀 subquery，
+                    // 因此先查活動 ID 再查 streams（兩步查詢）
                     try {
-                        const { data: latestStream, error: streamErr } = await supabase
-                            .from('strava_streams')
-                            .select('ftp')
-                            .in('activity_id', availableIds)
-                            .gt('ftp', 0)
-                            .order('activity_id', { ascending: false })
-                            .limit(1)
-                            .maybeSingle();
+                        const { data: recentActivities } = await supabase
+                            .from('strava_activities')
+                            .select('id')
+                            .eq('athlete_id', athlete.id)
+                            .order('start_date', { ascending: false })
+                            .limit(42);
 
-                        if (streamErr) throw streamErr;
-                        if (latestStream) {
-                            setCurrentFTP(latestStream.ftp || 0);
+                        const recentIds = recentActivities?.map(a => a.id) || [];
+
+                        if (recentIds.length > 0) {
+                            const { data: latestFtpStream, error: streamErr } = await supabase
+                                .from('strava_streams')
+                                .select('ftp')
+                                .in('activity_id', recentIds)
+                                .gt('ftp', 0)
+                                .order('activity_id', { ascending: false })
+                                .limit(1)
+                                .maybeSingle();
+
+                            if (streamErr) throw streamErr;
+                            if (latestFtpStream) {
+                                setCurrentFTP(latestFtpStream.ftp || 0);
+                            }
                         }
                     } catch (sErr) {
                         console.warn('[PowerDashboard] 取得最近數據流 FTP 失敗:', sErr);
@@ -120,7 +133,7 @@ const PowerDashboard: React.FC = () => {
 
             const { data, error: chartError } = await supabase
                 .from('strava_activities')
-                .select('id, athlete_id, name, distance, moving_time, elapsed_time, total_elevation_gain, type, sport_type, start_date, average_watts, max_watts, average_heartrate, max_heartrate')
+                .select('id, athlete_id, name, distance, moving_time, elapsed_time, total_elevation_gain, type, sport_type, start_date, average_watts, weighted_average_watts, max_watts, average_heartrate, max_heartrate')
                 .eq('athlete_id', athlete.id)
                 .gte('start_date', sixMonthsAgo.toISOString())
                 .order('start_date', { ascending: true });
@@ -866,7 +879,7 @@ const PowerDashboard: React.FC = () => {
                                         className="p-1 rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                     >
                                         {/* Simple text for pagination if icons missing */}
-                                        Prev
+                                        上一頁
                                     </button>
                                     <span className="text-sm text-slate-400 font-mono">
                                         {currentPage} / {Math.ceil(totalCount / itemsPerPage) || 1}
@@ -876,7 +889,7 @@ const PowerDashboard: React.FC = () => {
                                         disabled={currentPage >= Math.ceil(totalCount / itemsPerPage)}
                                         className="p-1 rounded hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                     >
-                                        Next
+                                        下一頁
                                     </button>
                                 </div>
                             </div>

@@ -135,7 +135,12 @@ export function usePowerAnalysis(): UsePowerAnalysisReturn {
         }
     }, []);
 
-    /** 更新歷史活動的 FTP 數值 */
+    /**
+     * 更新歷史活動的 FTP 數值
+     *
+     * NOTE: 使用 RPC 呼叫以繞過 RLS 的限制（SECURITY DEFINER）
+     * 已經修正了 SQL 的 Timestamp 型別比較錯誤。
+     */
     const updateFTPHistory = useCallback(async (
         athleteId: number,
         newFtp: number,
@@ -144,17 +149,44 @@ export function usePowerAnalysis(): UsePowerAnalysisReturn {
         setLoading(true);
         setError(null);
         try {
-            const { error } = await supabase.rpc('update_athlete_ftp_history', {
-                p_athlete_id: athleteId,
-                p_new_ftp: newFtp,
-                p_effective_date: effectiveDate,
-            });
-
-            if (error) {
-                console.error('更新 FTP 歷史失敗:', error);
-                setError(error.message);
+            if (newFtp <= 0) {
+                setError('FTP 必須大於 0');
                 return false;
             }
+
+            const dateObj = new Date(effectiveDate);
+            const formattedDate = dateObj.toISOString();
+
+            // 呼叫 PostgreSQL function
+            // 透過 SECURITY DEFINER 繞過前端 RLS 無法更新的限制
+            const { data, error: rpcError } = await supabase.rpc(
+                'update_athlete_ftp_history',
+                {
+                    p_athlete_id: athleteId,
+                    p_new_ftp: newFtp,
+                    p_effective_date: formattedDate
+                }
+            );
+
+            if (rpcError) {
+                console.error('呼叫 update_athlete_ftp_history 失敗:', rpcError);
+                // 擴充對 PostgREST error codes 的理解，幫助除錯
+                if (rpcError.code === 'PGRST202') {
+                    setError('找不到函數或參數不符，請確認 Supabase 資料庫是否已更新此 SQL 函數 (v2)');
+                } else {
+                    setError(`資料庫錯誤: ${rpcError.message}`);
+                }
+                return false;
+            }
+
+            // data 可能會是 { success: true, updated_count: 10, ... }
+            if (data && data.success === false) {
+                console.error('SQL 函數執行錯誤:', data.error);
+                setError(data.error);
+                return false;
+            }
+
+            console.log(`FTP 歷史更新成功：已更新 ${data?.updated_count || 0} 筆活動。回應:`, data);
             return true;
         } catch (err: any) {
             console.error('updateFTPHistory 異常:', err);

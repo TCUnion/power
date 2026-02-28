@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAdminAuth as useAuth } from '../../contexts/AdminAuthContext';
 import { toast } from 'sonner';
+import LineChatReport from './LineChatReport';
+import LineMemberBindings from './LineMemberBindings';
 
 
 interface AdPlacement {
@@ -24,7 +26,7 @@ interface AdPlacement {
 export default function AdminDashboard() {
     const { user, signOut } = useAuth();
     const [ads, setAds] = useState<AdPlacement[]>([]);
-    const [activeTab, setActiveTab] = useState<'ads' | 'settings'>('ads');
+    const [activeTab, setActiveTab] = useState<'ads' | 'settings' | 'line-report' | 'line-bindings'>('ads');
     const [settings, setSettings] = useState<{ key: string, value: string, description: string }[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -251,9 +253,25 @@ export default function AdminDashboard() {
                     >
                         系統設定
                     </button>
+                    <button
+                        onClick={() => setActiveTab('line-report')}
+                        className={`py-2 px-4 font-medium text-sm focus:outline-none ${activeTab === 'line-report' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        💬 LINE 報表
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('line-bindings')}
+                        className={`py-2 px-4 font-medium text-sm focus:outline-none ${activeTab === 'line-bindings' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        🔗 LINE 綁定
+                    </button>
                 </div>
 
-                {activeTab === 'settings' ? (
+                {activeTab === 'line-bindings' ? (
+                    <LineMemberBindings />
+                ) : activeTab === 'line-report' ? (
+                    <LineChatReport />
+                ) : activeTab === 'settings' ? (
                     <div className="bg-white rounded-lg shadow p-6">
                         <h2 className="text-xl font-semibold mb-4">AI 教練配額設定</h2>
                         {loading ? <p>載入中...</p> : (

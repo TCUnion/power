@@ -1,13 +1,22 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAdminAuth as useAuth } from '../../contexts/AdminAuthContext';
 import { toast } from 'sonner';
 
 export default function AdminLogin() {
+    const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [rememberMe, setRememberMe] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const { signIn } = useAuth();
+    const { user, signIn } = useAuth();
+
+    // 載入時檢查是否已登入
+    useEffect(() => {
+        if (user && user.email === 'service@tsu.com.tw') {
+            navigate('/admin.html', { replace: true });
+        }
+    }, [user, navigate]);
 
     // 載入時檢查是否有儲存的帳號
     useEffect(() => {
@@ -44,7 +53,7 @@ export default function AdminLogin() {
                 }
 
                 toast.success('登入成功');
-                window.location.href = '/admin.html'; // Force redirect to dashboard
+                navigate('/admin.html', { replace: true });
             }
         } catch (err: any) {
             toast.error('發生錯誤: ' + err.message);

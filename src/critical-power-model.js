@@ -16,8 +16,9 @@ const ATL_TIME_CONSTANT = 7;   // 急性訓練負荷時間常數
 const NP_WINDOW_SIZE = 30;     // NP 計算窗口大小
 
 // 安全性常數定義 (防禦性編程)
-const MAX_DATA_POINTS = 86400; // 單一活動最大數據點數量限制 (24小時 at 1Hz)
-const MAX_ACTIVITIES = 1000;   // 最大活動分析數量限制
+const MAX_DATA_POINTS = 36000; // 單一活動最大數據點數量限制 (10小時 at 1Hz)
+const MAX_ACTIVITIES = 100;    // 最大活動分析數量限制
+const MAX_TOTAL_DATA_POINTS = 500000; // 批次處理時總合的最大數據點數量限制
 const MAX_CURVE_POINTS = 200;  // 功率曲線最大點數量限制
 
 // MMP 採樣時間點 (用於 Power-Duration Curve)
@@ -239,9 +240,16 @@ function extractFTPPredictionFeatures(activities, currentFTP = 200, maxHR = 185)
     let ctl = 0, atl = 0;
     const dailyTSS = {};
 
+    let currentTotalPoints = 0;
+
     for (const activity of activities) {
         const powerData = extractPowerData(activity.streams || []);
         const hrData = extractHRData(activity.streams || []);
+
+        currentTotalPoints += powerData.length;
+        if (currentTotalPoints > MAX_TOTAL_DATA_POINTS) {
+            throw new Error(`Total data points exceed maximum limit of ${MAX_TOTAL_DATA_POINTS}. Risk of resource exhaustion.`);
+        }
 
         if (powerData.length < 60) continue;
         totalActivities++;

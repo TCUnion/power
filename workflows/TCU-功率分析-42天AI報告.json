@@ -5,6 +5,7 @@
             "parameters": {
                 "httpMethod": "POST",
                 "path": "power-analysis",
+                "authentication": "headerAuth",
                 "options": {}
             },
             "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
@@ -15,7 +16,13 @@
                 240,
                 300
             ],
-            "webhookId": "power-analysis-42day"
+            "webhookId": "power-analysis-42day",
+            "credentials": {
+                "httpHeaderAuth": {
+                    "id": "YOUR_HEADER_AUTH_CREDENTIAL_ID",
+                    "name": "Header Auth"
+                }
+            }
         },
         {
             "parameters": {
@@ -108,7 +115,145 @@
         },
         {
             "parameters": {
-                "jsCode": "const input = $input.first().json;\nconst data = $('計算功率指標 (CP模型)').first().json;\n\nlet ai = {};\ntry {\n  if (input.choices?.[0]?.message?.content) ai = JSON.parse(input.choices[0].message.content);\n} catch { ai = { overallAssessment: '無法解析 AI 回應' }; }\n\nfunction getTSBStatus(tsb) {\n  if (tsb > 25) return '💚 恢復充足';\n  if (tsb > 5) return '💙 狀態良好';\n  if (tsb > -10) return '🟡 適度疲勞';\n  if (tsb > -30) return '🟠 疲勞累積';\n  return '🔴 過度訓練';\n}\n\nconst { athlete, summary, cpModel, ftpPrediction, mmpCurve } = data;\nconst tsbStatus = getTSBStatus(summary.tsb);\n\nlet msg = `🚴 ${athlete.name} 的 42 天訓練報告\\n━━━━━━━━━━━━━━━━\\n\\n`;\nmsg += `📊 訓練概覽\\n• 總騎乘: ${summary.totalActivities} 次\\n• 總時數: ${summary.totalHours} 小時\\n• 總 TSS: ${summary.totalTSS}\\n\\n`;\nmsg += `💪 訓練狀態\\n• CTL: ${summary.ctl} | ATL: ${summary.atl}\\n• TSB: ${summary.tsb} ${tsbStatus}\\n\\n`;\nmsg += `🔬 CP 模型分析\\n• Critical Power: ${cpModel.cp}W\\n• W': ${cpModel.wPrimeKJ} kJ\\n• P_max: ${cpModel.pMax}W\\n• R²: ${cpModel.r2}\\n\\n`;\nmsg += `📈 FTP 預測\\n• 當前設定: ${ftpPrediction.currentFTP}W\\n• 預測值: ${ftpPrediction.predictedFTP}W\\n• ${ftpPrediction.recommendation}\\n\\n`;\nmsg += `🏆 MMP 關鍵點\\n• 5s: ${mmpCurve['5s']}W | 1min: ${mmpCurve['1min']}W\\n• 5min: ${mmpCurve['5min']}W | 20min: ${mmpCurve['20min']}W\\n\\n`;\nmsg += `🤖 AI 分析\\n${ai.overallAssessment || ''}\\n\\n`;\n\nif (ai.recommendations?.length > 0) {\n  msg += `📝 建議:\\n`;\n  ai.recommendations.slice(0, 3).forEach((r, i) => { msg += `${i + 1}. ${r.content}\\n`; });\n}\n\nreturn [{ json: { lineMessage: msg, emailSubject: `🚴 ${athlete.name} - 42天報告 (CP:${cpModel.cp}W TSB:${summary.tsb})`, notificationType: data.notificationType, data, ai } }];"
+                // === 主邏輯 ===
+const items = $input.all();
+if (!items || items.length === 0) return [
+                    { json: { error: 'No input items provided'
+                        }
+                    }
+                ];
+// 最多處理 100 筆 Activity 以避免資源耗盡
+if (items.length > 100) return [
+                    { json: { error: 'Too many activities mapping to this workflow (> 100). Please reduce the scope.'
+                        }
+                    }
+                ];
+
+const first = items[
+                    0
+                ]?.json || {};
+const ftp = first.athlete_ftp || 200;
+const maxHR = first.athlete_max_hr || 185;
+const MAX_TOTAL_DATA_POINTS = 500000;
+
+const activities = [], dailyTSS = {}, allMMP = {};
+let ctl = 0, atl = 0, totalDuration = 0, totalDistance = 0, totalElevation = 0;
+let totalPoints = 0;
+
+for (const item of items) {
+  const json = item.json;
+  const powerData = extractPowerData(json.streams);
+  
+  if (powerData.length === 0) continue;
+  
+  totalPoints += powerData.length;
+  if (totalPoints > MAX_TOTAL_DATA_POINTS) {
+      throw new Error(`Total data points exceed maximum limit of ${MAX_TOTAL_DATA_POINTS
+                        }. Risk of resource exhaustion.`);
+                    }
+
+  const np = calculateNP(powerData);
+  const duration = json.moving_time || powerData.length;
+  const tss = calculateTSS(np, ftp, duration);
+  const dateKey = new Date(json.start_date || json.created_at).toISOString().split('T')[
+                        0
+                    ];
+
+  dailyTSS[dateKey
+                    ] = (dailyTSS[dateKey
+                    ] || 0) + tss;
+  totalDuration += duration;
+  totalDistance += json.distance || 0;
+  totalElevation += json.total_elevation_gain || 0;
+
+  // MMP
+  const mmp = calculateFullMMP(powerData);
+  for (const [d, p
+                    ] of Object.entries(mmp)) {
+    if (!allMMP[d
+                        ] || p > allMMP[d
+                        ]) allMMP[d
+                        ] = p;
+                    }
+
+  activities.push({ id: json.activity_id, date: dateKey, np, tss, avgPower: Math.round(powerData.reduce((a, b) => a + b,
+                        0) / powerData.length)
+                    });
+                }
+                // 計算 CTL/ATL
+const sortedDates = Object.keys(dailyTSS).sort();
+for (const date of sortedDates) {
+  ctl = calcExpCTL(ctl, dailyTSS[date
+                    ]);
+  atl = calcExpATL(atl, dailyTSS[date
+                    ]);
+                }
+const tsb = Math.round(ctl - atl);
+
+// CP 模型
+const pdCurve = Object.entries(allMMP).map(([d, p
+                ]) => ({ duration: parseInt(d), power: p
+                }));
+const cpModel = fitMorton3P(pdCurve);
+
+// FTP 預測
+const ftpEstimates = {};
+if (allMMP[
+                    1200
+                ]) ftpEstimates.from20min = Math.round(allMMP[
+                    1200
+                ] * 0.95);
+if (allMMP[
+                    3600
+                ]) ftpEstimates.from60min = allMMP[
+                    3600
+                ];
+if (cpModel.cp > 0) ftpEstimates.fromCP = cpModel.cp;
+const estimates = Object.values(ftpEstimates);
+const predictedFTP = estimates.length > 0 ? Math.round(estimates.reduce((a, b) => a + b,
+                0) / estimates.length) : ftp;
+
+return [
+                    {
+  json: {
+    athlete: { name: `${first.firstname || ''
+                                } ${first.lastname || ''
+                                }`.trim() || '選手', ftp, maxHR
+                            },
+    period: { startDate: new Date(Date.now() - 42 * 86400000).toISOString().split('T')[
+                                    0
+                                ], endDate: new Date().toISOString().split('T')[
+                                    0
+                                ], totalDays: 42
+                            },
+    summary: { totalActivities: activities.length, totalTSS: Math.round(Object.values(dailyTSS).reduce((a, b) => a + b,
+                                0)), ctl: Math.round(ctl), atl: Math.round(atl), tsb, totalHours: Math.round(totalDuration / 360) / 10, totalDistance: Math.round(totalDistance / 1000), totalElevation: Math.round(totalElevation)
+                            },
+    cpModel,
+    ftpPrediction: { currentFTP: ftp, predictedFTP, estimates: ftpEstimates, confidence: cpModel.r2 > 0.95 ? 'high' : cpModel.r2 > 0.85 ? 'medium' : 'low', recommendation: predictedFTP > ftp * 1.05 ? `建議更新 FTP 至 ${predictedFTP
+                                }W (+${Math.round((predictedFTP / ftp - 1) * 100)
+                                }%)` : predictedFTP < ftp * 0.95 ? 'FTP 可能下降，建議重新測試' : '當前 FTP 設定合理'
+                            },
+    mmpCurve: { '5s': allMMP[
+                                    5
+                                ] || 0, '30s': allMMP[
+                                    30
+                                ] || 0, '1min': allMMP[
+                                    60
+                                ] || 0, '5min': allMMP[
+                                    300
+                                ] || 0, '20min': allMMP[
+                                    1200
+                                ] || 0, '60min': allMMP[
+                                    3600
+                                ] || 0
+                            },
+    highlights: activities.sort((a, b) => b.tss - a.tss).slice(0,
+                            3),
+    notificationType: $('Webhook 觸發').item?.json?.notification_type || 'line',
+                        }
+                    }
+                ];"
             },
             "id": "f6a7b8c9-d0e1-2345-f012-456789012345",
             "name": "格式化通知",

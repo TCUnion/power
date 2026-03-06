@@ -5,6 +5,7 @@ import { Toaster } from 'sonner';
 import { AdminAuthProvider as AuthProvider, useAdminAuth as useAuth } from './contexts/AdminAuthContext';
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminDashboard from './pages/admin/AdminDashboard';
+import GoogleAnalyticsTracker from './components/GoogleAnalyticsTracker';
 import './index.css';
 
 // 權限保護路由
@@ -42,6 +43,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
         <AuthProvider>
             <BrowserRouter>
+                <GoogleAnalyticsTracker />
                 <Routes>
                     <Route path="/admin.html/login" element={<AdminLogin />} />
                     <Route

@@ -10,7 +10,12 @@ const GoogleAnalyticsTracker = () => {
         // Check if GA is already initialized to prevent multiple initializations
         // or rely on ReactGA's internal handling, but explicit check is safer for multiple mounts
         if (!window.GA_INITIALIZED) {
-            ReactGA.initialize("G-H42C1SLBNM");
+            const measurementId = import.meta.env.VITE_GA_MEASUREMENT_ID;
+            if (measurementId) {
+                ReactGA.initialize(measurementId);
+            } else {
+                console.warn('Google Analytics Measurement ID is not defined.');
+            }
             window.GA_INITIALIZED = true;
             setInitialized(true);
         } else {

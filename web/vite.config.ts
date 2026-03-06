@@ -3,6 +3,7 @@ import path from 'path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import Sitemap from 'vite-plugin-sitemap';
 
 import { execSync } from 'child_process';
 
@@ -23,6 +24,22 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    Sitemap({
+      hostname: 'https://power.criterium.tw',
+      dynamicRoutes: [
+        '/',
+        '/power',
+        '/analysis',
+        '/goldencheetah',
+        '/ai-coach',
+        '/compare'
+      ],
+      generateRobotsTxt: true,
+      robots: [{
+        userAgent: '*',
+        allow: '/'
+      }]
+    }),
   ],
   define: {
     'import.meta.env.VITE_GIT_HASH': JSON.stringify(getGitHash())
